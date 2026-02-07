@@ -4,16 +4,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Suivi Flotte Camions</title>
-    <meta name="description" content="Application de suivi journalier des camions - Gestion de flotte">
+    <title>FleetTrack - Firebase</title>
+    <meta name="description" content="Application de suivi journalier des camions avec Firebase">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* Loader styles */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loader-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(139, 92, 246, 0.2);
+            border-top-color: #8b5cf6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loader-text {
+            margin-top: 20px;
+            color: #94a3b8;
+            font-size: 1rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .firebase-badge {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(139, 92, 246, 0.2);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: #8b5cf6;
+            z-index: 100;
+        }
+    </style>
 </head>
 
 <body>
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="loader-spinner"></div>
+        <div class="loader-text">🔥 Connexion à Firebase...</div>
+    </div>
+
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -87,7 +142,7 @@
                     <div class="kpi-icon">⛽</div>
                     <div class="kpi-content">
                         <span class="kpi-label">Consommation Gasoil</span>
-                        <span class="kpi-value" id="kpi-fuel">0 L</span>
+                        <span class="kpi-value" id="kpi-gasoil">0 L</span>
                         <span class="kpi-trend" id="kpi-fuel-cost">0 TND</span>
                     </div>
                 </div>
@@ -103,7 +158,7 @@
                     <div class="kpi-icon">📉</div>
                     <div class="kpi-content">
                         <span class="kpi-label">Coût par Km</span>
-                        <span class="kpi-value" id="kpi-cost-km">0 TND/km</span>
+                        <span class="kpi-value" id="kpi-costkm">0 TND/km</span>
                         <span class="kpi-trend" id="kpi-efficiency">--</span>
                     </div>
                 </div>
@@ -129,7 +184,7 @@
                 </div>
             </div>
 
-            <!-- Performance Table -->
+            <!-- Performance Chart -->
             <div class="chart-card full-width">
                 <div class="chart-header">
                     <h3>Performance par Camion</h3>
@@ -152,18 +207,12 @@
                                 <th>Chauffeur</th>
                                 <th>Destination</th>
                                 <th>Km</th>
-                                <th>Gasoil (L)</th>
-                                <th>Coût Total</th>
+                                <th>Gasoil</th>
                                 <th>Livraison</th>
                                 <th>Résultat</th>
                             </tr>
                         </thead>
-                        <tbody id="dailySummaryBody">
-                            <!-- Dynamic content -->
-                        </tbody>
-                        <tfoot id="dailySummaryFoot">
-                            <!-- Totals -->
-                        </tfoot>
+                        <tbody id="dailySummaryBody"></tbody>
                     </table>
                 </div>
             </div>
@@ -208,9 +257,7 @@
                     <span>+</span> Ajouter Camion
                 </button>
             </div>
-            <div class="cards-grid" id="trucksGrid">
-                <!-- Dynamic truck cards -->
-            </div>
+            <div class="cards-grid" id="trucksGrid"></div>
         </section>
 
         <!-- Drivers Page -->
@@ -221,9 +268,7 @@
                     <span>+</span> Ajouter Chauffeur
                 </button>
             </div>
-            <div class="cards-grid" id="driversGrid">
-                <!-- Dynamic driver cards -->
-            </div>
+            <div class="cards-grid" id="driversGrid"></div>
         </section>
 
         <!-- Reports Page -->
@@ -231,10 +276,7 @@
             <div class="page-header">
                 <h2>Rapports Mensuels</h2>
                 <div class="filter-group">
-                    <select id="reportMonth">
-                        <option value="02">Février 2026</option>
-                        <option value="01">Janvier 2026</option>
-                    </select>
+                    <select id="reportMonth"></select>
                 </div>
             </div>
             <div class="data-card">
@@ -265,6 +307,11 @@
             </div>
             <div class="settings-grid">
                 <div class="settings-card">
+                    <h3>🔥 Firebase Cloud</h3>
+                    <p style="color: #10b981; margin-bottom: 10px;">✅ Connecté</p>
+                    <p style="color: #64748b; font-size: 0.875rem;">Les données sont synchronisées en temps réel</p>
+                </div>
+                <div class="settings-card">
                     <h3>Prix Gasoil par Défaut</h3>
                     <div class="input-group">
                         <input type="number" id="defaultFuelPrice" value="2" step="0.1">
@@ -294,9 +341,7 @@
                 <h3 id="modalTitle">Titre</h3>
                 <button class="modal-close" id="modalClose">×</button>
             </div>
-            <div class="modal-body" id="modalBody">
-                <!-- Dynamic form content -->
-            </div>
+            <div class="modal-body" id="modalBody"></div>
             <div class="modal-footer">
                 <button class="btn btn-outline" id="modalCancel">Annuler</button>
                 <button class="btn btn-primary" id="modalSave">Enregistrer</button>
@@ -304,15 +349,12 @@
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Firebase Badge -->
+    <div class="firebase-badge">🔥 Firebase</div>
+
+    <!-- Scripts - ES Modules -->
     <script src="js/locations.js"></script>
-    <script src="js/data.js"></script>
-    <script src="js/dashboard.js"></script>
-    <script src="js/trucks.js"></script>
-    <script src="js/drivers.js"></script>
-    <script src="js/entries.js"></script>
-    <script src="js/reports.js"></script>
-    <script src="js/app.js"></script>
+    <script type="module" src="js/app-firebase.js"></script>
 </body>
 
 </html>

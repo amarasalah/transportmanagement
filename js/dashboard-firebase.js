@@ -1,0 +1,296 @@
+/**
+ * DASHBOARD MODULE
+ * Handles KPI updates and Chart.js visualizations
+ * Updated for async Firebase operations
+ */
+
+import { DataModule } from './data-firebase.js';
+
+let trendChart = null;
+let costsChart = null;
+let performanceChart = null;
+
+function init() {
+    initCharts();
+}
+
+async function refresh(selectedDate) {
+    await updateKPIs(selectedDate);
+    await updateTrendChart(selectedDate);
+    await updateCostsChart(selectedDate);
+    await updatePerformanceChart(selectedDate);
+    await updateDailySummary(selectedDate);
+}
+
+async function updateKPIs(selectedDate) {
+    const entries = DataModule.getEntriesByDate(selectedDate);
+    const trucks = await DataModule.getTrucks();
+
+    let totalKm = 0;
+    let totalGasoil = 0;
+    let totalCost = 0;
+    let totalRevenue = 0;
+
+    entries.forEach(entry => {
+        const truck = DataModule.getTruckById(entry.camionId);
+        const costs = DataModule.calculateEntryCosts(entry, truck);
+
+        totalKm += entry.kilometrage || 0;
+        totalGasoil += entry.quantiteGasoil || 0;
+        totalCost += costs.coutTotal;
+        totalRevenue += entry.prixLivraison || 0;
+    });
+
+    const result = totalRevenue - totalCost;
+    const costPerKm = totalKm > 0 ? totalCost / totalKm : 0;
+
+    // Update KPI cards
+    const kpiResult = document.getElementById('kpi-result');
+    const kpiGasoil = document.getElementById('kpi-gasoil');
+    const kpiKm = document.getElementById('kpi-km');
+    const kpiCostKm = document.getElementById('kpi-costkm');
+
+    if (kpiResult) {
+        kpiResult.textContent = `${result.toLocaleString('fr-FR')} TND`;
+        kpiResult.classList.toggle('result-positive', result >= 0);
+        kpiResult.classList.toggle('result-negative', result < 0);
+    }
+    if (kpiGasoil) kpiGasoil.textContent = `${totalGasoil.toLocaleString('fr-FR')} L`;
+    if (kpiKm) kpiKm.textContent = `${totalKm.toLocaleString('fr-FR')} km`;
+    if (kpiCostKm) kpiCostKm.textContent = `${costPerKm.toFixed(2)} TND`;
+
+    // Update trend indicator
+    const indicator = document.getElementById('result-indicator');
+    if (indicator) {
+        indicator.textContent = result >= 0 ? '📈' : '📉';
+    }
+}
+
+function initCharts() {
+    const trendCtx = document.getElementById('trendChart')?.getContext('2d');
+    const costsCtx = document.getElementById('costsChart')?.getContext('2d');
+    const performanceCtx = document.getElementById('performanceChart')?.getContext('2d');
+
+    if (trendCtx) {
+        trendChart = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Résultat (TND)',
+                    data: [],
+                    borderColor: '#8b5cf6',
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#8b5cf6',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        ticks: { color: '#94a3b8' }
+                    }
+                }
+            }
+        });
+    }
+
+    if (costsCtx) {
+        costsChart = new Chart(costsCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Gasoil', 'Charges Fixes', 'Assurance', 'Taxe', 'Personnel', 'Maintenance'],
+                datasets: [{
+                    data: [0, 0, 0, 0, 0, 0],
+                    backgroundColor: [
+                        '#ef4444',
+                        '#f97316',
+                        '#eab308',
+                        '#22c55e',
+                        '#3b82f6',
+                        '#8b5cf6'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#94a3b8', padding: 15 }
+                    }
+                },
+                cutout: '60%'
+            }
+        });
+    }
+
+    if (performanceCtx) {
+        performanceChart = new Chart(performanceCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Résultat par Camion',
+                    data: [],
+                    backgroundColor: '#8b5cf6',
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        ticks: { color: '#94a3b8' }
+                    }
+                }
+            }
+        });
+    }
+}
+
+async function updateTrendChart(selectedDate) {
+    if (!trendChart) return;
+
+    const entries = await DataModule.getEntries();
+    const date = new Date(selectedDate);
+    const dates = [];
+    const results = [];
+
+    // Last 30 days
+    for (let i = 29; i >= 0; i--) {
+        const d = new Date(date);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        dates.push(d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+
+        const dayEntries = entries.filter(e => e.date === dateStr);
+        let dayResult = 0;
+        dayEntries.forEach(entry => {
+            const truck = DataModule.getTruckById(entry.camionId);
+            const costs = DataModule.calculateEntryCosts(entry, truck);
+            dayResult += costs.resultat;
+        });
+        results.push(dayResult);
+    }
+
+    trendChart.data.labels = dates;
+    trendChart.data.datasets[0].data = results;
+    trendChart.update();
+}
+
+async function updateCostsChart(selectedDate) {
+    if (!costsChart) return;
+
+    const entries = DataModule.getEntriesByDate(selectedDate);
+
+    let gasoil = 0, chargesFixes = 0, assurance = 0, taxe = 0, personnel = 0, maintenance = 0;
+
+    entries.forEach(entry => {
+        const truck = DataModule.getTruckById(entry.camionId);
+        if (!truck) return;
+
+        gasoil += (entry.quantiteGasoil || 0) * (entry.prixGasoilLitre || 2);
+        chargesFixes += truck.chargesFixes || 0;
+        assurance += truck.montantAssurance || 0;
+        taxe += truck.montantTaxe || 0;
+        personnel += truck.chargePersonnel || 0;
+        maintenance += entry.maintenance || 0;
+    });
+
+    costsChart.data.datasets[0].data = [gasoil, chargesFixes, assurance, taxe, personnel, maintenance];
+    costsChart.update();
+}
+
+async function updatePerformanceChart(selectedDate) {
+    if (!performanceChart) return;
+
+    const entries = DataModule.getEntriesByDate(selectedDate);
+    const trucks = await DataModule.getTrucks();
+
+    const truckResults = {};
+    trucks.forEach(t => { truckResults[t.id] = { matricule: t.matricule, result: 0 }; });
+
+    entries.forEach(entry => {
+        const truck = DataModule.getTruckById(entry.camionId);
+        if (!truck) return;
+
+        const costs = DataModule.calculateEntryCosts(entry, truck);
+        if (truckResults[truck.id]) {
+            truckResults[truck.id].result += costs.resultat;
+        }
+    });
+
+    const activeResults = Object.values(truckResults).filter(t => t.result !== 0);
+    activeResults.sort((a, b) => b.result - a.result);
+
+    performanceChart.data.labels = activeResults.map(t => t.matricule.split(' ')[0]);
+    performanceChart.data.datasets[0].data = activeResults.map(t => t.result);
+    performanceChart.data.datasets[0].backgroundColor = activeResults.map(t => t.result >= 0 ? '#10b981' : '#ef4444');
+    performanceChart.update();
+}
+
+async function updateDailySummary(selectedDate) {
+    const entries = DataModule.getEntriesByDate(selectedDate);
+    const tbody = document.getElementById('dailySummaryBody');
+    if (!tbody) return;
+
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;">Aucune donnée pour cette date</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = entries.map(entry => {
+        const truck = DataModule.getTruckById(entry.camionId);
+        const driver = DataModule.getDriverById(entry.chauffeurId);
+        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
+
+        let destination = entry.destination || '-';
+        if (entry.gouvernorat && entry.delegation) {
+            destination = `${entry.delegation}`;
+        }
+
+        return `<tr>
+            <td>${truck?.matricule || '-'}</td>
+            <td>${driver?.nom || '-'}</td>
+            <td>${destination}</td>
+            <td>${entry.kilometrage || 0}</td>
+            <td>${entry.quantiteGasoil || 0}L</td>
+            <td>${(entry.prixLivraison || 0).toLocaleString('fr-FR')}</td>
+            <td class="${resultClass}">${costs.resultat.toLocaleString('fr-FR')}</td>
+        </tr>`;
+    }).join('');
+}
+
+export const DashboardModule = {
+    init,
+    refresh
+};
+
+window.DashboardModule = DashboardModule;

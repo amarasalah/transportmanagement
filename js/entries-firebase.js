@@ -1,0 +1,306 @@
+/**
+ * ENTRIES MODULE
+ * Updated for async Firebase operations
+ * With Tunisia governorates and delegations dropdowns
+ */
+
+import { DataModule } from './data-firebase.js';
+
+function init() {
+    document.getElementById('addEntryBtn')?.addEventListener('click', () => openModal());
+}
+
+async function refresh(selectedDate) {
+    await renderEntries(selectedDate);
+}
+
+async function renderEntries(selectedDate) {
+    const entries = DataModule.getEntriesByDate(selectedDate);
+    const tbody = document.getElementById('entriesBody');
+    if (!tbody) return;
+
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#64748b;padding:40px;">Aucune saisie pour cette date. Cliquez sur "Nouvelle Saisie" pour commencer.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = entries.map(entry => {
+        const truck = DataModule.getTruckById(entry.camionId);
+        const driver = DataModule.getDriverById(entry.chauffeurId);
+        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
+
+        let destinationDisplay = entry.destination || '-';
+        if (entry.gouvernorat && entry.delegation) {
+            destinationDisplay = `${entry.delegation} (${entry.gouvernorat})`;
+        } else if (entry.gouvernorat) {
+            destinationDisplay = entry.gouvernorat;
+        }
+
+        return `<tr>
+            <td>${formatDate(entry.date)}</td>
+            <td>${truck?.matricule || '-'}</td>
+            <td>${driver?.nom || '-'}</td>
+            <td>${destinationDisplay}</td>
+            <td>${entry.kilometrage || 0}</td>
+            <td>${entry.quantiteGasoil || 0} L</td>
+            <td>${costs.coutTotal.toLocaleString('fr-FR')} TND</td>
+            <td>${entry.prixLivraison.toLocaleString('fr-FR')} TND</td>
+            <td class="${resultClass}">${costs.resultat.toLocaleString('fr-FR')} TND</td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick="EntriesModule.edit('${entry.id}')">✏️</button>
+                <button class="btn btn-sm btn-outline" onclick="EntriesModule.remove('${entry.id}')">🗑️</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+async function openModal(entryId = null) {
+    const entries = await DataModule.getEntries();
+    const entry = entryId ? entries.find(e => e.id === entryId) : null;
+    const trucks = await DataModule.getTrucks();
+    const drivers = await DataModule.getDrivers();
+    const settings = await DataModule.getSettings();
+    const title = entry ? 'Modifier Saisie' : 'Nouvelle Saisie Journalière';
+
+    const selectedDate = document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0];
+
+    const truckOptions = trucks.map(t =>
+        `<option value="${t.id}" ${entry?.camionId === t.id ? 'selected' : ''}>${t.matricule} (${t.type})</option>`
+    ).join('');
+
+    const driverOptions = drivers.map(d =>
+        `<option value="${d.id}" ${entry?.chauffeurId === d.id ? 'selected' : ''}>${d.nom}</option>`
+    ).join('');
+
+    const gouvernorats = getGouvernorats();
+    const gouvernoratOptions = gouvernorats.map(g =>
+        `<option value="${g}" ${entry?.gouvernorat === g ? 'selected' : ''}>${g}</option>`
+    ).join('');
+
+    const delegations = entry?.gouvernorat ? getDelegations(entry.gouvernorat) : [];
+    const delegationOptions = delegations.map(d =>
+        `<option value="${d}" ${entry?.delegation === d ? 'selected' : ''}>${d}</option>`
+    ).join('');
+
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML = `
+        <form id="entryForm">
+            <input type="hidden" id="entryId" value="${entry?.id || ''}">
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="entryDate">Date</label>
+                    <input type="date" id="entryDate" value="${entry?.date || selectedDate}" required>
+                </div>
+            </div>
+
+            <div style="background: rgba(59, 130, 246, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                <h4 style="margin-bottom: 12px; color: #3b82f6;">📍 Destination</h4>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="entryGouvernorat">Gouvernorat</label>
+                        <select id="entryGouvernorat" required onchange="EntriesModule.onGouvernoratChange()">
+                            <option value="">-- Sélectionner --</option>
+                            ${gouvernoratOptions}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="entryDelegation">Délégation</label>
+                        <select id="entryDelegation" required>
+                            <option value="">-- Sélectionner gouvernorat d'abord --</option>
+                            ${delegationOptions}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="entryCamion">Camion</label>
+                    <select id="entryCamion" required onchange="EntriesModule.onTruckChange()">
+                        <option value="">-- Sélectionner --</option>
+                        ${truckOptions}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="entryChauffeur">Chauffeur</label>
+                    <select id="entryChauffeur" required>
+                        <option value="">-- Sélectionner --</option>
+                        ${driverOptions}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="entryKm">Kilométrage (km)</label>
+                    <input type="number" id="entryKm" value="${entry?.kilometrage || 0}" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="entryGasoil">Quantité Gasoil (L)</label>
+                    <input type="number" id="entryGasoil" value="${entry?.quantiteGasoil || 0}" min="0" required onchange="EntriesModule.updateCalculations()">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="entryPrixGasoil">Prix Gasoil (TND/L)</label>
+                    <input type="number" id="entryPrixGasoil" value="${entry?.prixGasoilLitre || settings.defaultFuelPrice}" min="0" step="0.1" required onchange="EntriesModule.updateCalculations()">
+                </div>
+                <div class="form-group">
+                    <label for="entryMaintenance">Maintenance (TND)</label>
+                    <input type="number" id="entryMaintenance" value="${entry?.maintenance || 0}" min="0" onchange="EntriesModule.updateCalculations()">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="entryPrixLivraison">Prix Livraison (TND)</label>
+                    <input type="number" id="entryPrixLivraison" value="${entry?.prixLivraison || 0}" min="0" required onchange="EntriesModule.updateCalculations()">
+                </div>
+                <div class="form-group">
+                    <label for="entryRemarques">Remarques</label>
+                    <input type="text" id="entryRemarques" value="${entry?.remarques || ''}" placeholder="Ex: VIDANGE">
+                </div>
+            </div>
+
+            <div style="background: rgba(139, 92, 246, 0.1); border-radius: 8px; padding: 16px; margin-top: 16px;">
+                <h4 style="margin-bottom: 12px; color: #8b5cf6;">💰 Calculs Automatiques</h4>
+                <div class="form-row">
+                    <div class="form-group readonly">
+                        <label>Montant Gasoil</label>
+                        <input type="text" id="calcGasoil" value="0 TND" readonly>
+                    </div>
+                    <div class="form-group readonly">
+                        <label>Coût Total</label>
+                        <input type="text" id="calcCout" value="0 TND" readonly>
+                    </div>
+                </div>
+                <div class="form-group readonly">
+                    <label>Résultat (Livraison - Coût)</label>
+                    <input type="text" id="calcResultat" value="0 TND" readonly style="font-weight: bold; font-size: 1.1rem;">
+                </div>
+            </div>
+        </form>
+    `;
+
+    document.getElementById('modalSave').onclick = saveEntry;
+    App.showModal();
+
+    setTimeout(() => updateCalculations(), 100);
+}
+
+function onGouvernoratChange() {
+    const gouvernorat = document.getElementById('entryGouvernorat').value;
+    const delegationSelect = document.getElementById('entryDelegation');
+
+    if (!gouvernorat) {
+        delegationSelect.innerHTML = '<option value="">-- Sélectionner gouvernorat d\'abord --</option>';
+        return;
+    }
+
+    const delegations = getDelegations(gouvernorat);
+    delegationSelect.innerHTML = '<option value="">-- Sélectionner --</option>' +
+        delegations.map(d => `<option value="${d}">${d}</option>`).join('');
+}
+
+async function onTruckChange() {
+    const truckId = document.getElementById('entryCamion').value;
+    if (truckId) {
+        const drivers = await DataModule.getDrivers();
+        const driver = drivers.find(d => d.camionId === truckId);
+        if (driver) {
+            document.getElementById('entryChauffeur').value = driver.id;
+        }
+    }
+    updateCalculations();
+}
+
+function updateCalculations() {
+    const truckId = document.getElementById('entryCamion')?.value;
+    const truck = truckId ? DataModule.getTruckById(truckId) : null;
+
+    const gasoil = parseFloat(document.getElementById('entryGasoil')?.value) || 0;
+    const prixGasoil = parseFloat(document.getElementById('entryPrixGasoil')?.value) || 0;
+    const maintenance = parseFloat(document.getElementById('entryMaintenance')?.value) || 0;
+    const prixLivraison = parseFloat(document.getElementById('entryPrixLivraison')?.value) || 0;
+
+    const montantGasoil = gasoil * prixGasoil;
+    let coutTotal = montantGasoil + maintenance;
+
+    if (truck) {
+        coutTotal += truck.chargesFixes + truck.montantAssurance + truck.montantTaxe + truck.chargePersonnel;
+    }
+
+    const resultat = prixLivraison - coutTotal;
+
+    const calcGasoil = document.getElementById('calcGasoil');
+    const calcCout = document.getElementById('calcCout');
+    const calcResultat = document.getElementById('calcResultat');
+
+    if (calcGasoil) calcGasoil.value = `${montantGasoil.toLocaleString('fr-FR')} TND`;
+    if (calcCout) calcCout.value = `${coutTotal.toLocaleString('fr-FR')} TND`;
+    if (calcResultat) {
+        calcResultat.value = `${resultat.toLocaleString('fr-FR')} TND`;
+        calcResultat.style.color = resultat >= 0 ? '#10b981' : '#ef4444';
+    }
+}
+
+async function saveEntry() {
+    const gouvernorat = document.getElementById('entryGouvernorat').value;
+    const delegation = document.getElementById('entryDelegation').value;
+
+    const entry = {
+        id: document.getElementById('entryId').value || null,
+        date: document.getElementById('entryDate').value,
+        camionId: document.getElementById('entryCamion').value,
+        chauffeurId: document.getElementById('entryChauffeur').value,
+        gouvernorat: gouvernorat,
+        delegation: delegation,
+        destination: delegation ? `${delegation}, ${gouvernorat}` : gouvernorat,
+        kilometrage: parseFloat(document.getElementById('entryKm').value) || 0,
+        quantiteGasoil: parseFloat(document.getElementById('entryGasoil').value) || 0,
+        prixGasoilLitre: parseFloat(document.getElementById('entryPrixGasoil').value) || 2,
+        maintenance: parseFloat(document.getElementById('entryMaintenance').value) || 0,
+        prixLivraison: parseFloat(document.getElementById('entryPrixLivraison').value) || 0,
+        remarques: document.getElementById('entryRemarques').value
+    };
+
+    if (!entry.date || !entry.camionId || !entry.chauffeurId || !entry.gouvernorat) {
+        alert('Veuillez remplir tous les champs obligatoires');
+        return;
+    }
+
+    await DataModule.saveEntry(entry);
+    App.hideModal();
+    App.refreshCurrentPage();
+}
+
+function edit(id) {
+    openModal(id);
+}
+
+async function remove(id) {
+    if (confirm('Supprimer cette saisie ?')) {
+        await DataModule.deleteEntry(id);
+        App.refreshCurrentPage();
+    }
+}
+
+export const EntriesModule = {
+    init,
+    refresh,
+    edit,
+    remove,
+    onTruckChange,
+    onGouvernoratChange,
+    updateCalculations
+};
+
+window.EntriesModule = EntriesModule;

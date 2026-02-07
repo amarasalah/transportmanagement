@@ -1,6 +1,7 @@
 /**
  * ENTRIES MODULE
  * Handles daily entry management with auto-calculations
+ * Updated with Tunisia governorates and delegations dropdowns
  */
 
 const EntriesModule = (() => {
@@ -28,11 +29,19 @@ const EntriesModule = (() => {
             const costs = DataModule.calculateEntryCosts(entry, truck);
             const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
 
+            // Format destination display
+            let destinationDisplay = entry.destination || '-';
+            if (entry.gouvernorat && entry.delegation) {
+                destinationDisplay = `${entry.delegation} (${entry.gouvernorat})`;
+            } else if (entry.gouvernorat) {
+                destinationDisplay = entry.gouvernorat;
+            }
+
             return `<tr>
                 <td>${formatDate(entry.date)}</td>
                 <td>${truck?.matricule || '-'}</td>
                 <td>${driver?.nom || '-'}</td>
-                <td>${entry.destination || '-'}</td>
+                <td>${destinationDisplay}</td>
                 <td>${entry.kilometrage || 0}</td>
                 <td>${entry.quantiteGasoil || 0} L</td>
                 <td>${costs.coutTotal.toLocaleString('fr-FR')} TND</td>
@@ -68,6 +77,18 @@ const EntriesModule = (() => {
             `<option value="${d.id}" ${entry?.chauffeurId === d.id ? 'selected' : ''}>${d.nom}</option>`
         ).join('');
 
+        // Get gouvernorats list
+        const gouvernorats = getGouvernorats();
+        const gouvernoratOptions = gouvernorats.map(g =>
+            `<option value="${g}" ${entry?.gouvernorat === g ? 'selected' : ''}>${g}</option>`
+        ).join('');
+
+        // Get delegations for selected gouvernorat
+        const delegations = entry?.gouvernorat ? getDelegations(entry.gouvernorat) : [];
+        const delegationOptions = delegations.map(d =>
+            `<option value="${d}" ${entry?.delegation === d ? 'selected' : ''}>${d}</option>`
+        ).join('');
+
         document.getElementById('modalTitle').textContent = title;
         document.getElementById('modalBody').innerHTML = `
             <form id="entryForm">
@@ -78,9 +99,25 @@ const EntriesModule = (() => {
                         <label for="entryDate">Date</label>
                         <input type="date" id="entryDate" value="${entry?.date || selectedDate}" required>
                     </div>
-                    <div class="form-group">
-                        <label for="entryDestination">Destination</label>
-                        <input type="text" id="entryDestination" value="${entry?.destination || ''}" required placeholder="Ex: TUNIS">
+                </div>
+
+                <div style="background: rgba(59, 130, 246, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <h4 style="margin-bottom: 12px; color: #3b82f6;">📍 Destination</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="entryGouvernorat">Gouvernorat</label>
+                            <select id="entryGouvernorat" required onchange="EntriesModule.onGouvernoratChange()">
+                                <option value="">-- Sélectionner --</option>
+                                ${gouvernoratOptions}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="entryDelegation">Délégation</label>
+                            <select id="entryDelegation" required>
+                                <option value="">-- Sélectionner gouvernorat d'abord --</option>
+                                ${delegationOptions}
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -135,7 +172,7 @@ const EntriesModule = (() => {
                 </div>
 
                 <div style="background: rgba(139, 92, 246, 0.1); border-radius: 8px; padding: 16px; margin-top: 16px;">
-                    <h4 style="margin-bottom: 12px; color: #8b5cf6;">Calculs Automatiques</h4>
+                    <h4 style="margin-bottom: 12px; color: #8b5cf6;">💰 Calculs Automatiques</h4>
                     <div class="form-row">
                         <div class="form-group readonly">
                             <label>Montant Gasoil</label>
@@ -159,6 +196,20 @@ const EntriesModule = (() => {
 
         // Initialize calculations
         setTimeout(() => updateCalculations(), 100);
+    }
+
+    function onGouvernoratChange() {
+        const gouvernorat = document.getElementById('entryGouvernorat').value;
+        const delegationSelect = document.getElementById('entryDelegation');
+
+        if (!gouvernorat) {
+            delegationSelect.innerHTML = '<option value="">-- Sélectionner gouvernorat d\'abord --</option>';
+            return;
+        }
+
+        const delegations = getDelegations(gouvernorat);
+        delegationSelect.innerHTML = '<option value="">-- Sélectionner --</option>' +
+            delegations.map(d => `<option value="${d}">${d}</option>`).join('');
     }
 
     function onTruckChange() {
@@ -205,12 +256,17 @@ const EntriesModule = (() => {
     }
 
     function saveEntry() {
+        const gouvernorat = document.getElementById('entryGouvernorat').value;
+        const delegation = document.getElementById('entryDelegation').value;
+
         const entry = {
             id: document.getElementById('entryId').value || null,
             date: document.getElementById('entryDate').value,
             camionId: document.getElementById('entryCamion').value,
             chauffeurId: document.getElementById('entryChauffeur').value,
-            destination: document.getElementById('entryDestination').value.toUpperCase(),
+            gouvernorat: gouvernorat,
+            delegation: delegation,
+            destination: delegation ? `${delegation}, ${gouvernorat}` : gouvernorat,
             kilometrage: parseFloat(document.getElementById('entryKm').value) || 0,
             quantiteGasoil: parseFloat(document.getElementById('entryGasoil').value) || 0,
             prixGasoilLitre: parseFloat(document.getElementById('entryPrixGasoil').value) || 2,
@@ -219,7 +275,7 @@ const EntriesModule = (() => {
             remarques: document.getElementById('entryRemarques').value
         };
 
-        if (!entry.date || !entry.camionId || !entry.chauffeurId) {
+        if (!entry.date || !entry.camionId || !entry.chauffeurId || !entry.gouvernorat) {
             alert('Veuillez remplir tous les champs obligatoires');
             return;
         }
@@ -246,6 +302,7 @@ const EntriesModule = (() => {
         edit,
         remove,
         onTruckChange,
+        onGouvernoratChange,
         updateCalculations
     };
 })();
