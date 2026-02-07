@@ -1,8 +1,6 @@
 /**
  * ENTRIES MODULE - FIREBASE VERSION
- * Updated for async Firebase operations
- * With Tunisia governorates/delegations for origin and destination
- * Auto-calculates distance between locations
+ * With round-trip (aller-retour) distance calculation
  */
 
 import { DataModule } from './data-firebase.js';
@@ -21,7 +19,7 @@ async function renderEntries(selectedDate) {
     if (!tbody) return;
 
     if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#64748b;padding:40px;">Aucune saisie pour cette date. Cliquez sur "Nouvelle Saisie" pour commencer.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#64748b;padding:40px;">Aucune saisie pour cette date.</td></tr>';
         return;
     }
 
@@ -31,27 +29,16 @@ async function renderEntries(selectedDate) {
         const costs = DataModule.calculateEntryCosts(entry, truck);
         const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
 
-        // Format origin display
-        let originDisplay = '-';
-        if (entry.origineGouvernorat) {
-            originDisplay = entry.origineDelegation
-                ? `${entry.origineDelegation}`
-                : entry.origineGouvernorat;
-        }
-
-        // Format destination display
-        let destinationDisplay = entry.destination || '-';
-        if (entry.gouvernorat && entry.delegation) {
-            destinationDisplay = `${entry.delegation}`;
-        } else if (entry.gouvernorat) {
-            destinationDisplay = entry.gouvernorat;
-        }
+        const origineShort = entry.origineDelegation || entry.origineGouvernorat || '-';
+        const destShort = entry.delegation || entry.gouvernorat || entry.destination || '-';
+        const trajetDisplay = `${origineShort} ↔ ${destShort}`;
+        const trajetFull = `Aller: ${origineShort} → ${destShort}\nRetour: ${destShort} → ${origineShort}`;
 
         return `<tr>
             <td>${formatDate(entry.date)}</td>
             <td>${truck?.matricule || '-'}</td>
             <td>${driver?.nom || '-'}</td>
-            <td title="${originDisplay} → ${destinationDisplay}">${originDisplay} → ${destinationDisplay}</td>
+            <td title="${trajetFull}">${trajetDisplay}</td>
             <td>${entry.kilometrage || 0} km</td>
             <td>${entry.quantiteGasoil || 0} L</td>
             <td>${costs.coutTotal.toLocaleString('fr-FR')} TND</td>
@@ -90,7 +77,6 @@ async function openModal(entryId = null) {
 
     const gouvernorats = getGouvernorats();
 
-    // Origin options
     const origineGouvernoratOptions = gouvernorats.map(g =>
         `<option value="${g}" ${entry?.origineGouvernorat === g ? 'selected' : ''}>${g}</option>`
     ).join('');
@@ -99,7 +85,6 @@ async function openModal(entryId = null) {
         `<option value="${d}" ${entry?.origineDelegation === d ? 'selected' : ''}>${d}</option>`
     ).join('');
 
-    // Destination options
     const destGouvernoratOptions = gouvernorats.map(g =>
         `<option value="${g}" ${entry?.gouvernorat === g ? 'selected' : ''}>${g}</option>`
     ).join('');
@@ -162,10 +147,29 @@ async function openModal(entryId = null) {
                 </div>
             </div>
 
-            <!-- Distance Display -->
-            <div style="background: rgba(59, 130, 246, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; text-align: center;">
-                <span style="color: #64748b; font-size: 0.875rem;">Distance estimée:</span>
-                <span id="distanceEstimate" style="color: #3b82f6; font-size: 1.5rem; font-weight: bold; margin-left: 10px;">${entry?.kilometrage || 0} km</span>
+            <!-- Trajectory & Distance Display -->
+            <div style="background: rgba(59, 130, 246, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                <div style="text-align: center; margin-bottom: 12px;">
+                    <div id="trajectoryDisplay" style="color: #3b82f6; font-size: 1rem; margin-bottom: 8px;">
+                        <span style="color: #10b981;">🚀 Départ</span> → 
+                        <span style="color: #ef4444;">📍 Destination</span> → 
+                        <span style="color: #10b981;">🚀 Retour</span>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; text-align: center;">
+                    <div>
+                        <span style="color: #64748b; font-size: 0.75rem;">Distance Aller</span>
+                        <div id="distanceAller" style="color: #10b981; font-size: 1.25rem; font-weight: bold;">0 km</div>
+                    </div>
+                    <div>
+                        <span style="color: #64748b; font-size: 0.75rem;">Distance Retour</span>
+                        <div id="distanceRetour" style="color: #ef4444; font-size: 1.25rem; font-weight: bold;">0 km</div>
+                    </div>
+                    <div>
+                        <span style="color: #64748b; font-size: 0.75rem;">Total Aller-Retour</span>
+                        <div id="distanceTotal" style="color: #3b82f6; font-size: 1.5rem; font-weight: bold;">0 km</div>
+                    </div>
+                </div>
             </div>
 
             <div class="form-row">
@@ -187,9 +191,9 @@ async function openModal(entryId = null) {
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="entryKm">🛣️ Kilométrage (km)</label>
+                    <label for="entryKm">🛣️ Kilométrage Total (km)</label>
                     <input type="number" id="entryKm" value="${entry?.kilometrage || 0}" min="0" required>
-                    <small style="color: #64748b;">Modifiable si différent de l'estimé</small>
+                    <small style="color: #64748b;">Aller-retour calculé automatiquement</small>
                 </div>
                 <div class="form-group">
                     <label for="entryGasoil">⛽ Quantité Gasoil (L)</label>
@@ -241,7 +245,6 @@ async function openModal(entryId = null) {
 
     document.getElementById('modalSave').onclick = saveEntry;
     App.showModal();
-
     setTimeout(() => updateCalculations(), 100);
 }
 
@@ -284,17 +287,31 @@ function updateDistanceEstimate() {
     const destDel = document.getElementById('entryDelegation')?.value;
 
     if (origineGouv && destGouv) {
-        const distance = getDistanceEstimate(origineGouv, origineDel, destGouv, destDel);
+        const distanceAller = getDistanceEstimate(origineGouv, origineDel, destGouv, destDel);
+        const distanceRetour = distanceAller;
+        const distanceTotal = distanceAller * 2;
 
-        const distanceDisplay = document.getElementById('distanceEstimate');
-        if (distanceDisplay) {
-            distanceDisplay.textContent = `${distance} km`;
+        const trajDisplay = document.getElementById('trajectoryDisplay');
+        if (trajDisplay) {
+            const origName = origineDel || origineGouv;
+            const destName = destDel || destGouv;
+            trajDisplay.innerHTML = `
+                <span style="color: #10b981;">🚀 ${origName}</span> → 
+                <span style="color: #ef4444;">📍 ${destName}</span> → 
+                <span style="color: #10b981;">🏠 ${origName}</span>
+            `;
         }
+
+        const allerDisplay = document.getElementById('distanceAller');
+        const retourDisplay = document.getElementById('distanceRetour');
+        const totalDisplay = document.getElementById('distanceTotal');
+
+        if (allerDisplay) allerDisplay.textContent = `${distanceAller} km`;
+        if (retourDisplay) retourDisplay.textContent = `${distanceRetour} km`;
+        if (totalDisplay) totalDisplay.textContent = `${distanceTotal} km`;
 
         const kmField = document.getElementById('entryKm');
-        if (kmField) {
-            kmField.value = distance;
-        }
+        if (kmField) kmField.value = distanceTotal;
     }
 }
 
@@ -345,18 +362,21 @@ async function saveEntry() {
     const origineDelegation = document.getElementById('origineDelegation').value;
     const gouvernorat = document.getElementById('entryGouvernorat').value;
     const delegation = document.getElementById('entryDelegation').value;
+    const distanceAller = getDistanceEstimate(origineGouvernorat, origineDelegation, gouvernorat, delegation);
 
     const entry = {
         id: document.getElementById('entryId').value || null,
         date: document.getElementById('entryDate').value,
         camionId: document.getElementById('entryCamion').value,
         chauffeurId: document.getElementById('entryChauffeur').value,
-        origineGouvernorat: origineGouvernorat,
-        origineDelegation: origineDelegation,
+        origineGouvernorat,
+        origineDelegation,
         origine: origineDelegation ? `${origineDelegation}, ${origineGouvernorat}` : origineGouvernorat,
-        gouvernorat: gouvernorat,
-        delegation: delegation,
+        gouvernorat,
+        delegation,
         destination: delegation ? `${delegation}, ${gouvernorat}` : gouvernorat,
+        distanceAller,
+        distanceRetour: distanceAller,
         kilometrage: parseFloat(document.getElementById('entryKm').value) || 0,
         quantiteGasoil: parseFloat(document.getElementById('entryGasoil').value) || 0,
         prixGasoilLitre: parseFloat(document.getElementById('entryPrixGasoil').value) || 2,
@@ -375,9 +395,7 @@ async function saveEntry() {
     App.refreshCurrentPage();
 }
 
-function edit(id) {
-    openModal(id);
-}
+function edit(id) { openModal(id); }
 
 async function remove(id) {
     if (confirm('Supprimer cette saisie ?')) {
