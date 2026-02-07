@@ -1,7 +1,8 @@
 /**
  * ENTRIES MODULE
  * Handles daily entry management with auto-calculations
- * Updated with Tunisia governorates and delegations dropdowns
+ * With Tunisia governorates/delegations for origin and destination
+ * Auto-calculates distance between locations
  */
 
 const EntriesModule = (() => {
@@ -29,10 +30,18 @@ const EntriesModule = (() => {
             const costs = DataModule.calculateEntryCosts(entry, truck);
             const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
 
+            // Format origin display
+            let originDisplay = '-';
+            if (entry.origineGouvernorat) {
+                originDisplay = entry.origineDelegation
+                    ? `${entry.origineDelegation}`
+                    : entry.origineGouvernorat;
+            }
+
             // Format destination display
             let destinationDisplay = entry.destination || '-';
             if (entry.gouvernorat && entry.delegation) {
-                destinationDisplay = `${entry.delegation} (${entry.gouvernorat})`;
+                destinationDisplay = `${entry.delegation}`;
             } else if (entry.gouvernorat) {
                 destinationDisplay = entry.gouvernorat;
             }
@@ -41,8 +50,8 @@ const EntriesModule = (() => {
                 <td>${formatDate(entry.date)}</td>
                 <td>${truck?.matricule || '-'}</td>
                 <td>${driver?.nom || '-'}</td>
-                <td>${destinationDisplay}</td>
-                <td>${entry.kilometrage || 0}</td>
+                <td title="${originDisplay} → ${destinationDisplay}">${originDisplay} → ${destinationDisplay}</td>
+                <td>${entry.kilometrage || 0} km</td>
                 <td>${entry.quantiteGasoil || 0} L</td>
                 <td>${costs.coutTotal.toLocaleString('fr-FR')} TND</td>
                 <td>${entry.prixLivraison.toLocaleString('fr-FR')} TND</td>
@@ -79,13 +88,22 @@ const EntriesModule = (() => {
 
         // Get gouvernorats list
         const gouvernorats = getGouvernorats();
-        const gouvernoratOptions = gouvernorats.map(g =>
-            `<option value="${g}" ${entry?.gouvernorat === g ? 'selected' : ''}>${g}</option>`
+
+        // Origin options
+        const origineGouvernoratOptions = gouvernorats.map(g =>
+            `<option value="${g}" ${entry?.origineGouvernorat === g ? 'selected' : ''}>${g}</option>`
+        ).join('');
+        const origineDelegations = entry?.origineGouvernorat ? getDelegations(entry.origineGouvernorat) : [];
+        const origineDelegationOptions = origineDelegations.map(d =>
+            `<option value="${d}" ${entry?.origineDelegation === d ? 'selected' : ''}>${d}</option>`
         ).join('');
 
-        // Get delegations for selected gouvernorat
-        const delegations = entry?.gouvernorat ? getDelegations(entry.gouvernorat) : [];
-        const delegationOptions = delegations.map(d =>
+        // Destination options
+        const destGouvernoratOptions = gouvernorats.map(g =>
+            `<option value="${g}" ${entry?.gouvernorat === g ? 'selected' : ''}>${g}</option>`
+        ).join('');
+        const destDelegations = entry?.gouvernorat ? getDelegations(entry.gouvernorat) : [];
+        const destDelegationOptions = destDelegations.map(d =>
             `<option value="${d}" ${entry?.delegation === d ? 'selected' : ''}>${d}</option>`
         ).join('');
 
@@ -96,41 +114,69 @@ const EntriesModule = (() => {
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="entryDate">Date</label>
+                        <label for="entryDate">📅 Date</label>
                         <input type="date" id="entryDate" value="${entry?.date || selectedDate}" required>
                     </div>
                 </div>
 
-                <div style="background: rgba(59, 130, 246, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                    <h4 style="margin-bottom: 12px; color: #3b82f6;">📍 Destination</h4>
+                <!-- Origin Section -->
+                <div style="background: rgba(16, 185, 129, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; border-left: 4px solid #10b981;">
+                    <h4 style="margin-bottom: 12px; color: #10b981;">🚀 Point de Départ</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="origineGouvernorat">Gouvernorat</label>
+                            <select id="origineGouvernorat" required onchange="EntriesModule.onOrigineGouvernoratChange()">
+                                <option value="">-- Sélectionner --</option>
+                                ${origineGouvernoratOptions}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="origineDelegation">Délégation</label>
+                            <select id="origineDelegation" required>
+                                <option value="">-- Sélectionner gouvernorat --</option>
+                                ${origineDelegationOptions}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Destination Section -->
+                <div style="background: rgba(239, 68, 68, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; border-left: 4px solid #ef4444;">
+                    <h4 style="margin-bottom: 12px; color: #ef4444;">📍 Destination</h4>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="entryGouvernorat">Gouvernorat</label>
                             <select id="entryGouvernorat" required onchange="EntriesModule.onGouvernoratChange()">
                                 <option value="">-- Sélectionner --</option>
-                                ${gouvernoratOptions}
+                                ${destGouvernoratOptions}
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="entryDelegation">Délégation</label>
                             <select id="entryDelegation" required>
-                                <option value="">-- Sélectionner gouvernorat d'abord --</option>
-                                ${delegationOptions}
+                                <option value="">-- Sélectionner gouvernorat --</option>
+                                ${destDelegationOptions}
                             </select>
                         </div>
                     </div>
                 </div>
 
+                <!-- Distance Display -->
+                <div style="background: rgba(59, 130, 246, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; text-align: center;">
+                    <span style="color: #64748b; font-size: 0.875rem;">Distance estimée:</span>
+                    <span id="distanceEstimate" style="color: #3b82f6; font-size: 1.5rem; font-weight: bold; margin-left: 10px;">${entry?.kilometrage || 0} km</span>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="entryCamion">Camion</label>
+                        <label for="entryCamion">🚛 Camion</label>
                         <select id="entryCamion" required onchange="EntriesModule.onTruckChange()">
                             <option value="">-- Sélectionner --</option>
                             ${truckOptions}
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="entryChauffeur">Chauffeur</label>
+                        <label for="entryChauffeur">👤 Chauffeur</label>
                         <select id="entryChauffeur" required>
                             <option value="">-- Sélectionner --</option>
                             ${driverOptions}
@@ -140,11 +186,12 @@ const EntriesModule = (() => {
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="entryKm">Kilométrage (km)</label>
+                        <label for="entryKm">🛣️ Kilométrage (km)</label>
                         <input type="number" id="entryKm" value="${entry?.kilometrage || 0}" min="0" required>
+                        <small style="color: #64748b;">Modifiable si différent de l'estimé</small>
                     </div>
                     <div class="form-group">
-                        <label for="entryGasoil">Quantité Gasoil (L)</label>
+                        <label for="entryGasoil">⛽ Quantité Gasoil (L)</label>
                         <input type="number" id="entryGasoil" value="${entry?.quantiteGasoil || 0}" min="0" required onchange="EntriesModule.updateCalculations()">
                     </div>
                 </div>
@@ -155,18 +202,18 @@ const EntriesModule = (() => {
                         <input type="number" id="entryPrixGasoil" value="${entry?.prixGasoilLitre || settings.defaultFuelPrice}" min="0" step="0.1" required onchange="EntriesModule.updateCalculations()">
                     </div>
                     <div class="form-group">
-                        <label for="entryMaintenance">Maintenance (TND)</label>
+                        <label for="entryMaintenance">🔧 Maintenance (TND)</label>
                         <input type="number" id="entryMaintenance" value="${entry?.maintenance || 0}" min="0" onchange="EntriesModule.updateCalculations()">
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="entryPrixLivraison">Prix Livraison (TND)</label>
+                        <label for="entryPrixLivraison">💵 Prix Livraison (TND)</label>
                         <input type="number" id="entryPrixLivraison" value="${entry?.prixLivraison || 0}" min="0" required onchange="EntriesModule.updateCalculations()">
                     </div>
                     <div class="form-group">
-                        <label for="entryRemarques">Remarques</label>
+                        <label for="entryRemarques">📝 Remarques</label>
                         <input type="text" id="entryRemarques" value="${entry?.remarques || ''}" placeholder="Ex: VIDANGE">
                     </div>
                 </div>
@@ -198,18 +245,61 @@ const EntriesModule = (() => {
         setTimeout(() => updateCalculations(), 100);
     }
 
-    function onGouvernoratChange() {
-        const gouvernorat = document.getElementById('entryGouvernorat').value;
-        const delegationSelect = document.getElementById('entryDelegation');
+    function onOrigineGouvernoratChange() {
+        const gouvernorat = document.getElementById('origineGouvernorat').value;
+        const delegationSelect = document.getElementById('origineDelegation');
 
         if (!gouvernorat) {
-            delegationSelect.innerHTML = '<option value="">-- Sélectionner gouvernorat d\'abord --</option>';
+            delegationSelect.innerHTML = '<option value="">-- Sélectionner gouvernorat --</option>';
             return;
         }
 
         const delegations = getDelegations(gouvernorat);
         delegationSelect.innerHTML = '<option value="">-- Sélectionner --</option>' +
             delegations.map(d => `<option value="${d}">${d}</option>`).join('');
+
+        // Update distance estimate
+        updateDistanceEstimate();
+    }
+
+    function onGouvernoratChange() {
+        const gouvernorat = document.getElementById('entryGouvernorat').value;
+        const delegationSelect = document.getElementById('entryDelegation');
+
+        if (!gouvernorat) {
+            delegationSelect.innerHTML = '<option value="">-- Sélectionner gouvernorat --</option>';
+            return;
+        }
+
+        const delegations = getDelegations(gouvernorat);
+        delegationSelect.innerHTML = '<option value="">-- Sélectionner --</option>' +
+            delegations.map(d => `<option value="${d}">${d}</option>`).join('');
+
+        // Update distance estimate
+        updateDistanceEstimate();
+    }
+
+    function updateDistanceEstimate() {
+        const origineGouv = document.getElementById('origineGouvernorat')?.value;
+        const origineDel = document.getElementById('origineDelegation')?.value;
+        const destGouv = document.getElementById('entryGouvernorat')?.value;
+        const destDel = document.getElementById('entryDelegation')?.value;
+
+        if (origineGouv && destGouv) {
+            const distance = getDistanceEstimate(origineGouv, origineDel, destGouv, destDel);
+
+            // Update display
+            const distanceDisplay = document.getElementById('distanceEstimate');
+            if (distanceDisplay) {
+                distanceDisplay.textContent = `${distance} km`;
+            }
+
+            // Update km field
+            const kmField = document.getElementById('entryKm');
+            if (kmField) {
+                kmField.value = distance;
+            }
+        }
     }
 
     function onTruckChange() {
@@ -256,6 +346,8 @@ const EntriesModule = (() => {
     }
 
     function saveEntry() {
+        const origineGouvernorat = document.getElementById('origineGouvernorat').value;
+        const origineDelegation = document.getElementById('origineDelegation').value;
         const gouvernorat = document.getElementById('entryGouvernorat').value;
         const delegation = document.getElementById('entryDelegation').value;
 
@@ -264,6 +356,9 @@ const EntriesModule = (() => {
             date: document.getElementById('entryDate').value,
             camionId: document.getElementById('entryCamion').value,
             chauffeurId: document.getElementById('entryChauffeur').value,
+            origineGouvernorat: origineGouvernorat,
+            origineDelegation: origineDelegation,
+            origine: origineDelegation ? `${origineDelegation}, ${origineGouvernorat}` : origineGouvernorat,
             gouvernorat: gouvernorat,
             delegation: delegation,
             destination: delegation ? `${delegation}, ${gouvernorat}` : gouvernorat,
@@ -275,8 +370,8 @@ const EntriesModule = (() => {
             remarques: document.getElementById('entryRemarques').value
         };
 
-        if (!entry.date || !entry.camionId || !entry.chauffeurId || !entry.gouvernorat) {
-            alert('Veuillez remplir tous les champs obligatoires');
+        if (!entry.date || !entry.camionId || !entry.chauffeurId || !entry.origineGouvernorat || !entry.gouvernorat) {
+            alert('Veuillez remplir tous les champs obligatoires (Date, Origine, Destination, Camion, Chauffeur)');
             return;
         }
 
@@ -302,6 +397,7 @@ const EntriesModule = (() => {
         edit,
         remove,
         onTruckChange,
+        onOrigineGouvernoratChange,
         onGouvernoratChange,
         updateCalculations
     };
