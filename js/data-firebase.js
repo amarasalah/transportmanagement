@@ -73,48 +73,6 @@ const DEFAULT_DRIVERS = [
     { id: 'd14', nom: 'HSAN REBII', camionId: 't15' }
 ];
 
-// Pre-loaded entries from Excel (02-02-26 to 05-02-26)
-const DEFAULT_ENTRIES = [
-    { id: 'e1', date: '2026-02-02', camionId: 't1', chauffeurId: 'd1', destination: 'TUNIS', kilometrage: 800, quantiteGasoil: 240, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 500, remarques: '' },
-    { id: 'e2', date: '2026-02-02', camionId: 't2', chauffeurId: 'd2', destination: 'TUNIS', kilometrage: 800, quantiteGasoil: 240, prixGasoilLitre: 2, maintenance: 1070, prixLivraison: 500, remarques: 'VIDANGE' },
-    { id: 'e3', date: '2026-02-02', camionId: 't3', chauffeurId: 'd3', destination: 'SOUSSE', kilometrage: 300, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 590, remarques: '' },
-    { id: 'e4', date: '2026-02-02', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 340, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 590, remarques: '' },
-    { id: 'e5', date: '2026-02-02', camionId: 't5', chauffeurId: 'd5', destination: 'KEBILI/GABES', kilometrage: 434, quantiteGasoil: 125, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 650, remarques: '' },
-    { id: 'e6', date: '2026-02-02', camionId: 't6', chauffeurId: 'd6', destination: 'MEHDIA/TUNIS', kilometrage: 1220, quantiteGasoil: 360, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 1090, remarques: '' },
-    { id: 'e7', date: '2026-02-02', camionId: 't7', chauffeurId: 'd7', destination: 'TUNIS', kilometrage: 800, quantiteGasoil: 240, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 500, remarques: '' },
-    { id: 'e8', date: '2026-02-02', camionId: 't10', chauffeurId: 'd9', destination: 'OUDHREF', kilometrage: 80, quantiteGasoil: 30, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 200, remarques: '' },
-    { id: 'e9', date: '2026-02-02', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/CHAGRA', kilometrage: 200, quantiteGasoil: 65, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 500, remarques: '' },
-    { id: 'e10', date: '2026-02-02', camionId: 't14', chauffeurId: 'd13', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
-    { id: 'e11', date: '2026-02-02', camionId: 't15', chauffeurId: 'd14', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
-    { id: 'e12', date: '2026-02-03', camionId: 't2', chauffeurId: 'd2', destination: 'GAFSSA', kilometrage: 300, quantiteGasoil: 90, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 600, remarques: '' },
-    { id: 'e13', date: '2026-02-03', camionId: 't3', chauffeurId: 'd3', destination: 'ZARZIS', kilometrage: 414, quantiteGasoil: 145, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 524, remarques: '' },
-    { id: 'e14', date: '2026-02-03', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 553, remarques: '' },
-    { id: 'e15', date: '2026-02-03', camionId: 't5', chauffeurId: 'd5', destination: 'ELHAMMA', kilometrage: 180, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 234, remarques: '' },
-    { id: 'e16', date: '2026-02-03', camionId: 't6', chauffeurId: 'd6', destination: '', kilometrage: 0, quantiteGasoil: 0, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 1090, remarques: '' },
-    { id: 'e17', date: '2026-02-03', camionId: 't10', chauffeurId: 'd9', destination: 'OUDHREF', kilometrage: 80, quantiteGasoil: 30, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 200, remarques: '' },
-    { id: 'e18', date: '2026-02-03', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/SB', kilometrage: 320, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
-    { id: 'e19', date: '2026-02-03', camionId: 't14', chauffeurId: 'd13', destination: 'FAIEDH/SP/2SB', kilometrage: 300, quantiteGasoil: 100, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 960, remarques: '' },
-    { id: 'e20', date: '2026-02-03', camionId: 't15', chauffeurId: 'd14', destination: 'FAIEDH/SP/2SB', kilometrage: 300, quantiteGasoil: 100, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 960, remarques: '' },
-    { id: 'e21', date: '2026-02-04', camionId: 't1', chauffeurId: 'd1', destination: 'ZARZIS', kilometrage: 414, quantiteGasoil: 125, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 524, remarques: '' },
-    { id: 'e22', date: '2026-02-04', camionId: 't2', chauffeurId: 'd2', destination: 'TUNIS', kilometrage: 414, quantiteGasoil: 125, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 524, remarques: '' },
-    { id: 'e23', date: '2026-02-04', camionId: 't3', chauffeurId: 'd3', destination: 'OUDHREF', kilometrage: 80, quantiteGasoil: 30, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 187, remarques: '' },
-    { id: 'e24', date: '2026-02-04', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 553, remarques: '' },
-    { id: 'e25', date: '2026-02-04', camionId: 't5', chauffeurId: 'd5', destination: 'GABES', kilometrage: 140, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 420, prixLivraison: 234, remarques: '' },
-    { id: 'e26', date: '2026-02-04', camionId: 't7', chauffeurId: 'd7', destination: 'BENGUERDENE', kilometrage: 440, quantiteGasoil: 140, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 670, remarques: '' },
-    { id: 'e27', date: '2026-02-04', camionId: 't9', chauffeurId: null, destination: 'GABES', kilometrage: 140, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 234, remarques: '' },
-    { id: 'e28', date: '2026-02-04', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/SB', kilometrage: 320, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
-    { id: 'e29', date: '2026-02-04', camionId: 't14', chauffeurId: 'd13', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
-    { id: 'e30', date: '2026-02-04', camionId: 't15', chauffeurId: 'd14', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
-    { id: 'e31', date: '2026-02-05', camionId: 't1', chauffeurId: 'd1', destination: 'GHANOUCH', kilometrage: 130, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 234, remarques: '' },
-    { id: 'e32', date: '2026-02-05', camionId: 't2', chauffeurId: 'd2', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 110, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 591, remarques: '' },
-    { id: 'e33', date: '2026-02-05', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 591, remarques: '' },
-    { id: 'e34', date: '2026-02-05', camionId: 't6', chauffeurId: 'd6', destination: 'GABES/DJERBA', kilometrage: 520, quantiteGasoil: 160, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 841, remarques: '' },
-    { id: 'e35', date: '2026-02-05', camionId: 't7', chauffeurId: 'd7', destination: 'MAHDIA', kilometrage: 450, quantiteGasoil: 140, prixGasoilLitre: 2, maintenance: 1546, prixLivraison: 590, remarques: 'VIDANGE' },
-    { id: 'e36', date: '2026-02-05', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/SB', kilometrage: 320, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
-    { id: 'e37', date: '2026-02-05', camionId: 't14', chauffeurId: 'd13', destination: 'SUDB/SB/HICHA/SP', kilometrage: 200, quantiteGasoil: 60, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
-    { id: 'e38', date: '2026-02-05', camionId: 't15', chauffeurId: 'd14', destination: 'FAYEDH/FAYEDH', kilometrage: 300, quantiteGasoil: 100, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 960, remarques: '' }
-];
-
 // Generate UUID
 function generateId() {
     return 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
@@ -204,16 +162,6 @@ async function init() {
             console.log('⚙️ Creating default settings...');
             await setDoc(doc(db, COLLECTIONS.settings, 'default'), DEFAULT_SETTINGS);
             await logActivity('INIT', 'settings', 'default', DEFAULT_SETTINGS);
-        }
-
-        // Check if entries collection needs populating (from Excel data)
-        const entriesSnapshot = await getDocs(collection(db, COLLECTIONS.entries));
-        if (entriesSnapshot.empty) {
-            console.log('📝 Populating entries from Excel data...');
-            for (const entry of DEFAULT_ENTRIES) {
-                await setDoc(doc(db, COLLECTIONS.entries, entry.id), entry);
-            }
-            await logActivity('INIT', 'entries', 'all', { count: DEFAULT_ENTRIES.length, source: 'Excel' });
         }
 
         console.log('✅ Firebase initialized successfully!');
