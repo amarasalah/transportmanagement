@@ -1,7 +1,7 @@
 /**
  * DATA MODULE - FIREBASE FIRESTORE VERSION
  * Handles Firestore persistence and CRUD operations
- * With offline fallback to localStorage
+ * With activity logging for all operations
  */
 
 import {
@@ -25,7 +25,8 @@ let cache = {
     trucks: null,
     drivers: null,
     entries: null,
-    settings: null
+    settings: null,
+    logs: null
 };
 
 // Default settings
@@ -72,9 +73,104 @@ const DEFAULT_DRIVERS = [
     { id: 'd14', nom: 'HSAN REBII', camionId: 't15' }
 ];
 
+// Pre-loaded entries from Excel (02-02-26 to 05-02-26)
+const DEFAULT_ENTRIES = [
+    { id: 'e1', date: '2026-02-02', camionId: 't1', chauffeurId: 'd1', destination: 'TUNIS', kilometrage: 800, quantiteGasoil: 240, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 500, remarques: '' },
+    { id: 'e2', date: '2026-02-02', camionId: 't2', chauffeurId: 'd2', destination: 'TUNIS', kilometrage: 800, quantiteGasoil: 240, prixGasoilLitre: 2, maintenance: 1070, prixLivraison: 500, remarques: 'VIDANGE' },
+    { id: 'e3', date: '2026-02-02', camionId: 't3', chauffeurId: 'd3', destination: 'SOUSSE', kilometrage: 300, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 590, remarques: '' },
+    { id: 'e4', date: '2026-02-02', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 340, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 590, remarques: '' },
+    { id: 'e5', date: '2026-02-02', camionId: 't5', chauffeurId: 'd5', destination: 'KEBILI/GABES', kilometrage: 434, quantiteGasoil: 125, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 650, remarques: '' },
+    { id: 'e6', date: '2026-02-02', camionId: 't6', chauffeurId: 'd6', destination: 'MEHDIA/TUNIS', kilometrage: 1220, quantiteGasoil: 360, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 1090, remarques: '' },
+    { id: 'e7', date: '2026-02-02', camionId: 't7', chauffeurId: 'd7', destination: 'TUNIS', kilometrage: 800, quantiteGasoil: 240, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 500, remarques: '' },
+    { id: 'e8', date: '2026-02-02', camionId: 't10', chauffeurId: 'd9', destination: 'OUDHREF', kilometrage: 80, quantiteGasoil: 30, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 200, remarques: '' },
+    { id: 'e9', date: '2026-02-02', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/CHAGRA', kilometrage: 200, quantiteGasoil: 65, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 500, remarques: '' },
+    { id: 'e10', date: '2026-02-02', camionId: 't14', chauffeurId: 'd13', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
+    { id: 'e11', date: '2026-02-02', camionId: 't15', chauffeurId: 'd14', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
+    { id: 'e12', date: '2026-02-03', camionId: 't2', chauffeurId: 'd2', destination: 'GAFSSA', kilometrage: 300, quantiteGasoil: 90, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 600, remarques: '' },
+    { id: 'e13', date: '2026-02-03', camionId: 't3', chauffeurId: 'd3', destination: 'ZARZIS', kilometrage: 414, quantiteGasoil: 145, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 524, remarques: '' },
+    { id: 'e14', date: '2026-02-03', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 553, remarques: '' },
+    { id: 'e15', date: '2026-02-03', camionId: 't5', chauffeurId: 'd5', destination: 'ELHAMMA', kilometrage: 180, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 234, remarques: '' },
+    { id: 'e16', date: '2026-02-03', camionId: 't6', chauffeurId: 'd6', destination: '', kilometrage: 0, quantiteGasoil: 0, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 1090, remarques: '' },
+    { id: 'e17', date: '2026-02-03', camionId: 't10', chauffeurId: 'd9', destination: 'OUDHREF', kilometrage: 80, quantiteGasoil: 30, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 200, remarques: '' },
+    { id: 'e18', date: '2026-02-03', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/SB', kilometrage: 320, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
+    { id: 'e19', date: '2026-02-03', camionId: 't14', chauffeurId: 'd13', destination: 'FAIEDH/SP/2SB', kilometrage: 300, quantiteGasoil: 100, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 960, remarques: '' },
+    { id: 'e20', date: '2026-02-03', camionId: 't15', chauffeurId: 'd14', destination: 'FAIEDH/SP/2SB', kilometrage: 300, quantiteGasoil: 100, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 960, remarques: '' },
+    { id: 'e21', date: '2026-02-04', camionId: 't1', chauffeurId: 'd1', destination: 'ZARZIS', kilometrage: 414, quantiteGasoil: 125, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 524, remarques: '' },
+    { id: 'e22', date: '2026-02-04', camionId: 't2', chauffeurId: 'd2', destination: 'TUNIS', kilometrage: 414, quantiteGasoil: 125, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 524, remarques: '' },
+    { id: 'e23', date: '2026-02-04', camionId: 't3', chauffeurId: 'd3', destination: 'OUDHREF', kilometrage: 80, quantiteGasoil: 30, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 187, remarques: '' },
+    { id: 'e24', date: '2026-02-04', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 553, remarques: '' },
+    { id: 'e25', date: '2026-02-04', camionId: 't5', chauffeurId: 'd5', destination: 'GABES', kilometrage: 140, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 420, prixLivraison: 234, remarques: '' },
+    { id: 'e26', date: '2026-02-04', camionId: 't7', chauffeurId: 'd7', destination: 'BENGUERDENE', kilometrage: 440, quantiteGasoil: 140, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 670, remarques: '' },
+    { id: 'e27', date: '2026-02-04', camionId: 't9', chauffeurId: null, destination: 'GABES', kilometrage: 140, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 234, remarques: '' },
+    { id: 'e28', date: '2026-02-04', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/SB', kilometrage: 320, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
+    { id: 'e29', date: '2026-02-04', camionId: 't14', chauffeurId: 'd13', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
+    { id: 'e30', date: '2026-02-04', camionId: 't15', chauffeurId: 'd14', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
+    { id: 'e31', date: '2026-02-05', camionId: 't1', chauffeurId: 'd1', destination: 'GHANOUCH', kilometrage: 130, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 234, remarques: '' },
+    { id: 'e32', date: '2026-02-05', camionId: 't2', chauffeurId: 'd2', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 110, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 591, remarques: '' },
+    { id: 'e33', date: '2026-02-05', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 591, remarques: '' },
+    { id: 'e34', date: '2026-02-05', camionId: 't6', chauffeurId: 'd6', destination: 'GABES/DJERBA', kilometrage: 520, quantiteGasoil: 160, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 841, remarques: '' },
+    { id: 'e35', date: '2026-02-05', camionId: 't7', chauffeurId: 'd7', destination: 'MAHDIA', kilometrage: 450, quantiteGasoil: 140, prixGasoilLitre: 2, maintenance: 1546, prixLivraison: 590, remarques: 'VIDANGE' },
+    { id: 'e36', date: '2026-02-05', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/SB', kilometrage: 320, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
+    { id: 'e37', date: '2026-02-05', camionId: 't14', chauffeurId: 'd13', destination: 'SUDB/SB/HICHA/SP', kilometrage: 200, quantiteGasoil: 60, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
+    { id: 'e38', date: '2026-02-05', camionId: 't15', chauffeurId: 'd14', destination: 'FAYEDH/FAYEDH', kilometrage: 300, quantiteGasoil: 100, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 960, remarques: '' }
+];
+
 // Generate UUID
 function generateId() {
     return 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+// ==================== ACTIVITY LOGGING ====================
+async function logActivity(action, entityType, entityId, details = {}) {
+    try {
+        const logEntry = {
+            id: generateId(),
+            timestamp: new Date().toISOString(),
+            action: action, // CREATE, UPDATE, DELETE, READ, EXPORT, IMPORT, RESET
+            entityType: entityType, // truck, driver, entry, settings
+            entityId: entityId,
+            details: details,
+            date: new Date().toISOString().split('T')[0]
+        };
+
+        await setDoc(doc(db, COLLECTIONS.logs, logEntry.id), logEntry);
+
+        // Update cache
+        if (cache.logs) {
+            cache.logs.push(logEntry);
+        }
+
+        console.log(`📝 Log: ${action} ${entityType} ${entityId}`);
+        return logEntry;
+    } catch (error) {
+        console.error('Error logging activity:', error);
+        // Don't throw - logging should not block main operations
+    }
+}
+
+async function getLogs() {
+    if (cache.logs) return cache.logs;
+
+    try {
+        const snapshot = await getDocs(collection(db, COLLECTIONS.logs));
+        cache.logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Sort by timestamp descending
+        cache.logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        return cache.logs;
+    } catch (error) {
+        console.error('Error getting logs:', error);
+        return [];
+    }
+}
+
+async function getLogsByDate(date) {
+    const logs = await getLogs();
+    return logs.filter(l => l.date === date);
+}
+
+async function getLogsByEntity(entityType, entityId) {
+    const logs = await getLogs();
+    return logs.filter(l => l.entityType === entityType && l.entityId === entityId);
 }
 
 // Initialize - populate Firestore with default data if empty
@@ -89,6 +185,7 @@ async function init() {
             for (const truck of DEFAULT_TRUCKS) {
                 await setDoc(doc(db, COLLECTIONS.trucks, truck.id), truck);
             }
+            await logActivity('INIT', 'trucks', 'all', { count: DEFAULT_TRUCKS.length });
         }
 
         // Check if drivers collection exists
@@ -98,6 +195,7 @@ async function init() {
             for (const driver of DEFAULT_DRIVERS) {
                 await setDoc(doc(db, COLLECTIONS.drivers, driver.id), driver);
             }
+            await logActivity('INIT', 'drivers', 'all', { count: DEFAULT_DRIVERS.length });
         }
 
         // Check settings
@@ -105,6 +203,17 @@ async function init() {
         if (!settingsDoc.exists()) {
             console.log('⚙️ Creating default settings...');
             await setDoc(doc(db, COLLECTIONS.settings, 'default'), DEFAULT_SETTINGS);
+            await logActivity('INIT', 'settings', 'default', DEFAULT_SETTINGS);
+        }
+
+        // Check if entries collection needs populating (from Excel data)
+        const entriesSnapshot = await getDocs(collection(db, COLLECTIONS.entries));
+        if (entriesSnapshot.empty) {
+            console.log('📝 Populating entries from Excel data...');
+            for (const entry of DEFAULT_ENTRIES) {
+                await setDoc(doc(db, COLLECTIONS.entries, entry.id), entry);
+            }
+            await logActivity('INIT', 'entries', 'all', { count: DEFAULT_ENTRIES.length, source: 'Excel' });
         }
 
         console.log('✅ Firebase initialized successfully!');
@@ -121,15 +230,18 @@ async function init() {
 // Refresh local cache from Firestore
 async function refreshCache() {
     try {
-        const [trucksSnap, driversSnap, entriesSnap] = await Promise.all([
+        const [trucksSnap, driversSnap, entriesSnap, logsSnap] = await Promise.all([
             getDocs(collection(db, COLLECTIONS.trucks)),
             getDocs(collection(db, COLLECTIONS.drivers)),
-            getDocs(collection(db, COLLECTIONS.entries))
+            getDocs(collection(db, COLLECTIONS.entries)),
+            getDocs(collection(db, COLLECTIONS.logs))
         ]);
 
         cache.trucks = trucksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         cache.drivers = driversSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         cache.entries = entriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        cache.logs = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        cache.logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
         const settingsDoc = await getDoc(doc(db, COLLECTIONS.settings, 'default'));
         cache.settings = settingsDoc.exists() ? settingsDoc.data() : DEFAULT_SETTINGS;
@@ -162,10 +274,14 @@ function getTruckById(id) {
 
 async function saveTruck(truck) {
     try {
+        const isNew = !truck.id;
         if (!truck.id) {
             truck.id = generateId();
         }
+        truck.updatedAt = new Date().toISOString();
+
         await setDoc(doc(db, COLLECTIONS.trucks, truck.id), truck);
+        await logActivity(isNew ? 'CREATE' : 'UPDATE', 'truck', truck.id, { matricule: truck.matricule, type: truck.type });
 
         // Update cache
         if (cache.trucks) {
@@ -183,7 +299,10 @@ async function saveTruck(truck) {
 
 async function deleteTruck(id) {
     try {
+        const truck = getTruckById(id);
         await deleteDoc(doc(db, COLLECTIONS.trucks, id));
+        await logActivity('DELETE', 'truck', id, { matricule: truck?.matricule });
+
         if (cache.trucks) {
             cache.trucks = cache.trucks.filter(t => t.id !== id);
         }
@@ -216,10 +335,14 @@ function getDriverById(id) {
 
 async function saveDriver(driver) {
     try {
+        const isNew = !driver.id;
         if (!driver.id) {
             driver.id = generateId();
         }
+        driver.updatedAt = new Date().toISOString();
+
         await setDoc(doc(db, COLLECTIONS.drivers, driver.id), driver);
+        await logActivity(isNew ? 'CREATE' : 'UPDATE', 'driver', driver.id, { nom: driver.nom, camionId: driver.camionId });
 
         if (cache.drivers) {
             const idx = cache.drivers.findIndex(d => d.id === driver.id);
@@ -236,7 +359,10 @@ async function saveDriver(driver) {
 
 async function deleteDriver(id) {
     try {
+        const driver = getDriverById(id);
         await deleteDoc(doc(db, COLLECTIONS.drivers, id));
+        await logActivity('DELETE', 'driver', id, { nom: driver?.nom });
+
         if (cache.drivers) {
             cache.drivers = cache.drivers.filter(d => d.id !== id);
         }
@@ -277,12 +403,33 @@ function getEntriesByMonth(year, month) {
 
 async function saveEntry(entry) {
     try {
+        const isNew = !entry.id;
         if (!entry.id) {
             entry.id = generateId();
         }
         entry.updatedAt = new Date().toISOString();
+        if (!entry.createdAt) {
+            entry.createdAt = entry.updatedAt;
+        }
 
         await setDoc(doc(db, COLLECTIONS.entries, entry.id), entry);
+
+        // Log with detailed entry info
+        await logActivity(isNew ? 'CREATE' : 'UPDATE', 'entry', entry.id, {
+            date: entry.date,
+            camionId: entry.camionId,
+            chauffeurId: entry.chauffeurId,
+            origine: entry.origine,
+            destination: entry.destination,
+            kilometrage: entry.kilometrage,
+            distanceAller: entry.distanceAller,
+            distanceRetour: entry.distanceRetour,
+            quantiteGasoil: entry.quantiteGasoil,
+            prixGasoilLitre: entry.prixGasoilLitre,
+            maintenance: entry.maintenance,
+            prixLivraison: entry.prixLivraison,
+            remarques: entry.remarques
+        });
 
         if (cache.entries) {
             const idx = cache.entries.findIndex(e => e.id === entry.id);
@@ -299,7 +446,14 @@ async function saveEntry(entry) {
 
 async function deleteEntry(id) {
     try {
+        const entry = cache.entries?.find(e => e.id === id);
         await deleteDoc(doc(db, COLLECTIONS.entries, id));
+        await logActivity('DELETE', 'entry', id, {
+            date: entry?.date,
+            destination: entry?.destination,
+            origine: entry?.origine
+        });
+
         if (cache.entries) {
             cache.entries = cache.entries.filter(e => e.id !== id);
         }
@@ -326,6 +480,7 @@ async function getSettings() {
 async function saveSettings(settings) {
     try {
         await setDoc(doc(db, COLLECTIONS.settings, 'default'), settings);
+        await logActivity('UPDATE', 'settings', 'default', settings);
         cache.settings = settings;
     } catch (error) {
         console.error('Error saving settings:', error);
@@ -352,11 +507,14 @@ function calculateEntryCosts(entry, truck) {
 
 // ==================== EXPORT/IMPORT ====================
 async function exportData() {
+    await logActivity('EXPORT', 'all', 'backup', { timestamp: new Date().toISOString() });
+
     return {
         trucks: await getTrucks(),
         drivers: await getDrivers(),
         entries: await getEntries(),
         settings: await getSettings(),
+        logs: await getLogs(),
         exportDate: new Date().toISOString()
     };
 }
@@ -382,6 +540,12 @@ async function importData(data) {
             await setDoc(doc(db, COLLECTIONS.settings, 'default'), data.settings);
         }
 
+        await logActivity('IMPORT', 'all', 'restore', {
+            trucksCount: data.trucks?.length || 0,
+            driversCount: data.drivers?.length || 0,
+            entriesCount: data.entries?.length || 0
+        });
+
         await refreshCache();
 
     } catch (error) {
@@ -392,6 +556,9 @@ async function importData(data) {
 
 async function resetData() {
     try {
+        // Log before reset
+        await logActivity('RESET', 'all', 'reset', { timestamp: new Date().toISOString() });
+
         // Delete all entries
         const entriesSnap = await getDocs(collection(db, COLLECTIONS.entries));
         for (const entryDoc of entriesSnap.docs) {
@@ -423,25 +590,36 @@ async function resetData() {
 export const DataModule = {
     init,
     refreshCache,
+    // Trucks
     getTrucks,
     getTruckById,
     saveTruck,
     deleteTruck,
+    // Drivers
     getDrivers,
     getDriverById,
     saveDriver,
     deleteDriver,
+    // Entries
     getEntries,
     getEntriesByDate,
     getEntriesByMonth,
     saveEntry,
     deleteEntry,
+    // Settings
     getSettings,
     saveSettings,
+    // Calculations
     calculateEntryCosts,
+    // Export/Import
     exportData,
     importData,
-    resetData
+    resetData,
+    // Logs
+    getLogs,
+    getLogsByDate,
+    getLogsByEntity,
+    logActivity
 };
 
 // Make available globally

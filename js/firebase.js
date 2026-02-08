@@ -41,7 +41,8 @@ const COLLECTIONS = {
     trucks: 'trucks',
     drivers: 'drivers',
     entries: 'entries',
-    settings: 'settings'
+    settings: 'settings',
+    logs: 'activity_logs'
 };
 
 // Export for use in other modules

@@ -9,6 +9,7 @@ import { TrucksModule } from './trucks-firebase.js';
 import { DriversModule } from './drivers-firebase.js';
 import { EntriesModule } from './entries-firebase.js';
 import { ReportsModule } from './reports-firebase.js';
+import { ProfileModule } from './profile-firebase.js';
 
 let currentPage = 'dashboard';
 let selectedDate = new Date().toISOString().split('T')[0];
@@ -29,6 +30,7 @@ async function init() {
         DriversModule.init();
         EntriesModule.init();
         ReportsModule.init();
+        ProfileModule.init();
 
         // Setup UI
         setupNavigation();

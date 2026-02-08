@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migration Excel vers Firebase</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #e2e8f0;
+        }
+
+        .container {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        h1 span {
+            color: #f97316;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section h3 {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .data-preview {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .data-item {
+            background: rgba(139, 92, 246, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .data-item .count {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #8b5cf6;
+        }
+
+        .data-item .label {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: rgba(100, 116, 139, 0.3);
+            color: #94a3b8;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(100, 116, 139, 0.5);
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .status.success {
+            display: block;
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid #10b981;
+            color: #10b981;
+        }
+
+        .status.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        .status.info {
+            display: block;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid #3b82f6;
+            color: #3b82f6;
+        }
+
+        .log {
+            margin-top: 15px;
+            font-size: 0.85rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .success-box {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid #10b981;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📊 Migration Excel <span>→ Firebase</span></h1>
+        <p class="subtitle">Importer les données du fichier Excel vers Firebase</p>
+
+        <div class="success-box">
+            ✅ <strong>Données extraites depuis:</strong> Tableau_suivi_journalier_camion.xlsx
+        </div>
+
+        <div class="section">
+            <h3>💾 Données à Importer</h3>
+            <div class="data-preview">
+                <div class="data-item">
+                    <div class="count" id="truckCount">15</div>
+                    <div class="label">Camions</div>
+                </div>
+                <div class="data-item">
+                    <div class="count" id="driverCount">14</div>
+                    <div class="label">Chauffeurs</div>
+                </div>
+                <div class="data-item">
+                    <div class="count" id="entryCount">38</div>
+                    <div class="label">Saisies</div>
+                </div>
+                <div class="data-item">
+                    <div class="count" id="datesCount">4</div>
+                    <div class="label">Jours</div>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-primary" id="migrateBtn" onclick="startMigration()">
+            🚀 Démarrer la Migration vers Firebase
+        </button>
+
+        <button class="btn btn-secondary" onclick="window.location.href='index.html'">
+            ← Retour à l'Application
+        </button>
+
+        <div class="status" id="status">
+            <div id="statusText"></div>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+
+    <!-- Firebase & Excel Data -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, doc, setDoc, getDocs, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyDrQgC8-T9H8l4VGVs1paCD2pqQT4XypiY",
+            authDomain: "amaratransports.firebaseapp.com",
+            projectId: "amaratransports",
+            storageBucket: "amaratransports.firebasestorage.app",
+            messagingSenderId: "991257288526",
+            appId: "1:991257288526:web:f5b1c8e27e79f3f5dc2a7a",
+            measurementId: "G-VG1S2Q4EZL"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Excel data extracted directly (embedded)
+        const EXCEL_DATA = {
+            trucks: [
+                { id: 't1', matricule: '8565 TU 257', type: 'PLATEAU', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't2', matricule: '8563 TU 257', type: 'PLATEAU', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't3', matricule: '5305 TU 236', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't4', matricule: '924 TU 98', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't5', matricule: '6980 TU 101', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't6', matricule: '7775 TU 252', type: 'PLATEAU', chargesFixes: 400, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't7', matricule: '4176 TU 250', type: 'PLATEAU', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't8', matricule: '3380 TU 104', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't9', matricule: '446 TU 228', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't10', matricule: '7243 TU 75', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't11', matricule: '4188 TU 80', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't12', matricule: '2318 TU 155', type: 'BENNE', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't13', matricule: '788 TU 99', type: 'BENNE', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't14', matricule: '8564 TU 257', type: 'BENNE', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 },
+                { id: 't15', matricule: '8566 TU 257', type: 'BENNE', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 }
+            ],
+            drivers: [
+                { id: 'd1', nom: 'CHOKAIRI', camionId: 't1' },
+                { id: 'd2', nom: 'LASSAD CHATAOUI', camionId: 't2' },
+                { id: 'd3', nom: 'HAMZA', camionId: 't3' },
+                { id: 'd4', nom: 'IKRAMI', camionId: 't4' },
+                { id: 'd5', nom: 'ABDELBARI', camionId: 't5' },
+                { id: 'd6', nom: 'JAMIL', camionId: 't6' },
+                { id: 'd7', nom: 'HEDI', camionId: 't7' },
+                { id: 'd8', nom: 'MALEK', camionId: 't8' },
+                { id: 'd9', nom: 'LASSAD AMRI', camionId: 't10' },
+                { id: 'd10', nom: 'SAMI', camionId: 't11' },
+                { id: 'd11', nom: 'KAMEL CH', camionId: 't12' },
+                { id: 'd12', nom: 'KAMEL ZAY', camionId: 't13' },
+                { id: 'd13', nom: 'CHOKRI THAMER', camionId: 't14' },
+                { id: 'd14', nom: 'HSAN REBII', camionId: 't15' }
+            ],
+            entries: [
+                { id: 'e1', date: '2026-02-02', camionId: 't1', chauffeurId: 'd1', destination: 'TUNIS', kilometrage: 800, quantiteGasoil: 240, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 500, remarques: '' },
+                { id: 'e2', date: '2026-02-02', camionId: 't2', chauffeurId: 'd2', destination: 'TUNIS', kilometrage: 800, quantiteGasoil: 240, prixGasoilLitre: 2, maintenance: 1070, prixLivraison: 500, remarques: 'VIDANGE' },
+                { id: 'e3', date: '2026-02-02', camionId: 't3', chauffeurId: 'd3', destination: 'SOUSSE', kilometrage: 300, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 590, remarques: '' },
+                { id: 'e4', date: '2026-02-02', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 340, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 590, remarques: '' },
+                { id: 'e5', date: '2026-02-02', camionId: 't5', chauffeurId: 'd5', destination: 'KEBILI/GABES', kilometrage: 434, quantiteGasoil: 125, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 650, remarques: '' },
+                { id: 'e6', date: '2026-02-02', camionId: 't6', chauffeurId: 'd6', destination: 'MEHDIA/TUNIS', kilometrage: 1220, quantiteGasoil: 360, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 1090, remarques: '' },
+                { id: 'e7', date: '2026-02-02', camionId: 't7', chauffeurId: 'd7', destination: 'TUNIS', kilometrage: 800, quantiteGasoil: 240, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 500, remarques: '' },
+                { id: 'e8', date: '2026-02-02', camionId: 't10', chauffeurId: 'd9', destination: 'OUDHREF', kilometrage: 80, quantiteGasoil: 30, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 200, remarques: '' },
+                { id: 'e9', date: '2026-02-02', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/CHAGRA', kilometrage: 200, quantiteGasoil: 65, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 500, remarques: '' },
+                { id: 'e10', date: '2026-02-02', camionId: 't14', chauffeurId: 'd13', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
+                { id: 'e11', date: '2026-02-02', camionId: 't15', chauffeurId: 'd14', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
+                { id: 'e12', date: '2026-02-03', camionId: 't2', chauffeurId: 'd2', destination: 'GAFSSA', kilometrage: 300, quantiteGasoil: 90, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 600, remarques: '' },
+                { id: 'e13', date: '2026-02-03', camionId: 't3', chauffeurId: 'd3', destination: 'ZARZIS', kilometrage: 414, quantiteGasoil: 145, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 524, remarques: '' },
+                { id: 'e14', date: '2026-02-03', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 553, remarques: '' },
+                { id: 'e15', date: '2026-02-03', camionId: 't5', chauffeurId: 'd5', destination: 'ELHAMMA', kilometrage: 180, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 234, remarques: '' },
+                { id: 'e16', date: '2026-02-03', camionId: 't6', chauffeurId: 'd6', destination: '', kilometrage: 0, quantiteGasoil: 0, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 1090, remarques: '' },
+                { id: 'e17', date: '2026-02-03', camionId: 't10', chauffeurId: 'd9', destination: 'OUDHREF', kilometrage: 80, quantiteGasoil: 30, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 200, remarques: '' },
+                { id: 'e18', date: '2026-02-03', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/SB', kilometrage: 320, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
+                { id: 'e19', date: '2026-02-03', camionId: 't14', chauffeurId: 'd13', destination: 'FAIEDH/SP/2SB', kilometrage: 300, quantiteGasoil: 100, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 960, remarques: '' },
+                { id: 'e20', date: '2026-02-03', camionId: 't15', chauffeurId: 'd14', destination: 'FAIEDH/SP/2SB', kilometrage: 300, quantiteGasoil: 100, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 960, remarques: '' },
+                { id: 'e21', date: '2026-02-04', camionId: 't1', chauffeurId: 'd1', destination: 'ZARZIS', kilometrage: 414, quantiteGasoil: 125, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 524, remarques: '' },
+                { id: 'e22', date: '2026-02-04', camionId: 't2', chauffeurId: 'd2', destination: 'TUNIS', kilometrage: 414, quantiteGasoil: 125, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 524, remarques: '' },
+                { id: 'e23', date: '2026-02-04', camionId: 't3', chauffeurId: 'd3', destination: 'OUDHREF', kilometrage: 80, quantiteGasoil: 30, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 187, remarques: '' },
+                { id: 'e24', date: '2026-02-04', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 553, remarques: '' },
+                { id: 'e25', date: '2026-02-04', camionId: 't5', chauffeurId: 'd5', destination: 'GABES', kilometrage: 140, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 420, prixLivraison: 234, remarques: '' },
+                { id: 'e26', date: '2026-02-04', camionId: 't7', chauffeurId: 'd7', destination: 'BENGUERDENE', kilometrage: 440, quantiteGasoil: 140, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 670, remarques: '' },
+                { id: 'e27', date: '2026-02-04', camionId: 't9', chauffeurId: null, destination: 'GABES', kilometrage: 140, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 234, remarques: '' },
+                { id: 'e28', date: '2026-02-04', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/SB', kilometrage: 320, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
+                { id: 'e29', date: '2026-02-04', camionId: 't14', chauffeurId: 'd13', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
+                { id: 'e30', date: '2026-02-04', camionId: 't15', chauffeurId: 'd14', destination: 'FAIEDH/SP/2SB', kilometrage: 400, quantiteGasoil: 135, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 980, remarques: '' },
+                { id: 'e31', date: '2026-02-05', camionId: 't1', chauffeurId: 'd1', destination: 'GHANOUCH', kilometrage: 130, quantiteGasoil: 40, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 234, remarques: '' },
+                { id: 'e32', date: '2026-02-05', camionId: 't2', chauffeurId: 'd2', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 110, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 591, remarques: '' },
+                { id: 'e33', date: '2026-02-05', camionId: 't4', chauffeurId: 'd4', destination: 'DJERBA', kilometrage: 380, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 591, remarques: '' },
+                { id: 'e34', date: '2026-02-05', camionId: 't6', chauffeurId: 'd6', destination: 'GABES/DJERBA', kilometrage: 520, quantiteGasoil: 160, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 841, remarques: '' },
+                { id: 'e35', date: '2026-02-05', camionId: 't7', chauffeurId: 'd7', destination: 'MAHDIA', kilometrage: 450, quantiteGasoil: 140, prixGasoilLitre: 2, maintenance: 1546, prixLivraison: 590, remarques: 'VIDANGE' },
+                { id: 'e36', date: '2026-02-05', camionId: 't12', chauffeurId: 'd11', destination: 'CHAGRA/SB', kilometrage: 320, quantiteGasoil: 120, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
+                { id: 'e37', date: '2026-02-05', camionId: 't14', chauffeurId: 'd13', destination: 'SUDB/SB/HICHA/SP', kilometrage: 200, quantiteGasoil: 60, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 800, remarques: '' },
+                { id: 'e38', date: '2026-02-05', camionId: 't15', chauffeurId: 'd14', destination: 'FAYEDH/FAYEDH', kilometrage: 300, quantiteGasoil: 100, prixGasoilLitre: 2, maintenance: 0, prixLivraison: 960, remarques: '' }
+            ],
+            settings: { defaultFuelPrice: 2, currency: 'TND' }
+        };
+
+        // Update counts on load
+        document.getElementById('truckCount').textContent = EXCEL_DATA.trucks.length;
+        document.getElementById('driverCount').textContent = EXCEL_DATA.drivers.length;
+        document.getElementById('entryCount').textContent = EXCEL_DATA.entries.length;
+        const uniqueDates = new Set(EXCEL_DATA.entries.map(e => e.date));
+        document.getElementById('datesCount').textContent = uniqueDates.size;
+
+        function showStatus(type, text) {
+            const status = document.getElementById('status');
+            status.className = 'status ' + type;
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function addLog(text) {
+            const log = document.getElementById('log');
+            log.innerHTML += `<div class="log-item">✓ ${text}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Migration function
+        window.startMigration = async function () {
+            const btn = document.getElementById('migrateBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Migration en cours...';
+
+            document.getElementById('log').innerHTML = '';
+            showStatus('info', 'Migration en cours...');
+
+            try {
+                // Upload trucks
+                addLog(`Importation de ${EXCEL_DATA.trucks.length} camions...`);
+                for (const truck of EXCEL_DATA.trucks) {
+                    await setDoc(doc(db, 'trucks', truck.id), truck);
+                }
+                addLog('✅ Camions importés');
+
+                // Upload drivers
+                addLog(`Importation de ${EXCEL_DATA.drivers.length} chauffeurs...`);
+                for (const driver of EXCEL_DATA.drivers) {
+                    await setDoc(doc(db, 'drivers', driver.id), driver);
+                }
+                addLog('✅ Chauffeurs importés');
+
+                // Upload entries
+                addLog(`Importation de ${EXCEL_DATA.entries.length} saisies...`);
+                for (const entry of EXCEL_DATA.entries) {
+                    await setDoc(doc(db, 'entries', entry.id), entry);
+                }
+                addLog('✅ Saisies importées');
+
+                // Upload settings
+                addLog('Importation des paramètres...');
+                await setDoc(doc(db, 'settings', 'default'), EXCEL_DATA.settings);
+                addLog('✅ Paramètres importés');
+
+                addLog('🎉 Migration terminée avec succès!');
+                showStatus('success', `✅ Migration réussie! ${EXCEL_DATA.trucks.length} camions, ${EXCEL_DATA.drivers.length} chauffeurs, ${EXCEL_DATA.entries.length} saisies importés depuis Excel.`);
+
+                btn.textContent = '✅ Migration Terminée';
+
+                setTimeout(() => {
+                    btn.textContent = '🚀 Aller à l\'Application';
+                    btn.disabled = false;
+                    btn.onclick = () => window.location.href = 'index.html';
+                }, 2000);
+
+            } catch (error) {
+                console.error('Migration error:', error);
+                showStatus('error', '❌ Erreur: ' + error.message);
+                addLog('❌ ' + error.message);
+                btn.disabled = false;
+                btn.textContent = '🔄 Réessayer';
+            }
+        };
+    </script>
+</body>
+
+</html>
