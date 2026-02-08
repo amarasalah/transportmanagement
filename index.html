@@ -59,6 +59,60 @@
             color: #8b5cf6;
             z-index: 100;
         }
+
+        /* Submenu styles */
+        .nav-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .nav-submenu {
+            display: none;
+            flex-direction: column;
+            padding-left: 20px;
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        .nav-submenu.active {
+            display: flex;
+        }
+
+        .nav-submenu .nav-item {
+            padding: 8px 16px;
+            font-size: 0.875rem;
+            border-left: 2px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .nav-submenu .nav-item:hover {
+            border-left-color: #8b5cf6;
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .nav-arrow {
+            margin-left: auto;
+            font-size: 0.75rem;
+            transition: transform 0.2s;
+        }
+
+        .nav-group.open .nav-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Status badges */
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-en-cours { background: #fef3c7; color: #92400e; }
+        .status-validee { background: #d1fae5; color: #065f46; }
+        .status-transforme { background: #dbeafe; color: #1e40af; }
+        .status-recu { background: #c7d2fe; color: #3730a3; }
+        .status-payee { background: #d1fae5; color: #065f46; }
+        .status-non-payee { background: #fee2e2; color: #991b1b; }
+        .status-partiel { background: #fef3c7; color: #92400e; }
     </style>
 </head>
 
@@ -87,6 +141,39 @@
                 <span class="nav-icon">📝</span>
                 <span class="nav-label">Saisie journalière</span>
             </a>
+            <div class="nav-group">
+                <a href="#" class="nav-item" data-toggle="achat-local">
+                    <span class="nav-icon">🛒</span>
+                    <span class="nav-label">Achat Local</span>
+                    <span class="nav-arrow">▼</span>
+                </a>
+                <div class="nav-submenu" id="achat-local-submenu">
+                    <a href="#" class="nav-item" data-page="offres-prix">
+                        <span class="nav-icon">📋</span>
+                        <span class="nav-label">Offres de Prix</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="bon-commandes">
+                        <span class="nav-icon">📄</span>
+                        <span class="nav-label">Bon Commandes</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="bon-livraisons">
+                        <span class="nav-icon">📦</span>
+                        <span class="nav-label">Bon Livraisons</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="factures">
+                        <span class="nav-icon">🧾</span>
+                        <span class="nav-label">Factures Fournisseurs</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="reglements">
+                        <span class="nav-icon">💸</span>
+                        <span class="nav-label">Règlements</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="fournisseurs">
+                        <span class="nav-icon">🏢</span>
+                        <span class="nav-label">Fournisseurs</span>
+                    </a>
+                </div>
+            </div>
             <a href="#" class="nav-item" data-page="trucks">
                 <span class="nav-icon">🚚</span>
                 <span class="nav-label">Camions</span>
@@ -300,6 +387,176 @@
             </div>
         </section>
 
+        <!-- Achat Local: Offres de Prix -->
+        <section class="page" id="page-offres-prix">
+            <div class="page-header">
+                <h2>📋 Demandes Offres de Prix</h2>
+                <button class="btn btn-primary" id="addOffreBtn">
+                    <span>+</span> Nouvelle Demande
+                </button>
+            </div>
+            <div class="data-card">
+                <div class="table-container">
+                    <table class="data-table" id="offresTable">
+                        <thead>
+                            <tr>
+                                <th>N° Demande</th>
+                                <th>Date</th>
+                                <th>Fournisseur</th>
+                                <th>Description</th>
+                                <th>Montant Est.</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="offresBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Achat Local: Bon Commandes -->
+        <section class="page" id="page-bon-commandes">
+            <div class="page-header">
+                <h2>📄 Bon Commandes</h2>
+                <button class="btn btn-primary" id="addCommandeBtn">
+                    <span>+</span> Nouveau BC
+                </button>
+            </div>
+            <div class="data-card">
+                <div class="table-container">
+                    <table class="data-table" id="commandesTable">
+                        <thead>
+                            <tr>
+                                <th>N° BC</th>
+                                <th>Date</th>
+                                <th>Fournisseur</th>
+                                <th>Camion</th>
+                                <th>Type Maintenance</th>
+                                <th>Montant</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="commandesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Achat Local: Bon Livraisons -->
+        <section class="page" id="page-bon-livraisons">
+            <div class="page-header">
+                <h2>📦 Bon Livraisons</h2>
+                <button class="btn btn-primary" id="addLivraisonBtn">
+                    <span>+</span> Nouveau BL
+                </button>
+            </div>
+            <div class="data-card">
+                <div class="table-container">
+                    <table class="data-table" id="livraisonsTable">
+                        <thead>
+                            <tr>
+                                <th>N° BL</th>
+                                <th>Date</th>
+                                <th>N° BC</th>
+                                <th>Fournisseur</th>
+                                <th>Dépôt</th>
+                                <th>Camion</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="livraisonsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Achat Local: Factures Fournisseurs -->
+        <section class="page" id="page-factures">
+            <div class="page-header">
+                <h2>🧾 Factures Fournisseurs</h2>
+                <button class="btn btn-primary" id="addFactureBtn">
+                    <span>+</span> Nouvelle Facture
+                </button>
+            </div>
+            <div class="kpi-grid" style="margin-bottom: 20px;">
+                <div class="kpi-card" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                    <div class="kpi-icon">💰</div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">Total Non Payé</span>
+                        <span class="kpi-value" id="totalNonPaye">0 TND</span>
+                    </div>
+                </div>
+                <div class="kpi-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <div class="kpi-icon">✅</div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">Total Payé</span>
+                        <span class="kpi-value" id="totalPaye">0 TND</span>
+                    </div>
+                </div>
+            </div>
+            <div class="data-card">
+                <div class="table-container">
+                    <table class="data-table" id="facturesTable">
+                        <thead>
+                            <tr>
+                                <th>N° Facture</th>
+                                <th>Date</th>
+                                <th>Fournisseur</th>
+                                <th>N° Fac Fournisseur</th>
+                                <th>Montant</th>
+                                <th>Montant Réglé</th>
+                                <th>État</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="facturesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Achat Local: Règlements -->
+        <section class="page" id="page-reglements">
+            <div class="page-header">
+                <h2>💸 Règlements Fournisseurs</h2>
+                <button class="btn btn-primary" id="addReglementBtn">
+                    <span>+</span> Nouveau Règlement
+                </button>
+            </div>
+            <div class="data-card">
+                <div class="table-container">
+                    <table class="data-table" id="reglementsTable">
+                        <thead>
+                            <tr>
+                                <th>N° Règlement</th>
+                                <th>Date</th>
+                                <th>Fournisseur</th>
+                                <th>Type Paiement</th>
+                                <th>Montant</th>
+                                <th>Factures Liées</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reglementsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Achat Local: Fournisseurs -->
+        <section class="page" id="page-fournisseurs">
+            <div class="page-header">
+                <h2>🏢 Gestion des Fournisseurs</h2>
+                <button class="btn btn-primary" id="addFournisseurBtn">
+                    <span>+</span> Nouveau Fournisseur
+                </button>
+            </div>
+            <div class="cards-grid" id="fournisseursGrid"></div>
+        </section>
+
         <!-- Settings Page -->
         <section class="page" id="page-settings">
             <div class="page-header">
@@ -318,6 +575,14 @@
                         <span class="input-suffix">TND/L</span>
                     </div>
                     <button class="btn btn-primary" id="saveFuelPrice">Enregistrer</button>
+                </div>
+                <div class="settings-card">
+                    <h3>📥 Import Base de Données</h3>
+                    <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 12px;">Importer les données depuis complete_excel_data.json</p>
+                    <div class="settings-actions">
+                        <button class="btn btn-primary" id="importDataBtn" onclick="DataImporter.importFromJSON().then(r => alert(r.success ? `Import réussi! ${r.trucks} camions, ${r.drivers} chauffeurs, ${r.entries} saisies` : 'Erreur: ' + r.error))">📥 Importer les données</button>
+                        <button class="btn btn-outline" id="mergeDataBtn" onclick="DataImporter.mergeWithExisting().then(r => alert(r.success ? `${r.added} nouvelles saisies ajoutées` : 'Erreur: ' + r.error))">🔄 Fusionner avec existant</button>
+                    </div>
                 </div>
                 <div class="settings-card">
                     <h3>Données</h3>
@@ -354,6 +619,9 @@
 
     <!-- Scripts - ES Modules -->
     <script src="js/locations.js"></script>
+    <script src="js/suppliers.js"></script>
+    <script src="js/achat-local.js"></script>
+    <script src="js/data-importer.js"></script>
     <script type="module" src="js/app-firebase.js"></script>
 </body>
 

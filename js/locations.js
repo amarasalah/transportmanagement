@@ -143,6 +143,45 @@ function toRad(deg) {
     return deg * (Math.PI / 180);
 }
 
+function hashStringToSeed(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+}
+
+function seededRandom(seed) {
+    let x = seed >>> 0;
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    return (x >>> 0) / 4294967296;
+}
+
+function getEstimatedDelegationCoordinates(gouvernorat, delegation) {
+    const base = GouvernoratCoordinates[gouvernorat];
+    if (!base) return null;
+    if (!delegation) return base;
+
+    const seed = hashStringToSeed(`${gouvernorat}|${delegation}`);
+    const r1 = seededRandom(seed);
+    const r2 = seededRandom(seed ^ 0x9e3779b9);
+
+    const angle = r1 * 2 * Math.PI;
+    const radiusKm = 5 + r2 * 25;
+
+    const dLat = (radiusKm / 111) * Math.cos(angle);
+    const latRad = toRad(base.lat);
+    const dLng = (radiusKm / (111 * Math.max(0.2, Math.cos(latRad)))) * Math.sin(angle);
+
+    return {
+        lat: base.lat + dLat,
+        lng: base.lng + dLng
+    };
+}
+
 /**
  * Calculate road distance between two governorates
  * Uses straight-line distance with a road factor (typically 1.3-1.4 for Tunisia)
@@ -177,14 +216,27 @@ function calculateRoadDistance(fromGouvernorat, toGouvernorat) {
  * This uses gouvernorat coordinates for estimation
  */
 function getDistanceEstimate(fromGouvernorat, fromDelegation, toGouvernorat, toDelegation) {
-    let distance = calculateRoadDistance(fromGouvernorat, toGouvernorat);
+    const from = getEstimatedDelegationCoordinates(fromGouvernorat, fromDelegation);
+    const to = getEstimatedDelegationCoordinates(toGouvernorat, toDelegation);
 
-    // Add small adjustment for different delegations within same governorate
-    if (fromGouvernorat === toGouvernorat && fromDelegation !== toDelegation) {
-        distance = Math.max(15, distance); // Minimum 15 km between different delegations
+    if (!from || !to) {
+        console.warn('Coordinates not found for:', fromGouvernorat, 'or', toGouvernorat);
+        return 0;
     }
 
-    return distance;
+    if (fromGouvernorat === toGouvernorat) {
+        if (fromDelegation && toDelegation && fromDelegation === toDelegation) {
+            return 10;
+        }
+        if (fromDelegation !== toDelegation) {
+            const intra = Math.round(calculateDistance(from.lat, from.lng, to.lat, to.lng) * 1.35);
+            return Math.max(15, intra);
+        }
+    }
+
+    const straightLine = calculateDistance(from.lat, from.lng, to.lat, to.lng);
+    const roadFactor = 1.35;
+    return Math.round(straightLine * roadFactor);
 }
 
 // Export for use in other modules

@@ -126,7 +126,7 @@ const EntriesModule = (() => {
                         </div>
                         <div class="form-group">
                             <label for="origineDelegation">Délégation</label>
-                            <select id="origineDelegation" required>
+                            <select id="origineDelegation" required onchange="EntriesModule.updateDistanceEstimate()">
                                 <option value="">-- Sélectionner gouvernorat --</option>
                                 ${origineDelegationOptions}
                             </select>
@@ -147,7 +147,7 @@ const EntriesModule = (() => {
                         </div>
                         <div class="form-group">
                             <label for="entryDelegation">Délégation</label>
-                            <select id="entryDelegation" required>
+                            <select id="entryDelegation" required onchange="EntriesModule.updateDistanceEstimate()">
                                 <option value="">-- Sélectionner gouvernorat --</option>
                                 ${destDelegationOptions}
                             </select>
@@ -435,6 +435,7 @@ const EntriesModule = (() => {
         onTruckChange,
         onOrigineGouvernoratChange,
         onGouvernoratChange,
-        updateCalculations
+        updateCalculations,
+        updateDistanceEstimate
     };
 })();
