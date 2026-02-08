@@ -106,13 +106,40 @@
             font-weight: 500;
         }
 
-        .status-en-cours { background: #fef3c7; color: #92400e; }
-        .status-validee { background: #d1fae5; color: #065f46; }
-        .status-transforme { background: #dbeafe; color: #1e40af; }
-        .status-recu { background: #c7d2fe; color: #3730a3; }
-        .status-payee { background: #d1fae5; color: #065f46; }
-        .status-non-payee { background: #fee2e2; color: #991b1b; }
-        .status-partiel { background: #fef3c7; color: #92400e; }
+        .status-en-cours {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-validee {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-transforme {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-recu {
+            background: #c7d2fe;
+            color: #3730a3;
+        }
+
+        .status-payee {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-non-payee {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-partiel {
+            background: #fef3c7;
+            color: #92400e;
+        }
     </style>
 </head>
 
@@ -174,6 +201,44 @@
                     </a>
                 </div>
             </div>
+            <!-- Vente Client Submenu -->
+            <div class="nav-group">
+                <a href="#" class="nav-item" data-toggle="vente-client">
+                    <span class="nav-icon">💰</span>
+                    <span class="nav-label">Vente Client</span>
+                    <span class="nav-arrow">▼</span>
+                </a>
+                <div class="nav-submenu" id="vente-client-submenu">
+                    <a href="#" class="nav-item" data-page="devis-clients">
+                        <span class="nav-icon">📋</span>
+                        <span class="nav-label">Devis / Offres</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="commandes-clients">
+                        <span class="nav-icon">📄</span>
+                        <span class="nav-label">Bon Commandes</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="livraisons-clients">
+                        <span class="nav-icon">📦</span>
+                        <span class="nav-label">Bon Livraisons</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="retours-clients">
+                        <span class="nav-icon">↩️</span>
+                        <span class="nav-label">Bon Retours</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="factures-clients">
+                        <span class="nav-icon">🧾</span>
+                        <span class="nav-label">Factures Clients</span>
+                    </a>
+                    <a href="#" class="nav-item" data-page="clients">
+                        <span class="nav-icon">👥</span>
+                        <span class="nav-label">Clients</span>
+                    </a>
+                </div>
+            </div>
+            <a href="#" class="nav-item" data-page="articles">
+                <span class="nav-icon">📦</span>
+                <span class="nav-label">Articles</span>
+            </a>
             <a href="#" class="nav-item" data-page="trucks">
                 <span class="nav-icon">🚚</span>
                 <span class="nav-label">Camions</span>
@@ -366,6 +431,14 @@
                     <select id="reportMonth"></select>
                 </div>
             </div>
+
+            <!-- ERP Summary KPIs -->
+            <div id="erpSummaryContainer"></div>
+
+            <!-- Charts Section -->
+            <div id="chartsContainer"></div>
+
+            <!-- Monthly Report Table -->
             <div class="data-card">
                 <div class="table-container">
                     <table class="data-table" id="monthlyTable">
@@ -550,11 +623,81 @@
         <section class="page" id="page-fournisseurs">
             <div class="page-header">
                 <h2>🏢 Gestion des Fournisseurs</h2>
-                <button class="btn btn-primary" id="addFournisseurBtn">
+                <button class="btn btn-primary" id="addSupplierBtn">
                     <span>+</span> Nouveau Fournisseur
                 </button>
             </div>
-            <div class="cards-grid" id="fournisseursGrid"></div>
+            <div class="cards-grid" id="suppliersGrid"></div>
+        </section>
+
+        <!-- Vente Client: Clients -->
+        <section class="page" id="page-clients">
+            <div class="page-header">
+                <h2>👥 Gestion des Clients</h2>
+                <button class="btn btn-primary" id="addClientBtn">
+                    <span>+</span> Nouveau Client
+                </button>
+            </div>
+            <div class="cards-grid" id="clientsGrid"></div>
+        </section>
+
+        <!-- Vente Client: Bon Commandes Vente -->
+        <section class="page" id="page-commandes-clients">
+            <div class="page-header">
+                <h2>📄 Bon Commandes Vente</h2>
+                <button class="btn btn-primary" id="addSalesOrderBtn">
+                    <span>+</span> Nouveau BC Vente
+                </button>
+            </div>
+            <div class="data-card">
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>N° BC</th>
+                                <th>Date</th>
+                                <th>Client</th>
+                                <th>Lignes</th>
+                                <th>Total HT</th>
+                                <th>TVA</th>
+                                <th>Total TTC</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesOrdersTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Articles / Produits -->
+        <section class="page" id="page-articles">
+            <div class="page-header">
+                <h2>📦 Gestion des Articles</h2>
+                <button class="btn btn-primary" id="addArticleBtn">
+                    <span>+</span> Nouvel Article
+                </button>
+            </div>
+            <div class="data-card">
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Référence</th>
+                                <th>Désignation</th>
+                                <th>Catégorie</th>
+                                <th>Unité</th>
+                                <th>Prix Achat</th>
+                                <th>Prix Vente</th>
+                                <th>Stock</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="articlesTable"></tbody>
+                    </table>
+                </div>
+            </div>
         </section>
 
         <!-- Settings Page -->
@@ -578,10 +721,15 @@
                 </div>
                 <div class="settings-card">
                     <h3>📥 Import Base de Données</h3>
-                    <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 12px;">Importer les données depuis complete_excel_data.json</p>
+                    <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 12px;">Importer les données depuis
+                        complete_excel_data.json</p>
                     <div class="settings-actions">
-                        <button class="btn btn-primary" id="importDataBtn" onclick="DataImporter.importFromJSON().then(r => alert(r.success ? `Import réussi! ${r.trucks} camions, ${r.drivers} chauffeurs, ${r.entries} saisies` : 'Erreur: ' + r.error))">📥 Importer les données</button>
-                        <button class="btn btn-outline" id="mergeDataBtn" onclick="DataImporter.mergeWithExisting().then(r => alert(r.success ? `${r.added} nouvelles saisies ajoutées` : 'Erreur: ' + r.error))">🔄 Fusionner avec existant</button>
+                        <button class="btn btn-primary" id="importDataBtn"
+                            onclick="DataImporter.importFromJSON().then(r => alert(r.success ? `Import réussi! ${r.trucks} camions, ${r.drivers} chauffeurs, ${r.entries} saisies` : 'Erreur: ' + r.error))">📥
+                            Importer les données</button>
+                        <button class="btn btn-outline" id="mergeDataBtn"
+                            onclick="DataImporter.mergeWithExisting().then(r => alert(r.success ? `${r.added} nouvelles saisies ajoutées` : 'Erreur: ' + r.error))">🔄
+                            Fusionner avec existant</button>
                     </div>
                 </div>
                 <div class="settings-card">

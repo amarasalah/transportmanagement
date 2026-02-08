@@ -1,9 +1,11 @@
 /**
  * ENTRIES MODULE - FIREBASE VERSION
  * With round-trip (aller-retour) distance calculation
+ * And trajectory statistics for driver/truck performance
  */
 
 import { DataModule } from './data-firebase.js';
+import { TrajectoryStatsModule } from './trajectory-stats-firebase.js';
 
 function init() {
     document.getElementById('addEntryBtn')?.addEventListener('click', () => openModal());
@@ -240,12 +242,18 @@ async function openModal(entryId = null) {
                     <input type="text" id="calcResultat" value="0 TND" readonly style="font-weight: bold; font-size: 1.1rem;">
                 </div>
             </div>
+
+            <!-- Trajectory Statistics Panel -->
+            <div id="trajectoryStatsContainer"></div>
         </form>
     `;
 
     document.getElementById('modalSave').onclick = saveEntry;
     App.showModal();
-    setTimeout(() => updateCalculations(), 100);
+    setTimeout(() => {
+        updateCalculations();
+        updateTrajectoryStats();
+    }, 100);
 }
 
 function onOrigineGouvernoratChange() {
@@ -312,6 +320,9 @@ function updateDistanceEstimate() {
 
         const kmField = document.getElementById('entryKm');
         if (kmField) kmField.value = distanceTotal;
+
+        // Update trajectory statistics for the new route
+        updateTrajectoryStats();
     }
 }
 
@@ -325,6 +336,7 @@ async function onTruckChange() {
         }
     }
     updateCalculations();
+    updateTrajectoryStats(); // Update stats when truck changes
 }
 
 function updateCalculations() {
@@ -404,6 +416,53 @@ async function remove(id) {
     }
 }
 
+/**
+ * Update trajectory statistics panel when driver/truck/route changes
+ */
+async function updateTrajectoryStats() {
+    const container = document.getElementById('trajectoryStatsContainer');
+    if (!container) return;
+
+    const driverId = document.getElementById('entryChauffeur')?.value;
+    const truckId = document.getElementById('entryCamion')?.value;
+    const fromGouv = document.getElementById('origineGouvernorat')?.value;
+    const fromDeleg = document.getElementById('origineDelegation')?.value;
+    const toGouv = document.getElementById('entryGouvernorat')?.value;
+    const toDeleg = document.getElementById('entryDelegation')?.value;
+
+    // Need both origin and destination to show stats
+    if (!fromGouv || !toGouv) {
+        container.innerHTML = '';
+        return;
+    }
+
+    // Show loading
+    container.innerHTML = `
+        <div style="text-align: center; padding: 12px; color: #64748b;">
+            <span>⏳ Chargement des statistiques...</span>
+        </div>
+    `;
+
+    try {
+        const driverStats = driverId ?
+            await TrajectoryStatsModule.getDriverTrajectoryStats(driverId, fromGouv, fromDeleg, toGouv, toDeleg) :
+            { tripCount: 0 };
+
+        const truckStats = truckId ?
+            await TrajectoryStatsModule.getTruckTrajectoryStats(truckId, fromGouv, fromDeleg, toGouv, toDeleg) :
+            { tripCount: 0 };
+
+        container.innerHTML = TrajectoryStatsModule.renderTrajectoryStatsPanel(driverStats, truckStats);
+    } catch (error) {
+        console.error('Error loading trajectory stats:', error);
+        container.innerHTML = `
+            <div style="text-align: center; padding: 12px; color: #ef4444;">
+                ❌ Erreur lors du chargement des statistiques
+            </div>
+        `;
+    }
+}
+
 export const EntriesModule = {
     init,
     refresh,
@@ -413,7 +472,8 @@ export const EntriesModule = {
     onOrigineGouvernoratChange,
     onGouvernoratChange,
     updateCalculations,
-    updateDistanceEstimate
+    updateDistanceEstimate,
+    updateTrajectoryStats
 };
 
 window.EntriesModule = EntriesModule;

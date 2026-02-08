@@ -776,7 +776,11 @@ const DelegationCoordinates = {
     }
 };
 
-const DelegationCoordinates = {
+// Duplicate DelegationCoordinates block removed (was incorrectly here from lines 779-1666)
+// Keeping only the first DelegationCoordinates declaration above
+
+/* REMOVED DUPLICATE BLOCK START
+const _DuplicateDelegationCoordinates = {
     "Ariana Ville": {
         "lat": 36.866474,
         "lng": 10.164726
@@ -1662,6 +1666,7 @@ const DelegationCoordinates = {
         "lng": 10.216667
     }
 };
+REMOVED DUPLICATE BLOCK END */
 
 const TunisiaLocations = {
     "Ariana": [
@@ -1843,58 +1848,62 @@ function calculateRoadDistance(fromGouvernorat, toGouvernorat) {
 
 /**
  * Get distance estimate between two locations (gouvernorat + delegation)
- * This uses gouvernorat coordinates for estimation
+ * PRIORITY: Uses DelegationCoordinates first, falls back to GouvernoratCoordinates
  */
-<<<<<<< HEAD
 function getDistanceEstimate(fromGouvernorat, fromDelegation, toGouvernorat, toDelegation) {
-    const from = getEstimatedDelegationCoordinates(fromGouvernorat, fromDelegation);
-    const to = getEstimatedDelegationCoordinates(toGouvernorat, toDelegation);
+    // Get coordinates - prioritize delegation coordinates over gouvernorat
+    let fromCoord = null;
+    let toCoord = null;
 
-    if (!from || !to) {
-        console.warn('Coordinates not found for:', fromGouvernorat, 'or', toGouvernorat);
-        return 0;
-=======
+    // Try to get delegation coordinates first
+    if (fromDelegation && DelegationCoordinates[fromDelegation]) {
+        fromCoord = DelegationCoordinates[fromDelegation];
+    } else if (fromGouvernorat && GouvernoratCoordinates[fromGouvernorat]) {
+        fromCoord = GouvernoratCoordinates[fromGouvernorat];
+    }
 
+    if (toDelegation && DelegationCoordinates[toDelegation]) {
+        toCoord = DelegationCoordinates[toDelegation];
+    } else if (toGouvernorat && GouvernoratCoordinates[toGouvernorat]) {
+        toCoord = GouvernoratCoordinates[toGouvernorat];
+    }
 
-function getDistanceEstimate(fromGouvernorat, fromDelegation, toGouvernorat, toDelegation) {
-    let fromCoord = DelegationCoordinates[fromDelegation] || GouvernoratCoordinates[fromGouvernorat];
-    let toCoord = DelegationCoordinates[toDelegation] || GouvernoratCoordinates[toGouvernorat];
-
+    // If we couldn't find coordinates, return 0
     if (!fromCoord || !toCoord) {
-        return calculateRoadDistance(fromGouvernorat, toGouvernorat);
+        console.warn('Coordinates not found for:', fromDelegation || fromGouvernorat, 'or', toDelegation || toGouvernorat);
+        return 0;
     }
 
-    // Calculate straight-line distance
+    // Same exact location (same delegation in same gouvernorat)
+    if (fromDelegation && toDelegation &&
+        fromDelegation === toDelegation &&
+        fromGouvernorat === toGouvernorat) {
+        return 10; // Intra-delegation distance
+    }
+
+    // Different delegations in same gouvernorat
+    if (fromGouvernorat === toGouvernorat && fromDelegation !== toDelegation) {
+        const straightLine = calculateDistance(fromCoord.lat, fromCoord.lng, toCoord.lat, toCoord.lng);
+        const roadDistance = Math.round(straightLine * 1.35);
+        return Math.max(15, roadDistance); // Minimum 15km between different delegations
+    }
+
+    // Different gouvernorats
     const straightLine = calculateDistance(fromCoord.lat, fromCoord.lng, toCoord.lat, toCoord.lng);
-
-    // Apply road factor
     const roadFactor = 1.35;
-    let distance = Math.round(straightLine * roadFactor);
+    const roadDistance = Math.round(straightLine * roadFactor);
 
-    // If same delegation, return default intra-city distance
-    if (fromDelegation === toDelegation && fromGouvernorat === toGouvernorat) {
-        return 10;
-    }
-    
-    // Minimum distance between different delegations
-    if (distance < 15 && (fromDelegation !== toDelegation || fromGouvernorat !== toGouvernorat)) {
-        distance = 15;
->>>>>>> 718e6342d55193019c8cc7001dba5f98990a5441
-    }
+    return Math.max(20, roadDistance); // Minimum 20km between different gouvernorats
+}
 
-    if (fromGouvernorat === toGouvernorat) {
-        if (fromDelegation && toDelegation && fromDelegation === toDelegation) {
-            return 10;
-        }
-        if (fromDelegation !== toDelegation) {
-            const intra = Math.round(calculateDistance(from.lat, from.lng, to.lat, to.lng) * 1.35);
-            return Math.max(15, intra);
-        }
+/**
+ * Get coordinates for a delegation (or gouvernorat as fallback)
+ */
+function getDelegationCoordinates(gouvernorat, delegation) {
+    if (delegation && DelegationCoordinates[delegation]) {
+        return DelegationCoordinates[delegation];
     }
-
-    const straightLine = calculateDistance(from.lat, from.lng, to.lat, to.lng);
-    const roadFactor = 1.35;
-    return Math.round(straightLine * roadFactor);
+    return GouvernoratCoordinates[gouvernorat] || null;
 }
 
 // Export for use in other modules
@@ -1905,6 +1914,9 @@ if (typeof window !== 'undefined') {
     window.getGouvernorats = getGouvernorats;
     window.getDelegations = getDelegations;
     window.getGouvernoratCoordinates = getGouvernoratCoordinates;
+    window.getDelegationCoordinates = getDelegationCoordinates;
     window.calculateRoadDistance = calculateRoadDistance;
     window.getDistanceEstimate = getDistanceEstimate;
+    window.calculateDistance = calculateDistance;
 }
+

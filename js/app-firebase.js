@@ -10,6 +10,12 @@ import { DriversModule } from './drivers-firebase.js';
 import { EntriesModule } from './entries-firebase.js';
 import { ReportsModule } from './reports-firebase.js';
 import { ProfileModule } from './profile-firebase.js';
+// ERP Modules
+import { SuppliersModule } from './suppliers-firebase.js';
+import { ClientsModule } from './clients-firebase.js';
+import { ArticlesModule } from './articles-firebase.js';
+import { PurchaseOrdersModule } from './purchase-orders-firebase.js';
+import { SalesOrdersModule } from './sales-orders-firebase.js';
 
 let currentPage = 'dashboard';
 let selectedDate = new Date().toISOString().split('T')[0];
@@ -31,6 +37,12 @@ async function init() {
         EntriesModule.init();
         ReportsModule.init();
         ProfileModule.init();
+        // ERP Modules
+        SuppliersModule.init();
+        ClientsModule.init();
+        ArticlesModule.init();
+        PurchaseOrdersModule.init();
+        SalesOrdersModule.init();
 
         // Setup UI
         setupNavigation();
@@ -64,11 +76,26 @@ function hideLoading() {
 }
 
 function setupNavigation() {
-    document.querySelectorAll('.nav-item').forEach(item => {
+    // Handle regular nav items
+    document.querySelectorAll('.nav-item[data-page]').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             const page = item.dataset.page;
-            navigateTo(page);
+            if (page) navigateTo(page);
+        });
+    });
+
+    // Handle submenu toggles
+    document.querySelectorAll('.nav-item[data-toggle]').forEach(toggle => {
+        toggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            const submenuId = toggle.dataset.toggle + '-submenu';
+            const submenu = document.getElementById(submenuId);
+            const navGroup = toggle.closest('.nav-group');
+
+            // Toggle the submenu
+            submenu?.classList.toggle('active');
+            navGroup?.classList.toggle('open');
         });
     });
 
@@ -95,7 +122,23 @@ async function navigateTo(page) {
         trucks: 'Gestion des Camions',
         drivers: 'Gestion des Chauffeurs',
         reports: 'Rapports Mensuels',
-        settings: 'Paramètres'
+        settings: 'Paramètres',
+        // ERP Achat Local
+        fournisseurs: 'Gestion des Fournisseurs',
+        'offres-prix': 'Offres de Prix',
+        'bon-commandes': 'Bon Commandes Achat',
+        'bon-livraisons': 'Bon Livraisons Achat',
+        factures: 'Factures Fournisseurs',
+        reglements: 'Règlements Fournisseurs',
+        // ERP Vente Client
+        clients: 'Gestion des Clients',
+        'devis-clients': 'Devis / Offres Clients',
+        'commandes-clients': 'Bon Commandes Vente',
+        'livraisons-clients': 'Bon Livraisons Vente',
+        'retours-clients': 'Bon de Retour',
+        'factures-clients': 'Factures Clients',
+        // Articles
+        articles: 'Gestion des Articles'
     };
     document.getElementById('pageTitle').textContent = titles[page] || page;
 
@@ -119,6 +162,22 @@ async function refreshCurrentPage() {
                 break;
             case 'reports':
                 await ReportsModule.refresh();
+                break;
+            // ERP Pages
+            case 'fournisseurs':
+                await SuppliersModule.refresh();
+                break;
+            case 'clients':
+                await ClientsModule.refresh();
+                break;
+            case 'articles':
+                await ArticlesModule.refresh();
+                break;
+            case 'bon-commandes':
+                await PurchaseOrdersModule.refresh();
+                break;
+            case 'commandes-clients':
+                await SalesOrdersModule.refresh();
                 break;
         }
     } catch (error) {

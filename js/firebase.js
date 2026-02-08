@@ -36,13 +36,34 @@ const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 
-// Collection names
+// Collection names - FleetTrack + ERP Modules
 const COLLECTIONS = {
+    // FleetTrack Core
     trucks: 'trucks',
     drivers: 'drivers',
     entries: 'entries',
     settings: 'settings',
-    logs: 'activity_logs'
+    logs: 'activity_logs',
+
+    // ERP Core
+    suppliers: 'suppliers',
+    clients: 'clients',
+    articles: 'articles',
+    depots: 'depots',
+
+    // Achat Local (Purchasing)
+    demandesOffrePrix: 'demandes_offre_prix',
+    bonCommandesAchat: 'bon_commandes_achat',
+    bonLivraisonsAchat: 'bon_livraisons_achat',
+    facturesAchat: 'factures_achat',
+    reglementsFournisseurs: 'reglements_fournisseurs',
+
+    // Vente Client (Sales)
+    offresPrix: 'offres_prix',
+    bonCommandesVente: 'bon_commandes_vente',
+    bonLivraisonsVente: 'bon_livraisons_vente',
+    bonsRetour: 'bons_retour',
+    facturesVente: 'factures_vente'
 };
 
 // Export for use in other modules
