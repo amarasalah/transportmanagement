@@ -16,6 +16,7 @@ import { ClientsModule } from './clients-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
 import { PurchaseOrdersModule } from './purchase-orders-firebase.js';
 import { SalesOrdersModule } from './sales-orders-firebase.js';
+import { ExcelImportModule } from './excel-import-firebase.js';
 
 let currentPage = 'dashboard';
 let selectedDate = new Date().toISOString().split('T')[0];
@@ -43,6 +44,7 @@ async function init() {
         ArticlesModule.init();
         PurchaseOrdersModule.init();
         SalesOrdersModule.init();
+        ExcelImportModule.init();
 
         // Setup UI
         setupNavigation();

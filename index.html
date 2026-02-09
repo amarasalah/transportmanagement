@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="css/styles.css">
     <style>
         /* Loader styles */
@@ -720,16 +721,44 @@
                     <button class="btn btn-primary" id="saveFuelPrice">Enregistrer</button>
                 </div>
                 <div class="settings-card">
-                    <h3>📥 Import Base de Données</h3>
-                    <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 12px;">Importer les données depuis
+                    <h3>📊 Import Excel Direct</h3>
+                    <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 12px;">
+                        Importez votre fichier Excel et sauvegardez directement dans Firebase
+                    </p>
+                    <div class="excel-upload-zone" id="excelDropZone"
+                        style="border: 2px dashed rgba(139, 92, 246, 0.5); border-radius: 12px; padding: 30px; text-align: center; margin-bottom: 12px; cursor: pointer; transition: all 0.3s;">
+                        <div style="font-size: 3rem; margin-bottom: 10px;">📁</div>
+                        <p style="color: #f1f5f9; font-weight: 500;">Glissez votre fichier Excel ici</p>
+                        <p style="color: #64748b; font-size: 0.875rem;">ou cliquez pour sélectionner</p>
+                        <input type="file" id="excelFileInput" accept=".xlsx,.xls" hidden>
+                    </div>
+                    <div id="excelImportStatus" style="margin-bottom: 12px; display: none;">
+                        <div class="progress-bar"
+                            style="background: rgba(139, 92, 246, 0.2); border-radius: 8px; height: 20px; overflow: hidden;">
+                            <div id="importProgressBar"
+                                style="width: 0%; height: 100%; background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%); transition: width 0.3s;">
+                            </div>
+                        </div>
+                        <p id="importProgressText" style="color: #64748b; font-size: 0.875rem; margin-top: 8px;">
+                            Importation en cours...</p>
+                    </div>
+                    <div class="settings-actions">
+                        <button class="btn btn-primary" id="importExcelBtn" disabled>
+                            📥 Importer dans Firebase
+                        </button>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h3>📥 Import JSON (Base de Données)</h3>
+                    <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 12px;">Importer depuis
                         complete_excel_data.json</p>
                     <div class="settings-actions">
                         <button class="btn btn-primary" id="importDataBtn"
                             onclick="DataImporter.importFromJSON().then(r => alert(r.success ? `Import réussi! ${r.trucks} camions, ${r.drivers} chauffeurs, ${r.entries} saisies` : 'Erreur: ' + r.error))">📥
-                            Importer les données</button>
+                            Importer JSON</button>
                         <button class="btn btn-outline" id="mergeDataBtn"
                             onclick="DataImporter.mergeWithExisting().then(r => alert(r.success ? `${r.added} nouvelles saisies ajoutées` : 'Erreur: ' + r.error))">🔄
-                            Fusionner avec existant</button>
+                            Fusionner</button>
                     </div>
                 </div>
                 <div class="settings-card">
