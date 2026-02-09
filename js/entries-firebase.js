@@ -6,6 +6,7 @@
 
 import { DataModule } from './data-firebase.js';
 import { TrajectoryStatsModule } from './trajectory-stats-firebase.js';
+import { ClientsModule } from './clients-firebase.js';
 
 function init() {
     document.getElementById('addEntryBtn')?.addEventListener('click', () => openModal());
@@ -21,13 +22,17 @@ async function renderEntries(selectedDate) {
     if (!tbody) return;
 
     if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#64748b;padding:40px;">Aucune saisie pour cette date.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:40px;">Aucune saisie pour cette date.</td></tr>';
         return;
     }
+
+    // Get clients for display
+    const clients = await ClientsModule.getClients();
 
     tbody.innerHTML = entries.map(entry => {
         const truck = DataModule.getTruckById(entry.camionId);
         const driver = DataModule.getDriverById(entry.chauffeurId);
+        const client = entry.clientId ? clients.find(c => c.id === entry.clientId) : null;
         const costs = DataModule.calculateEntryCosts(entry, truck);
         const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
 
@@ -38,6 +43,7 @@ async function renderEntries(selectedDate) {
 
         return `<tr>
             <td>${formatDate(entry.date)}</td>
+            <td><strong>${client?.nom || '-'}</strong></td>
             <td>${truck?.matricule || '-'}</td>
             <td>${driver?.nom || '-'}</td>
             <td title="${trajetFull}">${trajetDisplay}</td>
@@ -64,6 +70,7 @@ async function openModal(entryId = null) {
     const entry = entryId ? entries.find(e => e.id === entryId) : null;
     const trucks = await DataModule.getTrucks();
     const drivers = await DataModule.getDrivers();
+    const clients = await ClientsModule.getClients();
     const settings = await DataModule.getSettings();
     const title = entry ? 'Modifier Saisie' : 'Nouvelle Saisie Journalière';
 
@@ -75,6 +82,10 @@ async function openModal(entryId = null) {
 
     const driverOptions = drivers.map(d =>
         `<option value="${d.id}" ${entry?.chauffeurId === d.id ? 'selected' : ''}>${d.nom}</option>`
+    ).join('');
+
+    const clientOptions = clients.map(c =>
+        `<option value="${c.id}" ${entry?.clientId === c.id ? 'selected' : ''}>${c.nom}</option>`
     ).join('');
 
     const gouvernorats = getGouvernorats();
@@ -104,6 +115,13 @@ async function openModal(entryId = null) {
                 <div class="form-group">
                     <label for="entryDate">📅 Date</label>
                     <input type="date" id="entryDate" value="${entry?.date || selectedDate}" required>
+                </div>
+                <div class="form-group">
+                    <label for="entryClient">👥 Client</label>
+                    <select id="entryClient">
+                        <option value="">-- Aucun client --</option>
+                        ${clientOptions}
+                    </select>
                 </div>
             </div>
 
@@ -381,6 +399,7 @@ async function saveEntry() {
         date: document.getElementById('entryDate').value,
         camionId: document.getElementById('entryCamion').value,
         chauffeurId: document.getElementById('entryChauffeur').value,
+        clientId: document.getElementById('entryClient').value || null,
         origineGouvernorat,
         origineDelegation,
         origine: origineDelegation ? `${origineDelegation}, ${origineGouvernorat}` : origineGouvernorat,
