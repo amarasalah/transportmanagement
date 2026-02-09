@@ -14,11 +14,8 @@ async function refresh() {
 }
 
 function calculateTruckStats(truckId) {
-    const entries = DataModule.getEntriesByDate ?
-        DataModule.getEntries ? DataModule.getEntries().filter(e => e.camionId === truckId) : [] : [];
-
-    // Try to get entries from cache
-    const allEntries = window.DataModule?.cache?.entries || [];
+    // Use proper accessor - getCachedEntries() is a sync function
+    const allEntries = DataModule.getCachedEntries();
     const truckEntries = allEntries.filter(e => e.camionId === truckId);
     const truck = DataModule.getTruckById(truckId);
 

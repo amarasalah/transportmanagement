@@ -14,7 +14,8 @@ async function refresh() {
 }
 
 function calculateDriverStats(driverId) {
-    const allEntries = window.DataModule?.cache?.entries || [];
+    // Use proper accessor - getCachedEntries() is a sync function
+    const allEntries = DataModule.getCachedEntries();
     const driverEntries = allEntries.filter(e => e.chauffeurId === driverId);
 
     if (driverEntries.length === 0) {

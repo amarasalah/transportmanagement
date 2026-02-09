@@ -44,21 +44,22 @@ const AchatLocalModule = (() => {
 
     function toggleSubmenu() {
         const submenu = document.getElementById('achat-local-submenu');
-        const group = document.querySelector('.nav-group');
-        submenu.classList.toggle('active');
-        group.classList.toggle('open');
+        const toggle = document.querySelector('[data-toggle="achat-local"]');
+        const group = toggle ? toggle.closest('.nav-group') : null;
+        if (submenu) submenu.classList.toggle('active');
+        if (group) group.classList.toggle('open');
     }
 
     function showPage(page) {
         currentPage = page;
-        
+
         // Hide all pages
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        
+
         // Show selected page
         const pageEl = document.getElementById(`page-${page}`);
         if (pageEl) pageEl.classList.add('active');
-        
+
         // Update page title
         const titles = {
             'offres-prix': 'Demandes Offres de Prix',
@@ -69,13 +70,13 @@ const AchatLocalModule = (() => {
             'fournisseurs': 'Gestion des Fournisseurs'
         };
         document.getElementById('pageTitle').textContent = titles[page] || page;
-        
+
         // Refresh data
         refreshCurrentPage();
     }
 
     function refreshCurrentPage() {
-        switch(currentPage) {
+        switch (currentPage) {
             case 'offres-prix': renderOffresPrix(); break;
             case 'bon-commandes': renderBonCommandes(); break;
             case 'bon-livraisons': renderBonLivraisons(); break;
@@ -113,8 +114,8 @@ const AchatLocalModule = (() => {
     function openOffreModal(offreId = null) {
         const offre = offreId ? SuppliersModule.getPriceQuotes().find(o => o.id === offreId) : null;
         const suppliers = SuppliersModule.getSuppliers();
-        
-        const supplierOptions = suppliers.map(s => 
+
+        const supplierOptions = suppliers.map(s =>
             `<option value="${s.id}" ${offre?.fournisseurId === s.id ? 'selected' : ''}>${s.nom}</option>`
         ).join('');
 
@@ -213,12 +214,12 @@ const AchatLocalModule = (() => {
         const commande = commandeId ? SuppliersModule.getPurchaseOrderById(commandeId) : null;
         const suppliers = SuppliersModule.getSuppliers();
         const trucks = window.DataModule?.getTrucks?.() || [];
-        
-        const supplierOptions = suppliers.map(s => 
+
+        const supplierOptions = suppliers.map(s =>
             `<option value="${s.id}" ${commande?.fournisseurId === s.id ? 'selected' : ''}>${s.nom}</option>`
         ).join('');
 
-        const truckOptions = trucks.map(t => 
+        const truckOptions = trucks.map(t =>
             `<option value="${t.id}" ${commande?.camionId === t.id ? 'selected' : ''}>${t.matricule}</option>`
         ).join('');
 
@@ -348,7 +349,7 @@ const AchatLocalModule = (() => {
 
     function openLivraisonModal(livraisonId = null) {
         const livraison = livraisonId ? SuppliersModule.getDeliveryNoteById(livraisonId) : null;
-        
+
         document.getElementById('modalTitle').textContent = livraison ? 'Modifier BL' : 'Nouveau Bon Livraison';
         document.getElementById('modalBody').innerHTML = `
             <form id="livraisonForm">
@@ -408,7 +409,7 @@ const AchatLocalModule = (() => {
             const fournisseur = SuppliersModule.getSupplierById(f.fournisseurId);
             const montant = parseFloat(f.montant) || 0;
             const regle = parseFloat(f.montantRegle) || 0;
-            
+
             if (f.etat === 'Payée') totalPaye += montant;
             else totalNonPaye += (montant - regle);
 
@@ -440,12 +441,12 @@ const AchatLocalModule = (() => {
         const facture = factureId ? SuppliersModule.getSupplierInvoiceById(factureId) : null;
         const suppliers = SuppliersModule.getSuppliers();
         const bls = SuppliersModule.getDeliveryNotes();
-        
-        const supplierOptions = suppliers.map(s => 
+
+        const supplierOptions = suppliers.map(s =>
             `<option value="${s.id}" ${facture?.fournisseurId === s.id ? 'selected' : ''}>${s.nom}</option>`
         ).join('');
 
-        const blOptions = bls.map(l => 
+        const blOptions = bls.map(l =>
             `<option value="${l.id}" ${facture?.blId === l.id ? 'selected' : ''}>${l.id} - ${l.date}</option>`
         ).join('');
 

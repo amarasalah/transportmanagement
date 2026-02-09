@@ -85,17 +85,33 @@ function setupNavigation() {
         });
     });
 
-    // Handle submenu toggles
+    // Handle submenu toggles (accordion behavior)
     document.querySelectorAll('.nav-item[data-toggle]').forEach(toggle => {
         toggle.addEventListener('click', (e) => {
             e.preventDefault();
+            e.stopPropagation();
+
             const submenuId = toggle.dataset.toggle + '-submenu';
             const submenu = document.getElementById(submenuId);
             const navGroup = toggle.closest('.nav-group');
+            const isOpen = navGroup?.classList.contains('open');
 
-            // Toggle the submenu
-            submenu?.classList.toggle('active');
-            navGroup?.classList.toggle('open');
+            // Close all other submenus first (accordion behavior)
+            document.querySelectorAll('.nav-group').forEach(group => {
+                if (group !== navGroup) {
+                    group.classList.remove('open');
+                    group.querySelector('.nav-submenu')?.classList.remove('active');
+                }
+            });
+
+            // Toggle current submenu
+            if (isOpen) {
+                navGroup?.classList.remove('open');
+                submenu?.classList.remove('active');
+            } else {
+                navGroup?.classList.add('open');
+                submenu?.classList.add('active');
+            }
         });
     });
 
@@ -163,21 +179,45 @@ async function refreshCurrentPage() {
             case 'reports':
                 await ReportsModule.refresh();
                 break;
-            // ERP Pages
+            // ERP Achat Local Pages - Use Firebase Modules
             case 'fournisseurs':
                 await SuppliersModule.refresh();
                 break;
+            case 'offres-prix':
+                // Module en développement
+                console.log('Page offres-prix - module en développement');
+                break;
+            case 'bon-commandes':
+                await PurchaseOrdersModule.refresh();
+                break;
+            case 'bon-livraisons':
+                // Module en développement
+                console.log('Page bon-livraisons - module en développement');
+                break;
+            case 'factures':
+                // Module en développement
+                console.log('Page factures - module en développement');
+                break;
+            case 'reglements':
+                // Module en développement
+                console.log('Page reglements - module en développement');
+                break;
+            // ERP Vente Client Pages
             case 'clients':
                 await ClientsModule.refresh();
                 break;
             case 'articles':
                 await ArticlesModule.refresh();
                 break;
-            case 'bon-commandes':
-                await PurchaseOrdersModule.refresh();
-                break;
             case 'commandes-clients':
                 await SalesOrdersModule.refresh();
+                break;
+            case 'devis-clients':
+            case 'livraisons-clients':
+            case 'retours-clients':
+            case 'factures-clients':
+                // Module en développement
+                console.log(`Page ${currentPage} - module en développement`);
                 break;
         }
     } catch (error) {

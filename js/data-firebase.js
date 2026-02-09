@@ -199,6 +199,19 @@ async function refreshCache() {
     }
 }
 
+// Synchronous accessor for cached entries (for modules that need sync access)
+function getCachedEntries() {
+    return cache.entries || [];
+}
+
+function getCachedTrucks() {
+    return cache.trucks || [];
+}
+
+function getCachedDrivers() {
+    return cache.drivers || [];
+}
+
 // ==================== TRUCKS ====================
 async function getTrucks() {
     if (cache.trucks) return cache.trucks;
@@ -567,7 +580,11 @@ export const DataModule = {
     getLogs,
     getLogsByDate,
     getLogsByEntity,
-    logActivity
+    logActivity,
+    // Cached accessors (sync)
+    getCachedEntries,
+    getCachedTrucks,
+    getCachedDrivers
 };
 
 // Make available globally
