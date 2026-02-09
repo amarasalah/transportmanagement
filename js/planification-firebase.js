@@ -44,13 +44,14 @@ function getPlanningsByDate(dateStr) {
 }
 
 async function renderPlannings(selectedDate) {
-    const dateToShow = selectedDate || document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0];
-    const plannings = getPlanningsByDate(dateToShow);
     const tbody = document.getElementById('planningBody');
     if (!tbody) return;
 
+    // Show all planifications sorted by date (most recent first)
+    const plannings = [...cache].sort((a, b) => new Date(b.date) - new Date(a.date));
+
     if (plannings.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:40px;">Aucune planification pour cette date.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:40px;">Aucune planification enregistrée.</td></tr>';
         return;
     }
 
