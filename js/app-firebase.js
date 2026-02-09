@@ -17,6 +17,7 @@ import { ArticlesModule } from './articles-firebase.js';
 import { PurchaseOrdersModule } from './purchase-orders-firebase.js';
 import { SalesOrdersModule } from './sales-orders-firebase.js';
 import { ExcelImportModule } from './excel-import-firebase.js';
+import { PlanificationModule } from './planification-firebase.js';
 
 let currentPage = 'dashboard';
 let selectedDate = new Date().toISOString().split('T')[0];
@@ -45,6 +46,7 @@ async function init() {
         PurchaseOrdersModule.init();
         SalesOrdersModule.init();
         ExcelImportModule.init();
+        PlanificationModule.init();
 
         // Setup UI
         setupNavigation();
@@ -177,6 +179,9 @@ async function refreshCurrentPage() {
                 break;
             case 'drivers':
                 await DriversModule.refresh();
+                break;
+            case 'planification':
+                await PlanificationModule.refresh();
                 break;
             case 'reports':
                 await ReportsModule.refresh();

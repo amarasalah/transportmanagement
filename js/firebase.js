@@ -63,7 +63,10 @@ const COLLECTIONS = {
     bonCommandesVente: 'bon_commandes_vente',
     bonLivraisonsVente: 'bon_livraisons_vente',
     bonsRetour: 'bons_retour',
-    facturesVente: 'factures_vente'
+    facturesVente: 'factures_vente',
+
+    // Planning
+    planifications: 'planifications'
 };
 
 // Export for use in other modules

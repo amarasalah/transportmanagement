@@ -169,6 +169,10 @@
                 <span class="nav-icon">📝</span>
                 <span class="nav-label">Saisie journalière</span>
             </a>
+            <a href="#" class="nav-item" data-page="planification">
+                <span class="nav-icon">📅</span>
+                <span class="nav-label">Planification</span>
+            </a>
             <div class="nav-group">
                 <a href="#" class="nav-item" data-toggle="achat-local">
                     <span class="nav-icon">🛒</span>
@@ -397,6 +401,74 @@
                             </tr>
                         </thead>
                         <tbody id="entriesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Planification Page -->
+        <section class="page" id="page-planification">
+            <div class="page-header">
+                <h2>Planification des Livraisons</h2>
+                <button class="btn btn-primary" id="addPlanBtn">
+                    <span>+</span> Nouvelle Planification
+                </button>
+            </div>
+
+            <!-- Filters -->
+            <div class="data-card" style="margin-bottom: 20px;">
+                <div class="filter-row" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: end;">
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label>Date début</label>
+                        <input type="date" id="planDateStart" class="form-control">
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label>Date fin</label>
+                        <input type="date" id="planDateEnd" class="form-control">
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 200px;">
+                        <label>Client</label>
+                        <select id="planClientFilter" class="form-control">
+                            <option value="">Tous les clients</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label>Statut</label>
+                        <select id="planStatusFilter" class="form-control">
+                            <option value="">Tous</option>
+                            <option value="planifie">Planifié</option>
+                            <option value="en_cours">En cours</option>
+                            <option value="termine">Terminé</option>
+                            <option value="annule">Annulé</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-outline" id="planFilterBtn">🔍 Filtrer</button>
+                </div>
+            </div>
+
+            <!-- Planning Table -->
+            <div class="data-card">
+                <div class="card-header">
+                    <h3>Planning des Livraisons</h3>
+                    <div class="planning-stats" id="planningStats"
+                        style="display: flex; gap: 20px; font-size: 0.875rem; color: var(--text-secondary);"></div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table" id="planningTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Client</th>
+                                <th>Destination</th>
+                                <th>Camion</th>
+                                <th>Chauffeur</th>
+                                <th>Type</th>
+                                <th>Statut</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="planningBody"></tbody>
                     </table>
                 </div>
             </div>

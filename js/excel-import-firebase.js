@@ -70,11 +70,11 @@ async function handleFile(file) {
     const dropZone = document.getElementById('excelDropZone');
     const importBtn = document.getElementById('importExcelBtn');
 
-    // Update UI - loading state
+    // Update UI
     dropZone.innerHTML = `
-        <div style="font-size: 3rem; margin-bottom: 10px;">⏳</div>
-        <p style="color: #f59e0b; font-weight: 500;">Analyse en cours...</p>
-        <p style="color: #64748b; font-size: 0.875rem;">${file.name}</p>
+        <div style="font-size: 3rem; margin-bottom: 10px;">✅</div>
+        <p style="color: #10b981; font-weight: 500;">${file.name}</p>
+        <p style="color: #64748b; font-size: 0.875rem;">${(file.size / 1024).toFixed(1)} KB - Prêt à importer</p>
     `;
 
     // Parse the file
@@ -82,45 +82,10 @@ async function handleFile(file) {
         parsedData = await parseExcelFile(file);
         console.log('📊 Parsed data:', parsedData);
 
-        // Check for existing data in Firebase
-        const existingData = await checkExistingData(parsedData);
-        parsedData.existingEntries = existingData.existingEntries;
-        parsedData.newEntries = existingData.newEntries;
-        parsedData.existingTrucks = existingData.existingTrucks;
-        parsedData.newTrucks = existingData.newTrucks;
-        parsedData.existingDrivers = existingData.existingDrivers;
-        parsedData.newDrivers = existingData.newDrivers;
-
-        // Update UI with results
-        const hasExisting = existingData.existingEntries.length > 0 ||
-            existingData.existingTrucks.length > 0 ||
-            existingData.existingDrivers.length > 0;
-
-        const statusIcon = hasExisting ? '⚠️' : '✅';
-        const statusColor = hasExisting ? '#f59e0b' : '#10b981';
-
-        dropZone.innerHTML = `
-            <div style="font-size: 2.5rem; margin-bottom: 10px;">${statusIcon}</div>
-            <p style="color: ${statusColor}; font-weight: 500;">${file.name}</p>
-            <div style="text-align: left; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-top: 10px; font-size: 0.8rem;">
-                <p style="color: #10b981;">✅ Nouveaux: ${existingData.newEntries.length} saisies, ${existingData.newTrucks.length} camions, ${existingData.newDrivers.length} chauffeurs</p>
-                ${hasExisting ? `<p style="color: #f59e0b; margin-top: 5px;">⚠️ Existants: ${existingData.existingEntries.length} saisies, ${existingData.existingTrucks.length} camions, ${existingData.existingDrivers.length} chauffeurs</p>` : ''}
-            </div>
-        `;
-
         // Enable import button
         if (importBtn) {
             importBtn.disabled = false;
-            const newCount = existingData.newEntries.length;
-            const existingCount = existingData.existingEntries.length;
-            if (newCount === 0 && existingCount > 0) {
-                importBtn.textContent = `⚠️ Toutes les données existent déjà`;
-                importBtn.disabled = true;
-            } else if (existingCount > 0) {
-                importBtn.textContent = `📥 Importer ${newCount} nouvelles (${existingCount} ignorées)`;
-            } else {
-                importBtn.textContent = `📥 Importer ${newCount} saisies`;
-            }
+            importBtn.textContent = `📥 Importer ${parsedData.entries?.length || 0} saisies`;
         }
     } catch (error) {
         console.error('Error parsing Excel:', error);
@@ -130,62 +95,6 @@ async function handleFile(file) {
             <p style="color: #64748b; font-size: 0.875rem;">${error.message}</p>
         `;
     }
-}
-
-async function checkExistingData(data) {
-    // Get existing data from Firebase
-    const existingEntries = await DataModule.getEntries();
-    const existingTrucks = await DataModule.getTrucks();
-    const existingDrivers = await DataModule.getDrivers();
-
-    const existingEntryIds = new Set(existingEntries.map(e => e.id));
-    const existingTruckIds = new Set(existingTrucks.map(t => t.id));
-    const existingDriverIds = new Set(existingDrivers.map(d => d.id));
-
-    // Also check by date + matricule for entries (more reliable duplicate detection)
-    const existingEntryKeys = new Set(existingEntries.map(e => `${e.date}_${e.matricule}`));
-
-    const result = {
-        existingEntries: [],
-        newEntries: [],
-        existingTrucks: [],
-        newTrucks: [],
-        existingDrivers: [],
-        newDrivers: []
-    };
-
-    // Check entries
-    for (const entry of data.entries || []) {
-        const key = `${entry.date}_${entry.matricule}`;
-        if (existingEntryIds.has(entry.id) || existingEntryKeys.has(key)) {
-            result.existingEntries.push(entry);
-        } else {
-            result.newEntries.push(entry);
-        }
-    }
-
-    // Check trucks
-    for (const truck of data.trucks || []) {
-        const existsByMatricule = existingTrucks.some(t => t.matricule === truck.matricule);
-        if (existingTruckIds.has(truck.id) || existsByMatricule) {
-            result.existingTrucks.push(truck);
-        } else {
-            result.newTrucks.push(truck);
-        }
-    }
-
-    // Check drivers
-    for (const driver of data.drivers || []) {
-        const existsByName = existingDrivers.some(d => d.nom === driver.nom);
-        if (existingDriverIds.has(driver.id) || existsByName) {
-            result.existingDrivers.push(driver);
-        } else {
-            result.newDrivers.push(driver);
-        }
-    }
-
-    console.log('📊 Duplicate check:', result);
-    return result;
 }
 
 async function parseExcelFile(file) {
@@ -395,16 +304,6 @@ async function importToFirebase() {
         return;
     }
 
-    // Check if there are any new entries to import
-    const newTrucks = parsedData.newTrucks || [];
-    const newDrivers = parsedData.newDrivers || [];
-    const newEntries = parsedData.newEntries || [];
-
-    if (newTrucks.length === 0 && newDrivers.length === 0 && newEntries.length === 0) {
-        alert('⚠️ Aucune nouvelle donnée à importer!\n\nToutes les données du fichier Excel existent déjà dans la base.');
-        return;
-    }
-
     const statusDiv = document.getElementById('excelImportStatus');
     const progressBar = document.getElementById('importProgressBar');
     const progressText = document.getElementById('importProgressText');
@@ -414,65 +313,106 @@ async function importToFirebase() {
     importBtn.disabled = true;
 
     try {
-        const total = newTrucks.length + newDrivers.length + newEntries.length;
+        // Check for existing data first
+        progressText.textContent = 'Vérification des doublons...';
+        progressBar.style.width = '5%';
+
+        const existingEntries = await DataModule.getEntries();
+        const existingTrucks = await DataModule.getTrucks();
+        const existingDrivers = await DataModule.getDrivers();
+
+        // Find duplicates
+        const existingEntryIds = new Set(existingEntries.map(e => e.id));
+        const existingTruckIds = new Set(existingTrucks.map(t => t.id));
+        const existingDriverIds = new Set(existingDrivers.map(d => d.id));
+
+        // Also check by date+matricule for entries
+        const existingEntryKeys = new Set(existingEntries.map(e => `${e.date}_${e.matricule}`));
+
+        const duplicateEntries = parsedData.entries.filter(e =>
+            existingEntryIds.has(e.id) || existingEntryKeys.has(`${e.date}_${e.matricule}`)
+        );
+        const duplicateTrucks = parsedData.trucks.filter(t => existingTruckIds.has(t.id));
+        const duplicateDrivers = parsedData.drivers.filter(d => existingDriverIds.has(d.id));
+
+        const newEntries = parsedData.entries.filter(e =>
+            !existingEntryIds.has(e.id) && !existingEntryKeys.has(`${e.date}_${e.matricule}`)
+        );
+        const newTrucks = parsedData.trucks.filter(t => !existingTruckIds.has(t.id));
+        const newDrivers = parsedData.drivers.filter(d => !existingDriverIds.has(d.id));
+
+        progressBar.style.width = '10%';
+
+        // If duplicates found, ask user
+        if (duplicateEntries.length > 0 || duplicateTrucks.length > 0 || duplicateDrivers.length > 0) {
+            const message = `⚠️ Données existantes détectées!\n\n` +
+                `Doublons trouvés:\n` +
+                `- ${duplicateEntries.length} saisies existantes\n` +
+                `- ${duplicateTrucks.length} camions existants\n` +
+                `- ${duplicateDrivers.length} chauffeurs existants\n\n` +
+                `Nouvelles données à importer:\n` +
+                `- ${newEntries.length} nouvelles saisies\n` +
+                `- ${newTrucks.length} nouveaux camions\n` +
+                `- ${newDrivers.length} nouveaux chauffeurs\n\n` +
+                `Voulez-vous:\n` +
+                `OK = Importer uniquement les nouvelles données\n` +
+                `Annuler = Ne rien importer`;
+
+            if (!confirm(message)) {
+                progressText.innerHTML = `<span style="color: #f59e0b;">⚠️ Import annulé par l'utilisateur</span>`;
+                importBtn.disabled = false;
+                return;
+            }
+
+            // Use only new data
+            parsedData.entries = newEntries;
+            parsedData.trucks = newTrucks;
+            parsedData.drivers = newDrivers;
+        }
+
+        // Check if nothing to import
+        if (parsedData.entries.length === 0 && parsedData.trucks.length === 0 && parsedData.drivers.length === 0) {
+            progressText.innerHTML = `<span style="color: #f59e0b;">⚠️ Aucune nouvelle donnée à importer - tout existe déjà!</span>`;
+            importBtn.disabled = false;
+            return;
+        }
+
+        const total = (parsedData.trucks?.length || 0) +
+            (parsedData.drivers?.length || 0) +
+            (parsedData.entries?.length || 0);
         let current = 0;
 
-        // Import only NEW trucks
-        if (newTrucks.length > 0) {
-            progressText.textContent = `Importation des camions (${newTrucks.length} nouveaux)...`;
-            for (const truck of newTrucks) {
-                await setDoc(doc(db, COLLECTIONS.trucks, truck.id), truck);
-                current++;
-                progressBar.style.width = `${(current / total) * 100}%`;
-            }
+        // Import trucks
+        progressText.textContent = 'Importation des camions...';
+        for (const truck of parsedData.trucks || []) {
+            await setDoc(doc(db, COLLECTIONS.trucks, truck.id), truck);
+            current++;
+            progressBar.style.width = `${10 + (current / total) * 90}%`;
         }
 
-        // Import only NEW drivers
-        if (newDrivers.length > 0) {
-            progressText.textContent = `Importation des chauffeurs (${newDrivers.length} nouveaux)...`;
-            for (const driver of newDrivers) {
-                await setDoc(doc(db, COLLECTIONS.drivers, driver.id), driver);
-                current++;
-                progressBar.style.width = `${(current / total) * 100}%`;
-            }
+        // Import drivers
+        progressText.textContent = 'Importation des chauffeurs...';
+        for (const driver of parsedData.drivers || []) {
+            await setDoc(doc(db, COLLECTIONS.drivers, driver.id), driver);
+            current++;
+            progressBar.style.width = `${10 + (current / total) * 90}%`;
         }
 
-        // Import only NEW entries
-        if (newEntries.length > 0) {
-            progressText.textContent = `Importation des saisies (${newEntries.length} nouvelles)...`;
-            for (const entry of newEntries) {
-                await setDoc(doc(db, COLLECTIONS.entries, entry.id), entry);
-                current++;
-                progressBar.style.width = `${(current / total) * 100}%`;
-            }
+        // Import entries
+        progressText.textContent = 'Importation des saisies...';
+        for (const entry of parsedData.entries || []) {
+            await setDoc(doc(db, COLLECTIONS.entries, entry.id), entry);
+            current++;
+            progressBar.style.width = `${10 + (current / total) * 90}%`;
         }
 
         progressBar.style.width = '100%';
-
-        // Summary with skipped counts
-        const skippedTrucks = parsedData.existingTrucks?.length || 0;
-        const skippedDrivers = parsedData.existingDrivers?.length || 0;
-        const skippedEntries = parsedData.existingEntries?.length || 0;
-
-        let summary = `✅ Import terminé!\n\n`;
-        summary += `📥 Importés:\n`;
-        summary += `   • ${newTrucks.length} camions\n`;
-        summary += `   • ${newDrivers.length} chauffeurs\n`;
-        summary += `   • ${newEntries.length} saisies\n`;
-
-        if (skippedTrucks > 0 || skippedDrivers > 0 || skippedEntries > 0) {
-            summary += `\n⏭️ Ignorés (déjà existants):\n`;
-            if (skippedTrucks > 0) summary += `   • ${skippedTrucks} camions\n`;
-            if (skippedDrivers > 0) summary += `   • ${skippedDrivers} chauffeurs\n`;
-            if (skippedEntries > 0) summary += `   • ${skippedEntries} saisies\n`;
-        }
-
-        progressText.innerHTML = `<span style="color: #10b981;">✅ Import terminé! ${newTrucks.length} camions, ${newDrivers.length} chauffeurs, ${newEntries.length} saisies</span>`;
+        progressText.innerHTML = `<span style="color: #10b981;">✅ Import terminé! ${parsedData.trucks?.length || 0} camions, ${parsedData.drivers?.length || 0} chauffeurs, ${parsedData.entries?.length || 0} saisies</span>`;
 
         // Refresh data
         await DataModule.init();
 
-        alert(summary);
+        alert(`Import réussi!\n\n${parsedData.trucks?.length || 0} camions\n${parsedData.drivers?.length || 0} chauffeurs\n${parsedData.entries?.length || 0} saisies`);
 
     } catch (error) {
         console.error('Import error:', error);
