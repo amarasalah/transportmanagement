@@ -211,26 +211,33 @@ function parseEntriesSheet(data, sheetName) {
         const typeTransport = String(row[3] || '').trim();
         const destination = String(row[4] || '').trim();
 
+        // Generate IDs for truck and driver to link to existing records
+        const camionId = matricule ? `truck_${matricule.replace(/\s+/g, '_')}` : null;
+        const chauffeurId = chauffeur ? `driver_${chauffeur.replace(/\s+/g, '_')}` : null;
+
         const entry = {
             id: `entry_${dateStr}_${matricule}_${i}`.replace(/\s+/g, '_'),
             date: dateStr,
-            matricule: matricule,
-            chauffeur: chauffeur,
+            camionId: camionId,
+            chauffeurId: chauffeurId,
             typeTransport: typeTransport,
             destination: destination,
             origine: 'GABES', // Default origin
-            km: parseFloat(row[5]) || 0,
+            origineGouvernorat: 'Gabès',
+            gouvernorat: destination.split(',')[1]?.trim() || destination,
+            delegation: destination.split(',')[0]?.trim() || '',
+            kilometrage: parseFloat(row[5]) || 0,
             kmGlobal: parseFloat(row[6]) || 0,
-            gasoil: parseFloat(row[7]) || 0,
-            prixGasoil: parseFloat(row[8]) || 2,
-            coutGasoil: parseFloat(row[9]) || 0,
+            quantiteGasoil: parseFloat(row[7]) || 0,
+            prixGasoilLitre: parseFloat(row[8]) || 2,
+            montantGasoil: parseFloat(row[9]) || 0,
             chargesFixes: parseFloat(row[10]) || 0,
-            assurance: parseFloat(row[11]) || 0,
-            taxe: parseFloat(row[12]) || 0,
+            montantAssurance: parseFloat(row[11]) || 0,
+            montantTaxe: parseFloat(row[12]) || 0,
             maintenance: parseFloat(row[13]) || 0,
             chargePersonnel: parseFloat(row[14]) || 0,
             coutTotal: parseFloat(row[15]) || 0,
-            recette: parseFloat(row[16]) || 0,
+            prixLivraison: parseFloat(row[16]) || 0,
             resultat: parseFloat(row[17]) || 0,
             remarques: String(row[18] || '').trim(),
             importedAt: new Date().toISOString(),
@@ -238,18 +245,12 @@ function parseEntriesSheet(data, sheetName) {
         };
 
         // Calculate if not already calculated
-        if (!entry.coutGasoil && entry.gasoil > 0) {
-            entry.coutGasoil = entry.gasoil * entry.prixGasoil;
+        if (!entry.montantGasoil && entry.quantiteGasoil > 0) {
+            entry.montantGasoil = entry.quantiteGasoil * entry.prixGasoilLitre;
         }
 
-        // Calculate total expenses
-        entry.depenses = entry.chargesFixes + entry.assurance + entry.taxe +
-            entry.maintenance + entry.chargePersonnel;
-        entry.totalDepenses = entry.coutGasoil + entry.depenses;
-
-        if (!entry.resultat && entry.recette > 0) {
-            entry.resultat = entry.recette - entry.totalDepenses;
-        }
+        // Note: DataModule.calculateEntryCosts will handle full cost calculation
+        // including truck-specific costs when displaying
 
         entries.push(entry);
     }

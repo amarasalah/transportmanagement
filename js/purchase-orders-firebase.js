@@ -4,6 +4,7 @@
  */
 
 import { db, collection, doc, getDocs, setDoc, deleteDoc, query, orderBy, COLLECTIONS } from './firebase.js';
+import { DataModule } from './data-firebase.js';
 import { SuppliersModule } from './suppliers-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
 
@@ -55,20 +56,23 @@ async function renderOrders() {
     if (!tbody) return;
 
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Aucun bon de commande</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Aucun bon de commande</td></tr>';
         return;
     }
 
     const suppliers = await SuppliersModule.getSuppliers();
+    const trucks = await DataModule.getTrucks();
 
     tbody.innerHTML = orders.map(o => {
         const supplier = suppliers.find(s => s.id === o.fournisseurId);
+        const truck = o.camionId ? trucks.find(t => t.id === o.camionId) : null;
         const statusClass = o.statut === 'Validé' ? 'status-success' :
             o.statut === 'En cours' ? 'status-warning' : 'status-default';
         return `
             <tr>
                 <td><strong>${o.numero}</strong></td>
                 <td>${formatDate(o.date)}</td>
+                <td>${truck?.matricule || '-'}</td>
                 <td>${supplier?.nom || '-'}</td>
                 <td>${o.lignes?.length || 0}</td>
                 <td><strong>${(o.totalHT || 0).toLocaleString('fr-FR')} TND</strong></td>
@@ -98,10 +102,15 @@ async function openModal(orderId = null) {
     const today = new Date().toISOString().split('T')[0];
 
     const suppliers = await SuppliersModule.getSuppliers();
+    const trucks = await DataModule.getTrucks();
     const articles = await ArticlesModule.getArticles();
 
     const supplierOptions = suppliers.map(s =>
         `<option value="${s.id}" ${order?.fournisseurId === s.id ? 'selected' : ''}>${s.nom}</option>`
+    ).join('');
+
+    const truckOptions = trucks.map(t =>
+        `<option value="${t.id}" ${order?.camionId === t.id ? 'selected' : ''}>${t.matricule}</option>`
     ).join('');
 
     document.getElementById('modalTitle').textContent = title;
@@ -119,6 +128,16 @@ async function openModal(orderId = null) {
                     <label>Date *</label>
                     <input type="date" id="orderDate" value="${order?.date || today}" required>
                 </div>
+                <div class="form-group">
+                    <label>🚛 Camion</label>
+                    <select id="orderCamion">
+                        <option value="">-- Aucun camion --</option>
+                        ${truckOptions}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
                 <div class="form-group">
                     <label>Fournisseur *</label>
                     <select id="orderFournisseur" required>
@@ -291,6 +310,7 @@ async function saveOrder() {
         id: document.getElementById('orderId').value || `bc_${Date.now()}`,
         numero: document.getElementById('orderNumero').value,
         date: document.getElementById('orderDate').value,
+        camionId: document.getElementById('orderCamion').value || null,
         fournisseurId: document.getElementById('orderFournisseur').value,
         statut: document.getElementById('orderStatut').value,
         lignes: window._orderLines,
@@ -309,6 +329,30 @@ async function saveOrder() {
 
     try {
         await setDoc(doc(db, COLLECTIONS.bonCommandesAchat, order.id), order);
+
+        // Si un camion est lié, mettre à jour ses charges fixes
+        if (order.camionId && order.totalTTC > 0) {
+            const truck = DataModule.getTruckById(order.camionId);
+            if (truck) {
+                // Récupérer l'ancien montant si c'est une modification
+                const oldOrder = getOrderById(order.id);
+                const oldAmount = (oldOrder?.camionId === order.camionId) ? (oldOrder.totalTTC || 0) : 0;
+
+                // Calculer la différence à ajouter
+                const difference = order.totalTTC - oldAmount;
+
+                // Mettre à jour les charges fixes du camion
+                const updatedCharges = (truck.chargesFixes || 0) + difference;
+                await setDoc(doc(db, COLLECTIONS.trucks, order.camionId), {
+                    ...truck,
+                    chargesFixes: updatedCharges,
+                    updatedAt: new Date().toISOString()
+                });
+
+                console.log(`✅ Charges fixes du camion ${truck.matricule} mises à jour: +${difference.toFixed(3)} TND`);
+            }
+        }
+
         document.getElementById('modal').classList.remove('modal-large');
         App.hideModal();
         await refresh();
@@ -372,6 +416,23 @@ async function transformToBL(orderId) {
 async function remove(id) {
     if (confirm('Supprimer ce bon de commande ?')) {
         try {
+            // Récupérer le bon de commande avant suppression
+            const order = getOrderById(id);
+
+            // Si lié à un camion, retirer des charges fixes
+            if (order?.camionId && order.totalTTC > 0) {
+                const truck = DataModule.getTruckById(order.camionId);
+                if (truck) {
+                    const updatedCharges = (truck.chargesFixes || 0) - order.totalTTC;
+                    await setDoc(doc(db, COLLECTIONS.trucks, order.camionId), {
+                        ...truck,
+                        chargesFixes: Math.max(0, updatedCharges), // Ne pas descendre en dessous de 0
+                        updatedAt: new Date().toISOString()
+                    });
+                    console.log(`✅ Charges fixes du camion ${truck.matricule} mises à jour: -${order.totalTTC.toFixed(3)} TND`);
+                }
+            }
+
             await deleteDoc(doc(db, COLLECTIONS.bonCommandesAchat, id));
             await refresh();
         } catch (error) {
