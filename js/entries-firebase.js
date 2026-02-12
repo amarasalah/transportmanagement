@@ -10,6 +10,11 @@ import { ClientsModule } from './clients-firebase.js';
 
 function init() {
     document.getElementById('addEntryBtn')?.addEventListener('click', () => openModal());
+    // Hide add button for chauffeur (read-only)
+    if (window.currentUser?.driverId) {
+        const addBtn = document.getElementById('addEntryBtn');
+        if (addBtn) addBtn.style.display = 'none';
+    }
 }
 
 async function refresh(selectedDate) {
@@ -17,7 +22,12 @@ async function refresh(selectedDate) {
 }
 
 async function renderEntries(selectedDate) {
-    const entries = DataModule.getEntriesByDate(selectedDate);
+    let entries = DataModule.getEntriesByDate(selectedDate);
+    // Chauffeur data scope: show only their entries
+    const cu = window.currentUser;
+    if (cu?.driverId) {
+        entries = entries.filter(e => e.chauffeurId === cu.driverId);
+    }
     const tbody = document.getElementById('entriesBody');
     if (!tbody) return;
 
@@ -53,8 +63,10 @@ async function renderEntries(selectedDate) {
             <td>${entry.prixLivraison.toLocaleString('fr-FR')} TND</td>
             <td class="${resultClass}">${costs.resultat.toLocaleString('fr-FR')} TND</td>
             <td>
+                ${!window.currentUser?.driverId ? `
                 <button class="btn btn-sm btn-outline" onclick="EntriesModule.edit('${entry.id}')">✏️</button>
                 <button class="btn btn-sm btn-outline" onclick="EntriesModule.remove('${entry.id}')">🗑️</button>
+                ` : ''}
             </td>
         </tr>`;
     }).join('');

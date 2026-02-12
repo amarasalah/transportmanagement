@@ -7,6 +7,11 @@ import { DataModule } from './data-firebase.js';
 
 function init() {
     document.getElementById('addTruckBtn')?.addEventListener('click', () => openModal());
+    // Hide add button for chauffeur (read-only)
+    if (window.currentUser?.driverId) {
+        const addBtn = document.getElementById('addTruckBtn');
+        if (addBtn) addBtn.style.display = 'none';
+    }
 }
 
 async function refresh() {
@@ -45,7 +50,12 @@ function calculateTruckStats(truckId) {
 }
 
 async function renderTrucks() {
-    const trucks = await DataModule.getTrucks();
+    let trucks = await DataModule.getTrucks();
+    // Chauffeur data scope: show only their assigned truck
+    const cu = window.currentUser;
+    if (cu?.camionId) {
+        trucks = trucks.filter(t => t.id === cu.camionId);
+    }
     const grid = document.getElementById('trucksGrid');
     if (!grid) return;
 
@@ -64,8 +74,10 @@ async function renderTrucks() {
                 </div>
                 <div class="entity-actions">
                     <button class="btn btn-sm btn-profile" onclick="ProfileModule.openTruckProfile('${truck.id}')" title="Voir Profil">📊</button>
+                    ${!window.currentUser?.driverId ? `
                     <button class="btn btn-sm btn-outline" onclick="TrucksModule.edit('${truck.id}')">✏️</button>
                     <button class="btn btn-sm btn-outline" onclick="TrucksModule.remove('${truck.id}')">🗑️</button>
+                    ` : ''}
                 </div>
             </div>
             

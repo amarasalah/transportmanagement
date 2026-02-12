@@ -1,6 +1,6 @@
 /**
  * FIREBASE CONFIGURATION
- * Firestore Database for FleetTrack
+ * Firestore Database + Auth for FleetTrack
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -19,11 +19,31 @@ import {
     where,
     orderBy
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import {
+    getAuth,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import {
+    getDatabase,
+    ref as dbRef,
+    push as dbPush,
+    set as dbSet,
+    onValue,
+    onChildAdded,
+    serverTimestamp as rtdbTimestamp,
+    query as rtdbQuery,
+    orderByChild,
+    limitToLast
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyB4SNzrvJfnFlBnByU8cdYXPomxaoBHQB8",
     authDomain: "managementsirep.firebaseapp.com",
+    databaseURL: "https://managementsirep-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "managementsirep",
     storageBucket: "managementsirep.firebasestorage.app",
     messagingSenderId: "141121672067",
@@ -35,9 +55,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const rtdb = getDatabase(app);
 
 // Collection names - FleetTrack + ERP Modules
 const COLLECTIONS = {
+    // Auth
+    users: 'users',
+    roles: 'roles',
+
     // FleetTrack Core
     trucks: 'trucks',
     drivers: 'drivers',
@@ -66,12 +92,17 @@ const COLLECTIONS = {
     facturesVente: 'factures_vente',
 
     // Planning
-    planifications: 'planifications'
+    planifications: 'planifications',
+
+    // Caisse (Treasury)
+    caisse: 'caisse_transactions'
 };
 
 // Export for use in other modules
 export {
     db,
+    auth,
+    rtdb,
     collection,
     doc,
     getDocs,
@@ -83,5 +114,20 @@ export {
     query,
     where,
     orderBy,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged,
+    // Realtime DB
+    dbRef,
+    dbPush,
+    dbSet,
+    onValue,
+    onChildAdded,
+    rtdbTimestamp,
+    rtdbQuery,
+    orderByChild,
+    limitToLast,
     COLLECTIONS
 };
+

@@ -4,6 +4,7 @@
  */
 
 import { DataModule } from './data-firebase.js';
+import { AuthModule } from './auth-firebase.js';
 
 function init() {
     document.getElementById('addDriverBtn')?.addEventListener('click', () => openModal());
@@ -47,11 +48,18 @@ function calculateDriverStats(driverId) {
 async function renderDrivers() {
     const drivers = await DataModule.getDrivers();
     const trucks = await DataModule.getTrucks();
+    // Fetch users to check which drivers have messenger accounts
+    let linkedDriverIds = [];
+    try {
+        const allUsers = await AuthModule.getAllUsers();
+        linkedDriverIds = allUsers.filter(u => u.driverId).map(u => u.driverId);
+    } catch (e) { console.warn('Could not fetch users for messenger badges'); }
     const grid = document.getElementById('driversGrid');
     if (!grid) return;
 
     grid.innerHTML = drivers.map(driver => {
         const truck = trucks.find(t => t.id === driver.camionId);
+        const hasAccount = linkedDriverIds.includes(driver.id);
         const stats = calculateDriverStats(driver.id);
         const performanceClass = stats.performance >= 20 ? 'perf-excellent' : stats.performance >= 10 ? 'perf-good' : stats.performance >= 0 ? 'perf-average' : 'perf-bad';
         const resultatClass = stats.resultat >= 0 ? 'result-positive' : 'result-negative';
@@ -62,9 +70,13 @@ async function renderDrivers() {
                 <div class="entity-icon">👤</div>
                 <div class="entity-info">
                     <h3>${driver.nom}</h3>
-                    <span class="entity-badge ${truck ? '' : 'badge-warning'}">${truck ? truck.matricule : 'Non assigné'}</span>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        <span class="entity-badge ${truck ? '' : 'badge-warning'}">${truck ? truck.matricule : 'Non assigné'}</span>
+                        ${hasAccount ? '<span style="font-size:11px;padding:2px 8px;background:rgba(16,185,129,0.15);color:#10b981;border-radius:4px;font-weight:600">Compte ✅</span>' : '<span style="font-size:11px;padding:2px 8px;background:rgba(239,68,68,0.1);color:#ef4444;border-radius:4px">Sans compte</span>'}
+                    </div>
                 </div>
                 <div class="entity-actions">
+                    ${hasAccount ? `<button class="btn btn-sm" style="background:rgba(99,102,241,0.15);color:#6366f1;border:1px solid rgba(99,102,241,0.3)" onclick="window.openDriverChat('${driver.id}')" title="Envoyer un message">💬</button>` : ''}
                     <button class="btn btn-sm btn-profile" onclick="ProfileModule.openDriverProfile('${driver.id}')" title="Voir Profil">📊</button>
                     <button class="btn btn-sm btn-outline" onclick="DriversModule.edit('${driver.id}')">✏️</button>
                     <button class="btn btn-sm btn-outline" onclick="DriversModule.remove('${driver.id}')">🗑️</button>

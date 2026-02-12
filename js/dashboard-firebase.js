@@ -23,7 +23,10 @@ async function refresh(selectedDate) {
 }
 
 async function updateKPIs(selectedDate) {
-    const entries = DataModule.getEntriesByDate(selectedDate);
+    let entries = DataModule.getEntriesByDate(selectedDate);
+    // Chauffeur data scope
+    const cu = window.currentUser;
+    if (cu?.driverId) entries = entries.filter(e => e.chauffeurId === cu.driverId);
     const trucks = await DataModule.getTrucks();
 
     let totalKm = 0;
@@ -177,7 +180,10 @@ function initCharts() {
 async function updateTrendChart(selectedDate) {
     if (!trendChart) return;
 
-    const entries = await DataModule.getEntries();
+    const allEntries = await DataModule.getEntries();
+    // Chauffeur data scope
+    const cu = window.currentUser;
+    const entries = cu?.driverId ? allEntries.filter(e => e.chauffeurId === cu.driverId) : allEntries;
     const date = new Date(selectedDate);
     const dates = [];
     const results = [];
@@ -207,7 +213,10 @@ async function updateTrendChart(selectedDate) {
 async function updateCostsChart(selectedDate) {
     if (!costsChart) return;
 
-    const entries = DataModule.getEntriesByDate(selectedDate);
+    let entries = DataModule.getEntriesByDate(selectedDate);
+    // Chauffeur data scope
+    const cu2 = window.currentUser;
+    if (cu2?.driverId) entries = entries.filter(e => e.chauffeurId === cu2.driverId);
 
     let gasoil = 0, chargesFixes = 0, assurance = 0, taxe = 0, personnel = 0, maintenance = 0;
 
@@ -230,7 +239,10 @@ async function updateCostsChart(selectedDate) {
 async function updatePerformanceChart(selectedDate) {
     if (!performanceChart) return;
 
-    const entries = DataModule.getEntriesByDate(selectedDate);
+    let entries = DataModule.getEntriesByDate(selectedDate);
+    // Chauffeur data scope
+    const cu3 = window.currentUser;
+    if (cu3?.driverId) entries = entries.filter(e => e.chauffeurId === cu3.driverId);
     const trucks = await DataModule.getTrucks();
 
     const truckResults = {};
@@ -256,7 +268,10 @@ async function updatePerformanceChart(selectedDate) {
 }
 
 async function updateDailySummary(selectedDate) {
-    const entries = DataModule.getEntriesByDate(selectedDate);
+    let entries = DataModule.getEntriesByDate(selectedDate);
+    // Chauffeur data scope
+    const cu4 = window.currentUser;
+    if (cu4?.driverId) entries = entries.filter(e => e.chauffeurId === cu4.driverId);
     const tbody = document.getElementById('dailySummaryBody');
     if (!tbody) return;
 

@@ -12,6 +12,11 @@ let cache = [];
 function init() {
     document.getElementById('addPlanBtn')?.addEventListener('click', () => openModal());
     console.log('📅 PlanificationModule initialized');
+    // Hide add button for chauffeur (read-only)
+    if (window.currentUser?.driverId) {
+        const addBtn = document.getElementById('addPlanBtn');
+        if (addBtn) addBtn.style.display = 'none';
+    }
 }
 
 async function refresh(selectedDate) {
@@ -48,7 +53,12 @@ async function renderPlannings(selectedDate) {
     if (!tbody) return;
 
     // Show all planifications sorted by date (most recent first)
-    const plannings = [...cache].sort((a, b) => new Date(b.date) - new Date(a.date));
+    let plannings = [...cache].sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Chauffeur data scope: show only their planifications
+    const cu = window.currentUser;
+    if (cu?.driverId) {
+        plannings = plannings.filter(p => p.chauffeurId === cu.driverId);
+    }
 
     if (plannings.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:40px;">Aucune planification enregistrée.</td></tr>';
@@ -99,8 +109,10 @@ async function renderPlannings(selectedDate) {
             <td class="${resultClass}">${resultat.toLocaleString('fr-FR')} TND</td>
             <td>
                 <span class="status-badge ${statusClass}">${statusLabel}</span>
+                ${!window.currentUser?.driverId ? `
                 <button class="btn btn-sm btn-outline" onclick="PlanificationModule.edit('${plan.id}')">✏️</button>
                 <button class="btn btn-sm btn-outline" onclick="PlanificationModule.remove('${plan.id}')">🗑️</button>
+                ` : ''}
             </td>
         </tr>`;
     }).join('');

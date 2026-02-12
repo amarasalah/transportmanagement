@@ -176,7 +176,7 @@
             <div class="nav-group">
                 <a href="#" class="nav-item" data-toggle="achat-local">
                     <span class="nav-icon">🛒</span>
-                    <span class="nav-label">Achat Local</span>
+                    <span class="nav-label">Achat </span>
                     <span class="nav-arrow">▼</span>
                 </a>
                 <div class="nav-submenu" id="achat-local-submenu">
@@ -240,6 +240,10 @@
                     </a>
                 </div>
             </div>
+            <a href="#" class="nav-item" data-page="caisse">
+                <span class="nav-icon">💵</span>
+                <span class="nav-label">Caisse</span>
+            </a>
             <a href="#" class="nav-item" data-page="articles">
                 <span class="nav-icon">📦</span>
                 <span class="nav-label">Articles</span>
@@ -260,9 +264,36 @@
                 <span class="nav-icon">⚙️</span>
                 <span class="nav-label">Paramètres</span>
             </a>
+            <a href="#" class="nav-item" data-page="messagerie">
+                <span class="nav-icon">💬</span>
+                <span class="nav-label">Messagerie</span>
+            </a>
+            <a href="#" class="nav-item" data-page="profil">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Mon Profil</span>
+            </a>
+            <a href="#" class="nav-item" data-page="admin" style="display:none">
+                <span class="nav-icon">👑</span>
+                <span class="nav-label">Admin</span>
+            </a>
         </nav>
-        <div class="sidebar-footer">
-            <button class="btn btn-outline" id="exportBtn">
+        <!-- User Widget -->
+        <div class="sidebar-footer" style="border-top:1px solid rgba(148,163,184,0.1);padding:12px 16px">
+            <div id="userWidget" style="display:none;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;gap:10px">
+                    <div
+                        style="width:36px;height:36px;background:rgba(139,92,246,0.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px">
+                        👤</div>
+                    <div>
+                        <div class="user-name" style="font-size:13px;font-weight:600;color:#f1f5f9">Utilisateur</div>
+                        <div class="user-role" style="font-size:11px;color:#94a3b8">Role</div>
+                    </div>
+                </div>
+                <button class="user-logout"
+                    style="width:100%;padding:6px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:6px;color:#ef4444;font-size:12px;cursor:pointer;font-family:inherit">🚪
+                    Déconnexion</button>
+            </div>
+            <button class="btn btn-outline" id="exportBtn" style="width:100%">
                 <span>💾</span> Exporter
             </button>
         </div>
@@ -847,6 +878,82 @@
                             <input type="file" id="importDataInput" accept=".json" hidden>
                         </label>
                         <button class="btn btn-danger" id="resetDataBtn">🗑️ Réinitialiser</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Caisse Page -->
+        <section class="page" id="page-caisse">
+            <div class="kpi-grid" id="caisseKPIs"></div>
+            <div style="margin:16px 0;font-size:13px" id="caisseTodaySummary"></div>
+            <div class="card" style="padding:20px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                    <div style="display:flex;gap:8px">
+                        <button id="caisseFilterAll" class="btn btn-sm caisse-filter-btn active"
+                            onclick="CaisseModule.setFilter('all')">Tout</button>
+                        <button id="caisseFilterIn" class="btn btn-sm caisse-filter-btn"
+                            onclick="CaisseModule.setFilter('encaissement')">↗ Entrées</button>
+                        <button id="caisseFilterOut" class="btn btn-sm caisse-filter-btn"
+                            onclick="CaisseModule.setFilter('decaissement')">↘ Sorties</button>
+                    </div>
+                    <button id="addCaisseBtn" class="btn btn-primary">➕ Nouvelle Transaction</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Tiers</th>
+                                <th>Montant</th>
+                                <th>Mode</th>
+                                <th>Référence</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="caisseTableBody">
+                            <tr>
+                                <td colspan="8" style="text-align:center;color:#64748b;padding:40px">Chargement...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Messagerie Page -->
+        <section class="page" id="page-messagerie">
+            <div id="messengerContent">
+                <div style="color:#64748b">Chargement...</div>
+            </div>
+        </section>
+
+        <!-- Profil Page -->
+        <section class="page" id="page-profil">
+            <div id="profilContent">
+                <div style="color:#64748b">Chargement...</div>
+            </div>
+        </section>
+        <section class="page" id="page-admin">
+            <div id="adminContent">
+                <div class="card" style="margin-bottom:20px;padding:24px">
+                    <h2 style="margin-bottom:20px;font-size:1.25rem">🏷️ Gestion des Rôles</h2>
+                    <div id="roleManagerContent">
+                        <div style="color:#64748b">Chargement...</div>
+                    </div>
+                </div>
+                <div class="card" style="margin-bottom:20px;padding:24px">
+                    <h2 style="margin-bottom:20px;font-size:1.25rem">🚚 Comptes Chauffeurs</h2>
+                    <div id="chauffeurManagerContent">
+                        <div style="color:#64748b">Chargement...</div>
+                    </div>
+                </div>
+                <div class="card" style="padding:24px">
+                    <h2 style="margin-bottom:20px;font-size:1.25rem">👤 Gestion des Utilisateurs</h2>
+                    <div id="userManagerContent">
+                        <div style="color:#64748b">Chargement...</div>
                     </div>
                 </div>
             </div>
