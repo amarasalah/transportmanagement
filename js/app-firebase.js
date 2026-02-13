@@ -70,6 +70,7 @@ async function init() {
         PlanificationModule.init();
         CaisseModule.init();
         MessengerModule.init();
+        // TrackingModule loaded dynamically on first use
 
         // Setup UI
         setupNavigation();
@@ -701,6 +702,16 @@ async function refreshCurrentPage() {
                 break;
             case 'admin':
                 loadAdminData();
+                // Load GPS tracking map in admin panel
+                try {
+                    const { TrackingModule } = await import('./tracking-firebase.js');
+                    window.TrackingModule = TrackingModule;
+                    setTimeout(() => TrackingModule.refresh(), 500);
+                } catch (err) {
+                    console.error('GPS Tracking load error:', err);
+                    const mapEl = document.getElementById('trackingMap');
+                    if (mapEl) mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:16px">⚠️ Erreur GPS: ' + err.message + '</div>';
+                }
                 break;
             case 'profil':
                 renderProfilPage();

@@ -11,6 +11,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="css/styles.css">
     <style>
         /* Loader styles */
@@ -923,6 +925,7 @@
             </div>
         </section>
 
+
         <!-- Messagerie Page -->
         <section class="page" id="page-messagerie">
             <div id="messengerContent">
@@ -956,6 +959,14 @@
                         <div style="color:#64748b">Chargement...</div>
                     </div>
                 </div>
+            </div>
+            <div class="card" style="padding:24px;margin-top:20px">
+                <h2 style="margin-bottom:16px;font-size:1.25rem">🗺️ Suivi GPS des Camions</h2>
+                <div id="trackingInfoPanel" style="margin-bottom:12px"></div>
+                <div style="border-radius:12px;overflow:hidden;border:1px solid rgba(148,163,184,0.1);height:500px">
+                    <div id="trackingMap" style="width:100%;height:100%"></div>
+                </div>
+            </div>
             </div>
         </section>
     </main>

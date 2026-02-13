@@ -105,7 +105,8 @@ const CHAUFFEUR_PERMISSIONS = {
     articles: false,
     settings: false,
     caisse: false,
-    messagerie: true
+    messagerie: true,
+    tracking: true
 };
 
 /**
@@ -253,6 +254,7 @@ function hasPermission(user, page) {
         profil: '__always__', // Always allowed
         messagerie: '__always__', // Always allowed
         caisse: 'caisse',
+        tracking: 'tracking',
         // Achat group
         'offres-prix': 'achat',
         'bon-commandes': 'achat',
