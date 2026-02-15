@@ -320,9 +320,45 @@ async function deleteFacture(id) {
     await loadFactures();
 }
 
+// ========== BONS DE SORTIE ==========
+let sortiesCache = [];
+
+async function loadSorties() {
+    try {
+        const snap = await getDocs(collection(db, COLLECTIONS.bonsSortie));
+        sortiesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        return sortiesCache;
+    } catch (error) {
+        console.error('Error loading sorties:', error);
+        return [];
+    }
+}
+
+async function getSorties() {
+    if (sortiesCache.length === 0) await loadSorties();
+    return sortiesCache;
+}
+
+function getSortieById(id) {
+    return sortiesCache.find(s => s.id === id);
+}
+
+async function saveSortie(sortie) {
+    const id = sortie.id || `bs_${Date.now()}`;
+    sortie.id = id;
+    sortie.updatedAt = new Date().toISOString();
+    await setDoc(doc(db, COLLECTIONS.bonsSortie, id), sortie);
+    await loadSorties();
+}
+
+async function deleteSortie(id) {
+    await deleteDoc(doc(db, COLLECTIONS.bonsSortie, id));
+    await loadSorties();
+}
+
 // ========== RELOAD ALL ==========
 async function reloadAll() {
-    await Promise.all([loadSuppliers(), loadDemandes(), loadCommandes(), loadLivraisons(), loadFactures()]);
+    await Promise.all([loadSuppliers(), loadDemandes(), loadCommandes(), loadLivraisons(), loadFactures(), loadSorties()]);
 }
 
 export const SuppliersModule = {
@@ -336,6 +372,8 @@ export const SuppliersModule = {
     // Bon Livraisons
     loadLivraisons, getLivraisons, getLivraisonById, saveLivraison, deleteLivraison,
     // Factures
-    loadFactures, getFactures, getFactureById, saveFacture, deleteFacture
+    loadFactures, getFactures, getFactureById, saveFacture, deleteFacture,
+    // Bons de Sortie
+    loadSorties, getSorties, getSortieById, saveSortie, deleteSortie
 };
 window.SuppliersModule = SuppliersModule;

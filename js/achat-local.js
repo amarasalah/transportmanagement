@@ -33,6 +33,10 @@ function init() {
             e.preventDefault();
             e.stopPropagation();
             openFactureModal();
+        } else if (btn && (btn.id === 'addSortieBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            openSortieModal();
         }
     });
 }
@@ -48,6 +52,7 @@ async function refreshCurrentPage() {
         case 'offres-prix': await renderDemandes(); break;
         case 'bon-commandes': await renderCommandes(); break;
         case 'bon-livraisons': await renderLivraisons(); break;
+        case 'bon-sorties': await renderSorties(); break;
         case 'factures': await renderFactures(); break;
         case 'reglements': await renderReglements(); break;
         case 'fournisseurs': await SuppliersModule.refresh(); break;
@@ -999,6 +1004,204 @@ async function renderReglements() {
     `;
 }
 
+// ==================== BONS DE SORTIE ====================
+async function renderSorties() {
+    const sorties = await SuppliersModule.getSorties();
+    const tbody = document.getElementById('sortiesBody');
+    if (!tbody) return;
+
+    if (sorties.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:30px">Aucun bon de sortie</td></tr>';
+        return;
+    }
+
+    const trucks = DataModule.getTrucks ? (await DataModule.getTrucks()) : [];
+    tbody.innerHTML = sorties.map(s => {
+        const truck = trucks.find(t => t.id === s.camionId);
+        return `
+            <tr>
+                <td><strong>${s.numero || s.id}</strong></td>
+                <td>${s.date || '-'}</td>
+                <td>${s.livraisonNumero || '-'}</td>
+                <td>${truck?.matricule || s.camionId || '-'}</td>
+                <td>${(s.lignes || []).length} article(s)</td>
+                <td><span class="status-badge status-${(s.statut || '').toLowerCase()}">${s.statut || 'Sorti'}</span></td>
+                <td>
+                    <button class="btn-icon" onclick="AchatModule.editSortie('${s.id}')">✏️</button>
+                    <button class="btn-icon" onclick="AchatModule.deleteSortie('${s.id}')">🗑️</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function openSortieModal(sortieId = null) {
+    const sortie = sortieId ? SuppliersModule.getSortieById(sortieId) : null;
+    const livraisons = await SuppliersModule.getLivraisons();
+    const activeBLs = livraisons.filter(bl => bl.statut === 'Reçu' || bl.id === sortie?.livraisonId);
+    const trucks = DataModule.getTrucks ? (await DataModule.getTrucks()) : [];
+
+    const blOpts = activeBLs.map(bl => {
+        const f = SuppliersModule.getSupplierById(bl.fournisseurId);
+        return `<option value="${bl.id}" ${sortie?.livraisonId === bl.id ? 'selected' : ''}>${bl.numero || bl.id} - ${f?.nom || ''}</option>`;
+    }).join('');
+
+    const truckOpts = trucks.map(t =>
+        `<option value="${t.id}" ${sortie?.camionId === t.id ? 'selected' : ''}>${t.matricule} (${t.type || ''})</option>`
+    ).join('');
+
+    const lignes = sortie?.lignes || [];
+
+    document.getElementById('modalTitle').textContent = sortie ? 'Modifier Bon de Sortie' : 'Nouveau Bon de Sortie';
+    document.getElementById('modalBody').innerHTML = `
+        <form id="sortieForm">
+            <input type="hidden" id="sortieId" value="${sortie?.id || ''}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Bon Livraison source</label>
+                    <select id="sortieBLId" onchange="AchatModule.onBLChangeSortie()" ${sortie ? 'disabled' : ''} required>
+                        <option value="">-- Sélectionner un BL --</option>
+                        ${blOpts}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date Sortie</label>
+                    <input type="date" id="sortieDate" value="${sortie?.date || new Date().toISOString().split('T')[0]}" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>🚚 Camion *</label>
+                <select id="sortieCamion" required>
+                    <option value="">-- Sélectionner un camion --</option>
+                    ${truckOpts}
+                </select>
+            </div>
+            <div style="margin-top:16px">
+                <label style="font-weight:600;margin-bottom:8px;display:block">📦 Articles à sortir</label>
+                <table style="width:100%;border-collapse:collapse;font-size:13px">
+                    <thead>
+                        <tr style="background:rgba(148,163,184,0.1)">
+                            <th style="padding:8px;text-align:left">Nom</th>
+                            <th style="padding:8px;text-align:right;width:100px">Disponible</th>
+                            <th style="padding:8px;text-align:right;width:120px">Qté sortie</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sortieLignesBody">
+                        ${lignes.map(l => `
+                            <tr>
+                                <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
+                                <td style="padding:6px;text-align:right;color:#94a3b8">${l.disponible || 0}</td>
+                                <td style="padding:4px"><input type="number" class="bs-qte" value="${l.quantiteSortie || 0}" min="0" max="${l.disponible || 0}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:13px">Sélectionnez un Bon Livraison pour charger les articles</div>' : ''}
+            </div>
+        </form>
+    `;
+    document.getElementById('modalSave').onclick = saveSortieForm;
+    App.showModal();
+}
+
+async function onBLChangeSortie() {
+    const blId = document.getElementById('sortieBLId')?.value;
+    if (!blId) return;
+    const livraison = SuppliersModule.getLivraisonById(blId);
+    if (!livraison) return;
+
+    // Get existing BS for this BL
+    const allBS = await SuppliersModule.getSorties();
+    const existingBS = allBS.filter(bs => bs.livraisonId === blId);
+
+    const tbody = document.getElementById('sortieLignesBody');
+    tbody.innerHTML = (livraison.lignes || []).map(l => {
+        // Calculate already sorted qty
+        let dejaSorti = 0;
+        existingBS.forEach(bs => {
+            const bsLine = (bs.lignes || []).find(bsl => bsl.nom === l.nom);
+            if (bsLine) dejaSorti += (bsLine.quantiteSortie || 0);
+        });
+        const disponible = Math.max(0, (l.quantiteRecue || 0) - dejaSorti);
+
+        return `
+            <tr>
+                <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
+                <td style="padding:6px;text-align:right;color:#94a3b8">${disponible}</td>
+                <td style="padding:4px"><input type="number" class="bs-qte" value="${disponible}" min="0" max="${disponible}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function saveSortieForm() {
+    const blId = document.getElementById('sortieBLId')?.value;
+    const camionId = document.getElementById('sortieCamion')?.value;
+    const livraison = blId ? SuppliersModule.getLivraisonById(blId) : null;
+
+    if (!camionId) { alert('Sélectionnez un camion'); return; }
+
+    const rows = document.querySelectorAll('#sortieLignesBody tr');
+    const lignes = Array.from(rows).map(row => {
+        const nom = row.querySelector('td:first-child').textContent.trim();
+        const disponible = parseFloat(row.querySelector('td:nth-child(2)').textContent) || 0;
+        const quantiteSortie = parseFloat(row.querySelector('.bs-qte')?.value) || 0;
+        // Find articleId from livraison lignes
+        const blLine = (livraison?.lignes || []).find(l => l.nom === nom);
+        return {
+            nom,
+            articleId: blLine?.articleId || null,
+            disponible,
+            quantiteSortie
+        };
+    }).filter(l => l.quantiteSortie > 0);
+
+    if (lignes.length === 0) { alert('Aucune quantité à sortir'); return; }
+
+    const sortie = {
+        id: document.getElementById('sortieId').value || null,
+        numero: document.getElementById('sortieId').value ? SuppliersModule.getSortieById(document.getElementById('sortieId').value)?.numero : `BS-${Date.now().toString().slice(-6)}`,
+        date: document.getElementById('sortieDate').value,
+        livraisonId: blId || null,
+        livraisonNumero: livraison?.numero || '',
+        camionId: camionId,
+        lignes: lignes,
+        statut: 'Sorti'
+    };
+
+    try {
+        await SuppliersModule.saveSortie(sortie);
+
+        // Reduce stock from Articles d'Achat
+        for (const ligne of lignes) {
+            if (ligne.articleId) {
+                const article = ArticlesModule.getArticleById(ligne.articleId);
+                if (article) {
+                    const newStock = Math.max(0, (article.stock || 0) - ligne.quantiteSortie);
+                    const { db: fireDb, doc: fireDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
+                    await fireSetDoc(fireDoc(fireDb, COLS.articles, article.id), { ...article, stock: newStock });
+                }
+            }
+        }
+        // Refresh articles cache
+        await ArticlesModule.refresh();
+
+        App.hideModal();
+        await renderSorties();
+    } catch (err) {
+        console.error('Erreur sauvegarde BS:', err);
+        alert('Erreur: ' + err.message);
+    }
+}
+
+function editSortie(id) { openSortieModal(id); }
+async function deleteSortie(id) {
+    if (confirm('Supprimer ce bon de sortie?')) {
+        await SuppliersModule.deleteSortie(id);
+        await renderSorties();
+    }
+}
+
 // ==================== EXPORT ====================
 const AchatModule = {
     init, showPage, refreshCurrentPage,
@@ -1011,6 +1214,9 @@ const AchatModule = {
     // Livraisons
     editLivraison, deleteLivraison, openLivraisonModal,
     onCommandeChangeBL,
+    // Bons de Sortie
+    editSortie, deleteSortie, openSortieModal,
+    onBLChangeSortie,
     // Factures
     editFacture, deleteFacture, openFactureModal,
     viewEcheances, addEcheance, removeEcheance, recalcEcheances,

@@ -669,6 +669,7 @@ async function refreshCurrentPage() {
             case 'offres-prix':
             case 'bon-commandes':
             case 'bon-livraisons':
+            case 'bon-sorties':
             case 'factures':
             case 'reglements':
                 AchatModule.showPage(currentPage);

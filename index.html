@@ -194,6 +194,10 @@
                         <span class="nav-icon">📦</span>
                         <span class="nav-label">Bon Livraisons</span>
                     </a>
+                    <a href="#" class="nav-item" data-page="bon-sorties">
+                        <span class="nav-icon">🚚</span>
+                        <span class="nav-label">Bon de Sortie</span>
+                    </a>
                     <a href="#" class="nav-item" data-page="factures">
                         <span class="nav-icon">🧾</span>
                         <span class="nav-label">Factures Fournisseurs</span>
@@ -923,6 +927,34 @@
                                 </tr>
                             </thead>
                             <tbody id="livraisonsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bon de Sortie Page -->
+        <section class="page" id="page-bon-sorties">
+            <div class="page-content">
+                <div class="card" style="padding:24px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                        <h2 style="font-size:1.25rem">🚚 Bons de Sortie</h2>
+                        <button class="btn btn-primary" id="addSortieBtn">➕ Nouveau BS</button>
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>N° BS</th>
+                                    <th>Date</th>
+                                    <th>BL Source</th>
+                                    <th>Camion</th>
+                                    <th>Articles</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sortiesBody"></tbody>
                         </table>
                     </div>
                 </div>
