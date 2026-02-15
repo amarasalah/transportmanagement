@@ -78,7 +78,7 @@ const COLLECTIONS = {
     depots: 'depots',
 
     // Achat Local (Purchasing)
-    demandesOffrePrix: 'demandes_offre_prix',
+    demandesAchat: 'demandes_achat',
     bonCommandesAchat: 'bon_commandes_achat',
     bonLivraisonsAchat: 'bon_livraisons_achat',
     facturesAchat: 'factures_achat',

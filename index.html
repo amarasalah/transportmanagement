@@ -184,7 +184,7 @@
                 <div class="nav-submenu" id="achat-local-submenu">
                     <a href="#" class="nav-item" data-page="offres-prix">
                         <span class="nav-icon">📋</span>
-                        <span class="nav-label">Offres de Prix</span>
+                        <span class="nav-label">Demandes d'Achat</span>
                     </a>
                     <a href="#" class="nav-item" data-page="bon-commandes">
                         <span class="nav-icon">📄</span>
@@ -569,166 +569,6 @@
             </div>
         </section>
 
-        <!-- Achat Local: Offres de Prix -->
-        <section class="page" id="page-offres-prix">
-            <div class="page-header">
-                <h2>📋 Demandes Offres de Prix</h2>
-                <button class="btn btn-primary" id="addOffreBtn">
-                    <span>+</span> Nouvelle Demande
-                </button>
-            </div>
-            <div class="data-card">
-                <div class="table-container">
-                    <table class="data-table" id="offresTable">
-                        <thead>
-                            <tr>
-                                <th>N° Demande</th>
-                                <th>Date</th>
-                                <th>Fournisseur</th>
-                                <th>Description</th>
-                                <th>Montant Est.</th>
-                                <th>Statut</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="offresBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Achat Local: Bon Commandes -->
-        <section class="page" id="page-bon-commandes">
-            <div class="page-header">
-                <h2>📄 Bon Commandes</h2>
-                <button class="btn btn-primary" id="addCommandeBtn">
-                    <span>+</span> Nouveau BC
-                </button>
-            </div>
-            <div class="data-card">
-                <div class="table-container">
-                    <table class="data-table" id="commandesTable">
-                        <thead>
-                            <tr>
-                                <th>N° BC</th>
-                                <th>Date</th>
-                                <th>Camion</th>
-                                <th>Fournisseur</th>
-                                <th>Articles</th>
-                                <th>Total HT</th>
-                                <th>TVA</th>
-                                <th>TTC</th>
-                                <th>Statut</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="commandesBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Achat Local: Bon Livraisons -->
-        <section class="page" id="page-bon-livraisons">
-            <div class="page-header">
-                <h2>📦 Bon Livraisons</h2>
-                <button class="btn btn-primary" id="addLivraisonBtn">
-                    <span>+</span> Nouveau BL
-                </button>
-            </div>
-            <div class="data-card">
-                <div class="table-container">
-                    <table class="data-table" id="livraisonsTable">
-                        <thead>
-                            <tr>
-                                <th>N° BL</th>
-                                <th>Date</th>
-                                <th>N° BC</th>
-                                <th>Fournisseur</th>
-                                <th>Dépôt</th>
-                                <th>Camion</th>
-                                <th>Statut</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="livraisonsBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Achat Local: Factures Fournisseurs -->
-        <section class="page" id="page-factures">
-            <div class="page-header">
-                <h2>🧾 Factures Fournisseurs</h2>
-                <button class="btn btn-primary" id="addFactureBtn">
-                    <span>+</span> Nouvelle Facture
-                </button>
-            </div>
-            <div class="kpi-grid" style="margin-bottom: 20px;">
-                <div class="kpi-card" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
-                    <div class="kpi-icon">💰</div>
-                    <div class="kpi-content">
-                        <span class="kpi-label">Total Non Payé</span>
-                        <span class="kpi-value" id="totalNonPaye">0 TND</span>
-                    </div>
-                </div>
-                <div class="kpi-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                    <div class="kpi-icon">✅</div>
-                    <div class="kpi-content">
-                        <span class="kpi-label">Total Payé</span>
-                        <span class="kpi-value" id="totalPaye">0 TND</span>
-                    </div>
-                </div>
-            </div>
-            <div class="data-card">
-                <div class="table-container">
-                    <table class="data-table" id="facturesTable">
-                        <thead>
-                            <tr>
-                                <th>N° Facture</th>
-                                <th>Date</th>
-                                <th>Fournisseur</th>
-                                <th>N° Fac Fournisseur</th>
-                                <th>Montant</th>
-                                <th>Montant Réglé</th>
-                                <th>État</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="facturesBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Achat Local: Règlements -->
-        <section class="page" id="page-reglements">
-            <div class="page-header">
-                <h2>💸 Règlements Fournisseurs</h2>
-                <button class="btn btn-primary" id="addReglementBtn">
-                    <span>+</span> Nouveau Règlement
-                </button>
-            </div>
-            <div class="data-card">
-                <div class="table-container">
-                    <table class="data-table" id="reglementsTable">
-                        <thead>
-                            <tr>
-                                <th>N° Règlement</th>
-                                <th>Date</th>
-                                <th>Fournisseur</th>
-                                <th>Type Paiement</th>
-                                <th>Montant</th>
-                                <th>Factures Liées</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="reglementsBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
 
         <!-- Achat Local: Fournisseurs -->
         <section class="page" id="page-fournisseurs">
@@ -967,6 +807,146 @@
                     <div id="trackingMap" style="width:100%;height:100%"></div>
                 </div>
             </div>
+            </div>
+        </section>
+
+        <!-- Demandes d'Achat Page -->
+        <section class="page" id="page-offres-prix">
+            <div class="page-content">
+                <div class="card" style="padding:24px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                        <h2 style="font-size:1.25rem">📋 Demandes d'Achat</h2>
+                        <button class="btn btn-primary" id="addDemandeBtn">➕ Nouvelle
+                            Demande</button>
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>N° DA</th>
+                                    <th>Date</th>
+                                    <th>Fournisseur</th>
+                                    <th>Camion</th>
+                                    <th>Articles</th>
+                                    <th>Total</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="offresBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bon Commandes Page -->
+        <section class="page" id="page-bon-commandes">
+            <div class="page-content">
+                <div class="card" style="padding:24px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                        <h2 style="font-size:1.25rem">📄 Bons de Commande</h2>
+                        <button class="btn btn-primary" id="addCommandeBtn">➕ Nouveau BC</button>
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>N° BC</th>
+                                    <th>Date</th>
+                                    <th>DA Source</th>
+                                    <th>Fournisseur</th>
+                                    <th>Articles</th>
+                                    <th>Total</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="commandesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bon Livraisons Page -->
+        <section class="page" id="page-bon-livraisons">
+            <div class="page-content">
+                <div class="card" style="padding:24px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                        <h2 style="font-size:1.25rem">📦 Bons de Livraison</h2>
+                        <button class="btn btn-primary" id="addLivraisonBtn">➕ Nouveau BL</button>
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>N° BL</th>
+                                    <th>Date</th>
+                                    <th>BC Source</th>
+                                    <th>Fournisseur</th>
+                                    <th>Articles</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="livraisonsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Factures Page -->
+        <section class="page" id="page-factures">
+            <div class="page-content">
+                <div class="kpi-grid" style="margin-bottom:20px">
+                    <div class="kpi-card" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2)">
+                        <div class="kpi-icon">⚠️</div>
+                        <div class="kpi-content">
+                            <span class="kpi-label">Non Payé</span>
+                            <span class="kpi-value" id="totalNonPaye" style="color:#ef4444">0.000 TND</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2)">
+                        <div class="kpi-icon">✅</div>
+                        <div class="kpi-content">
+                            <span class="kpi-label">Payé</span>
+                            <span class="kpi-value" id="totalPaye" style="color:#10b981">0.000 TND</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="padding:24px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                        <h2 style="font-size:1.25rem">🧾 Factures Fournisseurs</h2>
+                        <button class="btn btn-primary" id="addFactureBtn">➕ Nouvelle
+                            Facture</button>
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>N° Facture</th>
+                                    <th>Date</th>
+                                    <th>BL Source</th>
+                                    <th>Fournisseur</th>
+                                    <th>Montant</th>
+                                    <th>Payé</th>
+                                    <th>État</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="facturesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Règlements Page -->
+        <section class="page" id="page-reglements">
+            <div class="page-content" id="reglementsContent">
+                <div style="color:#64748b;padding:40px;text-align:center">Chargement...</div>
             </div>
         </section>
     </main>

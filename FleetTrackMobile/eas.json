@@ -1,18 +1,11 @@
 {
-    "cli": {
-        "version": ">= 3.0.0"
-    },
-    "build": {
-        "preview": {
-            "distribution": "internal",
-            "android": {
-                "buildType": "apk"
-            }
-        },
-        "production": {
-            "android": {
-                "buildType": "app-bundle"
-            }
+    "expo": {
+        "name": "FleetTrackMobile",
+        "slug": "fleettrackmobile",
+        "version": "1.0.0",
+        "android": {
+            "package": "com.fleettrackmobile",
+            "versionCode": 1
         }
     }
 }

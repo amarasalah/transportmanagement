@@ -1,12 +1,18 @@
 /**
  * SUPPLIERS MODULE - FIREBASE VERSION
- * Gestion des Fournisseurs (Achat Local)
+ * Gestion des Fournisseurs + Achat Data (DA, BC, BL, Factures)
  */
 
-import { db, collection, doc, getDocs, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
+import { db, collection, doc, getDocs, getDoc, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
 
-let cache = [];
+// ========== CACHES ==========
+let suppliersCache = [];
+let demandesCache = [];
+let commandesCache = [];
+let livraisonsCache = [];
+let facturesCache = [];
 
+// ========== SUPPLIERS ==========
 async function init() {
     document.getElementById('addSupplierBtn')?.addEventListener('click', () => openModal());
     await loadSuppliers();
@@ -15,8 +21,8 @@ async function init() {
 async function loadSuppliers() {
     try {
         const snap = await getDocs(collection(db, COLLECTIONS.suppliers));
-        cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        return cache;
+        suppliersCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        return suppliersCache;
     } catch (error) {
         console.error('Error loading suppliers:', error);
         return [];
@@ -24,12 +30,12 @@ async function loadSuppliers() {
 }
 
 async function getSuppliers() {
-    if (cache.length === 0) await loadSuppliers();
-    return cache;
+    if (suppliersCache.length === 0) await loadSuppliers();
+    return suppliersCache;
 }
 
 function getSupplierById(id) {
-    return cache.find(s => s.id === id);
+    return suppliersCache.find(s => s.id === id);
 }
 
 async function refresh() {
@@ -39,7 +45,7 @@ async function refresh() {
 
 function generateCode() {
     const year = new Date().getFullYear().toString().slice(-2);
-    const num = String(cache.length + 1).padStart(6, '0');
+    const num = String(suppliersCache.length + 1).padStart(6, '0');
     return `FR${year}${num}`;
 }
 
@@ -170,5 +176,166 @@ async function remove(id) {
     }
 }
 
-export const SuppliersModule = { init, refresh, getSuppliers, getSupplierById, edit, remove };
+// ========== DEMANDES D'ACHAT ==========
+async function loadDemandes() {
+    try {
+        const snap = await getDocs(collection(db, COLLECTIONS.demandesAchat));
+        demandesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        demandesCache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        return demandesCache;
+    } catch (error) {
+        console.error('Error loading demandes:', error);
+        return [];
+    }
+}
+
+async function getDemandes() {
+    if (demandesCache.length === 0) await loadDemandes();
+    return demandesCache;
+}
+
+function getDemandeById(id) {
+    return demandesCache.find(d => d.id === id);
+}
+
+async function saveDemande(demande) {
+    const id = demande.id || `da_${Date.now()}`;
+    demande.id = id;
+    demande.updatedAt = new Date().toISOString();
+    await setDoc(doc(db, COLLECTIONS.demandesAchat, id), demande);
+    await loadDemandes();
+    return demande;
+}
+
+async function deleteDemande(id) {
+    await deleteDoc(doc(db, COLLECTIONS.demandesAchat, id));
+    await loadDemandes();
+}
+
+// ========== BON COMMANDES ==========
+async function loadCommandes() {
+    try {
+        const snap = await getDocs(collection(db, COLLECTIONS.bonCommandesAchat));
+        commandesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        commandesCache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        return commandesCache;
+    } catch (error) {
+        console.error('Error loading commandes:', error);
+        return [];
+    }
+}
+
+async function getCommandes() {
+    if (commandesCache.length === 0) await loadCommandes();
+    return commandesCache;
+}
+
+function getCommandeById(id) {
+    return commandesCache.find(c => c.id === id);
+}
+
+async function saveCommande(commande) {
+    const id = commande.id || `bc_${Date.now()}`;
+    commande.id = id;
+    commande.updatedAt = new Date().toISOString();
+    await setDoc(doc(db, COLLECTIONS.bonCommandesAchat, id), commande);
+    await loadCommandes();
+    return commande;
+}
+
+async function deleteCommande(id) {
+    await deleteDoc(doc(db, COLLECTIONS.bonCommandesAchat, id));
+    await loadCommandes();
+}
+
+// ========== BON LIVRAISONS ==========
+async function loadLivraisons() {
+    try {
+        const snap = await getDocs(collection(db, COLLECTIONS.bonLivraisonsAchat));
+        livraisonsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        livraisonsCache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        return livraisonsCache;
+    } catch (error) {
+        console.error('Error loading livraisons:', error);
+        return [];
+    }
+}
+
+async function getLivraisons() {
+    if (livraisonsCache.length === 0) await loadLivraisons();
+    return livraisonsCache;
+}
+
+function getLivraisonById(id) {
+    return livraisonsCache.find(l => l.id === id);
+}
+
+async function saveLivraison(livraison) {
+    const id = livraison.id || `bl_${Date.now()}`;
+    livraison.id = id;
+    livraison.updatedAt = new Date().toISOString();
+    await setDoc(doc(db, COLLECTIONS.bonLivraisonsAchat, id), livraison);
+    await loadLivraisons();
+    return livraison;
+}
+
+async function deleteLivraison(id) {
+    await deleteDoc(doc(db, COLLECTIONS.bonLivraisonsAchat, id));
+    await loadLivraisons();
+}
+
+// ========== FACTURES ACHAT ==========
+async function loadFactures() {
+    try {
+        const snap = await getDocs(collection(db, COLLECTIONS.facturesAchat));
+        facturesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        facturesCache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        return facturesCache;
+    } catch (error) {
+        console.error('Error loading factures:', error);
+        return [];
+    }
+}
+
+async function getFactures() {
+    if (facturesCache.length === 0) await loadFactures();
+    return facturesCache;
+}
+
+function getFactureById(id) {
+    return facturesCache.find(f => f.id === id);
+}
+
+async function saveFacture(facture) {
+    const id = facture.id || `fa_${Date.now()}`;
+    facture.id = id;
+    facture.updatedAt = new Date().toISOString();
+    await setDoc(doc(db, COLLECTIONS.facturesAchat, id), facture);
+    await loadFactures();
+    return facture;
+}
+
+async function deleteFacture(id) {
+    await deleteDoc(doc(db, COLLECTIONS.facturesAchat, id));
+    await loadFactures();
+}
+
+// ========== RELOAD ALL ==========
+async function reloadAll() {
+    await Promise.all([loadSuppliers(), loadDemandes(), loadCommandes(), loadLivraisons(), loadFactures()]);
+}
+
+export const SuppliersModule = {
+    init, refresh, reloadAll,
+    // Suppliers
+    getSuppliers, getSupplierById, edit, remove,
+    // Demandes d'Achat
+    loadDemandes, getDemandes, getDemandeById, saveDemande, deleteDemande,
+    // Bon Commandes
+    loadCommandes, getCommandes, getCommandeById, saveCommande, deleteCommande,
+    // Bon Livraisons
+    loadLivraisons, getLivraisons, getLivraisonById, saveLivraison, deleteLivraison,
+    // Factures
+    loadFactures, getFactures, getFactureById, saveFacture, deleteFacture
+};
 window.SuppliersModule = SuppliersModule;

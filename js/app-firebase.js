@@ -16,6 +16,7 @@ import { ClientsModule } from './clients-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
 import { PurchaseOrdersModule } from './purchase-orders-firebase.js';
 import { SalesOrdersModule } from './sales-orders-firebase.js';
+import { AchatModule } from './achat-local.js';
 import { ExcelImportModule } from './excel-import-firebase.js';
 import { PlanificationModule } from './planification-firebase.js';
 import { CaisseModule } from './caisse-firebase.js';
@@ -62,6 +63,7 @@ async function init() {
         ProfileModule.init();
         // ERP Modules
         SuppliersModule.init();
+        AchatModule.init();
         ClientsModule.init();
         ArticlesModule.init();
         PurchaseOrdersModule.init();
@@ -614,7 +616,7 @@ async function navigateTo(page) {
         settings: 'Paramètres',
         // ERP Achat Local
         fournisseurs: 'Gestion des Fournisseurs',
-        'offres-prix': 'Offres de Prix',
+        'offres-prix': 'Demandes d\'Achat',
         'bon-commandes': 'Bon Commandes Achat',
         'bon-livraisons': 'Bon Livraisons Achat',
         factures: 'Factures Fournisseurs',
@@ -660,28 +662,16 @@ async function refreshCurrentPage() {
             case 'reports':
                 await ReportsModule.refresh();
                 break;
-            // ERP Achat Local Pages - Use Firebase Modules
+            // ERP Achat Local Pages - Use AchatModule
             case 'fournisseurs':
                 await SuppliersModule.refresh();
                 break;
             case 'offres-prix':
-                // Module en développement
-                console.log('Page offres-prix - module en développement');
-                break;
             case 'bon-commandes':
-                await PurchaseOrdersModule.refresh();
-                break;
             case 'bon-livraisons':
-                // Module en développement
-                console.log('Page bon-livraisons - module en développement');
-                break;
             case 'factures':
-                // Module en développement
-                console.log('Page factures - module en développement');
-                break;
             case 'reglements':
-                // Module en développement
-                console.log('Page reglements - module en développement');
+                AchatModule.showPage(currentPage);
                 break;
             // ERP Vente Client Pages
             case 'clients':
