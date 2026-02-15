@@ -17,6 +17,7 @@ import { ArticlesModule } from './articles-firebase.js';
 import { PurchaseOrdersModule } from './purchase-orders-firebase.js';
 import { SalesOrdersModule } from './sales-orders-firebase.js';
 import { AchatModule } from './achat-local.js';
+import { VenteModule } from './vente-local.js';
 import { ExcelImportModule } from './excel-import-firebase.js';
 import { PlanificationModule } from './planification-firebase.js';
 import { CaisseModule } from './caisse-firebase.js';
@@ -64,6 +65,7 @@ async function init() {
         // ERP Modules
         SuppliersModule.init();
         AchatModule.init();
+        VenteModule.init();
         ClientsModule.init();
         ArticlesModule.init();
         PurchaseOrdersModule.init();
@@ -628,6 +630,7 @@ async function navigateTo(page) {
         'livraisons-clients': 'Bon Livraisons Vente',
         'retours-clients': 'Bon de Retour',
         'factures-clients': 'Factures Clients',
+        'reglements-clients': 'Règlements Clients',
         // Articles
         articles: 'Gestion des Articles',
         admin: '👑 Administration',
@@ -687,10 +690,15 @@ async function refreshCurrentPage() {
             case 'commandes-clients':
                 await SalesOrdersModule.refresh();
                 break;
-            case 'devis-clients':
             case 'livraisons-clients':
-            case 'retours-clients':
             case 'factures-clients':
+                VenteModule.showPage(currentPage);
+                break;
+            case 'devis-clients':
+            case 'reglements-clients':
+                VenteModule.showPage(currentPage);
+                break;
+            case 'retours-clients':
                 // Module en développement
                 console.log(`Page ${currentPage} - module en développement`);
                 break;

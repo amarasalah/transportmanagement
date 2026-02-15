@@ -244,6 +244,10 @@
                         <span class="nav-icon">🧾</span>
                         <span class="nav-label">Factures Clients</span>
                     </a>
+                    <a href="#" class="nav-item" data-page="reglements-clients">
+                        <span class="nav-icon">💸</span>
+                        <span class="nav-label">Règlements Clients</span>
+                    </a>
                     <a href="#" class="nav-item" data-page="articles-vente">
                         <span class="nav-icon">📦</span>
                         <span class="nav-label">Articles de Vente</span>
@@ -684,6 +688,92 @@
                         <tbody id="articlesVenteTable"></tbody>
                     </table>
                 </div>
+            </div>
+        </section>
+
+        <!-- BL Clients Page -->
+        <section class="page" id="page-livraisons-clients">
+            <div class="page-content">
+                <div class="card" style="padding:24px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                        <h2 style="font-size:1.25rem">📦 Bons de Livraison Clients</h2>
+                        <button class="btn btn-primary" id="addBLClientBtn">➕ Nouveau BL Client</button>
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>N° BL</th>
+                                    <th>Date</th>
+                                    <th>BC Source</th>
+                                    <th>Client</th>
+                                    <th>Articles</th>
+                                    <th>Montant</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="blClientsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Factures Clients Page -->
+        <section class="page" id="page-factures-clients">
+            <div class="page-content">
+                <div class="card" style="padding:24px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                        <h2 style="font-size:1.25rem">🧾 Factures Clients</h2>
+                        <button class="btn btn-primary" id="addFactureClientBtn">➕ Nouvelle Facture</button>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+                        <div
+                            style="text-align:center;padding:16px;background:rgba(239,68,68,0.1);border-radius:12px;border:1px solid rgba(239,68,68,0.2)">
+                            <div style="font-size:22px;font-weight:700;color:#ef4444" id="totalNonPayeClient">0.000 TND
+                            </div>
+                            <div style="font-size:12px;color:#94a3b8;margin-top:4px">Non Payé</div>
+                        </div>
+                        <div
+                            style="text-align:center;padding:16px;background:rgba(16,185,129,0.1);border-radius:12px;border:1px solid rgba(16,185,129,0.2)">
+                            <div style="font-size:22px;font-weight:700;color:#10b981" id="totalPayeClient">0.000 TND
+                            </div>
+                            <div style="font-size:12px;color:#94a3b8;margin-top:4px">Payé</div>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>N° Facture</th>
+                                    <th>Date</th>
+                                    <th>BL Source</th>
+                                    <th>Client</th>
+                                    <th>Montant</th>
+                                    <th>Payé</th>
+                                    <th>État</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="facturesClientsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Devis Clients Page -->
+        <section class="page" id="page-devis-clients">
+            <div class="page-content">
+                <!-- Rendered dynamically by VenteModule.renderDevisClients() -->
+            </div>
+        </section>
+
+        <!-- Règlements Clients Page -->
+        <section class="page" id="page-reglements-clients">
+            <div class="page-content">
+                <!-- Rendered dynamically by VenteModule.renderReglementsClients() -->
             </div>
         </section>
 

@@ -7,6 +7,7 @@
 import { SuppliersModule } from './suppliers-firebase.js';
 import { DataModule } from './data-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
+import { CaisseModule } from './caisse-firebase.js';
 
 let currentPage = '';
 
@@ -37,6 +38,10 @@ function init() {
             e.preventDefault();
             e.stopPropagation();
             openSortieModal();
+        } else if (btn && (btn.id === 'addReglementBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            openReglementModal();
         }
     });
 }
@@ -754,7 +759,14 @@ async function openFactureModal(factureId = null) {
 
     const blOpts = activeBLs.map(l => {
         const f = SuppliersModule.getSupplierById(l.fournisseurId);
-        return `<option value="${l.id}" ${facture?.livraisonId === l.id ? 'selected' : ''}>${l.numero || l.id} - ${f?.nom || ''}</option>`;
+        // Calculate BL montant from commande prices
+        const cmd = SuppliersModule.getCommandeById(l.commandeId);
+        let blTotal = 0;
+        (l.lignes || []).forEach(ll => {
+            const cmdLine = (cmd?.lignes || []).find(cl => cl.nom === ll.nom);
+            blTotal += (ll.quantiteRecue || 0) * (cmdLine?.prixUnitaire || 0);
+        });
+        return `<option value="${l.id}" data-montant="${blTotal}" ${facture?.livraisonId === l.id ? 'selected' : ''}>${l.numero || l.id} - ${f?.nom || ''} (${blTotal.toFixed(3)} TND)</option>`;
     }).join('');
 
     const echeances = facture?.echeances || [{ date: new Date().toISOString().split('T')[0], montant: 0, typePaiement: 'Virement', statut: 'En attente' }];
@@ -783,7 +795,7 @@ async function openFactureModal(factureId = null) {
                 </div>
                 <div class="form-group">
                     <label>Montant Total (TND)</label>
-                    <input type="number" id="factureMontant" value="${facture?.montantTotal || ''}" step="0.001" required>
+                    <input type="number" id="factureMontant" value="${facture?.montantTotal || ''}" step="0.001" required readonly style="background:rgba(15,23,42,0.2)">
                 </div>
             </div>
             <div style="margin-top:16px">
@@ -863,11 +875,11 @@ function recalcEcheances() {
 }
 
 function onBLChangeFacture() {
-    const blId = document.getElementById('factureBLId')?.value;
-    if (!blId) return;
-    const livraison = SuppliersModule.getLivraisonById(blId);
-    if (!livraison) return;
-    // Can auto-fill amount from BL if needed
+    const sel = document.getElementById('factureBLId');
+    if (!sel || !sel.value) return;
+    const opt = sel.options[sel.selectedIndex];
+    const blMontant = parseFloat(opt.dataset.montant) || 0;
+    document.getElementById('factureMontant').value = blMontant.toFixed(3);
 }
 
 function getEcheancesFromForm() {
@@ -885,6 +897,13 @@ async function saveFacture() {
     const blId = document.getElementById('factureBLId')?.value;
     const livraison = blId ? SuppliersModule.getLivraisonById(blId) : null;
     const montant = parseFloat(document.getElementById('factureMontant').value) || 0;
+
+    // Validate: total échéances must not exceed montant total (BL)
+    const totalEcheances = echeances.reduce((s, e) => s + (e.montant || 0), 0);
+    if (totalEcheances > montant && montant > 0) {
+        alert(`Le total des échéances (${totalEcheances.toFixed(3)} TND) dépasse le montant du BL (${montant.toFixed(3)} TND)`);
+        return;
+    }
 
     const paye = echeances.filter(e => e.statut === 'Payé').reduce((s, e) => s + e.montant, 0);
     let etat = 'Non Payée';
@@ -972,26 +991,27 @@ async function renderReglements() {
             </div>
         </div>
         <div class="card" style="padding:20px">
-            <h3 style="margin-bottom:16px;font-size:1rem">📋 Toutes les échéances</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <h3 style="font-size:1rem">📋 Toutes les échéances</h3>
+                <button class="btn btn-primary" id="addReglementBtn">➕ Nouvelle Transaction</button>
+            </div>
             <div style="overflow-x:auto">
                 <table class="data-table" style="width:100%">
                     <thead>
                         <tr>
                             <th>Date</th>
                             <th>Facture</th>
-                            <th>Fournisseur</th>
                             <th>Montant</th>
                             <th>Type</th>
                             <th>Statut</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${allEcheances.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:30px">Aucune échéance</td></tr>' :
+                        ${allEcheances.length === 0 ? '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:30px">Aucune échéance</td></tr>' :
             allEcheances.map(e => `
                             <tr>
                                 <td>${e.date || '-'}</td>
                                 <td>${e.factureNumero}</td>
-                                <td>${e.fournisseurNom}</td>
                                 <td><strong>${(e.montant || 0).toFixed(3)} TND</strong></td>
                                 <td>${e.typePaiement || '-'}</td>
                                 <td><span class="status-badge status-${e.statut === 'Payé' ? 'paye' : 'en-attente'}">${e.statut}</span></td>
@@ -1002,6 +1022,130 @@ async function renderReglements() {
             </div>
         </div>
     `;
+}
+
+async function openReglementModal() {
+    const factures = await SuppliersModule.getFactures();
+
+    // Build facture options with remaining balance
+    const factureOpts = factures.map(f => {
+        const montant = parseFloat(f.montantTotal) || 0;
+        const echeances = f.echeances || [];
+        const paye = echeances.filter(e => e.statut === 'Payé').reduce((s, e) => s + (e.montant || 0), 0);
+        const restant = montant - paye;
+        const fournisseur = SuppliersModule.getSupplierById(f.fournisseurId);
+        return `<option value="${f.id}" data-montant="${montant}" data-paye="${paye}" data-restant="${restant}" data-fournisseur="${fournisseur?.nom || '-'}">${f.numero || f.id} — ${fournisseur?.nom || ''} (Restant: ${restant.toFixed(3)} TND)</option>`;
+    }).join('');
+
+    document.getElementById('modalTitle').textContent = 'Nouvelle Transaction';
+    document.getElementById('modalBody').innerHTML = `
+        <form id="reglementForm">
+            <div class="form-group">
+                <label>Facture *</label>
+                <select id="reglementFactureId" onchange="AchatModule.onFactureChangeReglement()" required>
+                    <option value="">-- Sélectionner une facture --</option>
+                    ${factureOpts}
+                </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:12px 0;padding:12px;background:rgba(148,163,184,0.05);border-radius:8px">
+                <div style="text-align:center">
+                    <div style="font-size:16px;font-weight:700;color:#f1f5f9" id="reglementMontantTotal">0.000</div>
+                    <div style="font-size:11px;color:#64748b">Montant Total</div>
+                </div>
+                <div style="text-align:center">
+                    <div style="font-size:16px;font-weight:700;color:#10b981" id="reglementMontantPaye">0.000</div>
+                    <div style="font-size:11px;color:#64748b">Déjà Payé</div>
+                </div>
+                <div style="text-align:center">
+                    <div style="font-size:16px;font-weight:700;color:#ef4444" id="reglementMontantRestant">0.000</div>
+                    <div style="font-size:11px;color:#64748b">Restant</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Montant Transaction (TND) *</label>
+                    <input type="number" id="reglementMontant" step="0.001" required>
+                </div>
+                <div class="form-group">
+                    <label>Date *</label>
+                    <input type="date" id="reglementDate" value="${new Date().toISOString().split('T')[0]}" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Type Paiement</label>
+                <select id="reglementType">
+                    <option value="Virement">Virement</option>
+                    <option value="Versement">Versement</option>
+                    <option value="Traite">Traite</option>
+                    <option value="Chèque">Chèque</option>
+                    <option value="Espèce">Espèce</option>
+                </select>
+            </div>
+        </form>
+    `;
+    document.getElementById('modalSave').onclick = saveReglement;
+    App.showModal();
+}
+
+function onFactureChangeReglement() {
+    const sel = document.getElementById('reglementFactureId');
+    if (!sel || !sel.value) return;
+    const opt = sel.options[sel.selectedIndex];
+    const montant = parseFloat(opt.dataset.montant) || 0;
+    const paye = parseFloat(opt.dataset.paye) || 0;
+    const restant = parseFloat(opt.dataset.restant) || 0;
+
+    document.getElementById('reglementMontantTotal').textContent = montant.toFixed(3);
+    document.getElementById('reglementMontantPaye').textContent = paye.toFixed(3);
+    document.getElementById('reglementMontantRestant').textContent = restant.toFixed(3);
+    document.getElementById('reglementMontant').value = restant.toFixed(3);
+}
+
+async function saveReglement() {
+    const factureId = document.getElementById('reglementFactureId')?.value;
+    if (!factureId) { alert('Sélectionnez une facture'); return; }
+
+    const montant = parseFloat(document.getElementById('reglementMontant').value) || 0;
+    if (montant <= 0) { alert('Montant invalide'); return; }
+
+    const date = document.getElementById('reglementDate').value;
+    const typePaiement = document.getElementById('reglementType').value;
+
+    // Get facture and add new echeance
+    const facture = SuppliersModule.getFactureById(factureId);
+    if (!facture) { alert('Facture introuvable'); return; }
+
+    const echeances = facture.echeances || [];
+
+    // Create Caisse décaissement FIRST
+    const supplier = SuppliersModule.getSupplierById(facture.fournisseurId);
+    const caisseId = await CaisseModule.addAutoTransaction({
+        type: 'decaissement',
+        tiers: supplier?.nom || 'Fournisseur',
+        montant: montant,
+        mode: typePaiement,
+        reference: facture.numero || facture.id,
+        notes: `Paiement fournisseur ${facture.numero || facture.id}`,
+        source: 'achat'
+    });
+
+    echeances.push({ date, montant, typePaiement, statut: 'Payé', caisseId: caisseId || null });
+
+    // Recalculate etat
+    const totalPaye = echeances.filter(e => e.statut === 'Payé').reduce((s, e) => s + (e.montant || 0), 0);
+    const total = parseFloat(facture.montantTotal) || 0;
+    let etat = 'Non Payée';
+    if (totalPaye >= total && total > 0) etat = 'Payée';
+    else if (totalPaye > 0) etat = 'Partiel';
+
+    try {
+        await SuppliersModule.saveFacture({ ...facture, echeances, etat });
+        App.hideModal();
+        await renderReglements();
+    } catch (err) {
+        console.error('Erreur sauvegarde règlement:', err);
+        alert('Erreur: ' + err.message);
+    }
 }
 
 // ==================== BONS DE SORTIE ====================
@@ -1220,7 +1364,9 @@ const AchatModule = {
     // Factures
     editFacture, deleteFacture, openFactureModal,
     viewEcheances, addEcheance, removeEcheance, recalcEcheances,
-    onBLChangeFacture
+    onBLChangeFacture,
+    // Reglements
+    openReglementModal, onFactureChangeReglement
 };
 export { AchatModule };
 window.AchatModule = AchatModule;

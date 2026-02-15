@@ -121,9 +121,15 @@ async function openModal(supplierId = null) {
             </div>
             <div class="form-row">
                 <div class="form-group">
+                    <label>Matricule Fiscale</label>
+                    <input type="text" id="supplierMF" value="${supplier?.matriculeFiscale || ''}" placeholder="Ex: 1234567/A/B/C/000">
+                </div>
+                <div class="form-group">
                     <label>RIB</label>
                     <input type="text" id="supplierRib" value="${supplier?.rib || ''}">
                 </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label>Solde Initial (TND)</label>
                     <input type="number" id="supplierSolde" value="${supplier?.solde || 0}" step="0.001">
@@ -143,6 +149,7 @@ async function saveSupplier() {
         telephone: document.getElementById('supplierTel').value,
         email: document.getElementById('supplierEmail').value,
         adresse: document.getElementById('supplierAdresse').value,
+        matriculeFiscale: document.getElementById('supplierMF').value,
         rib: document.getElementById('supplierRib').value,
         solde: parseFloat(document.getElementById('supplierSolde').value) || 0,
         updatedAt: new Date().toISOString()

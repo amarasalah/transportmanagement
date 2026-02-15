@@ -115,6 +115,10 @@ async function openModal(clientId = null) {
             </div>
             <div class="form-row">
                 <div class="form-group">
+                    <label>Matricule Fiscale</label>
+                    <input type="text" id="clientMF" value="${client?.matriculeFiscale || ''}" placeholder="Ex: 1234567/A/B/C/000">
+                </div>
+                <div class="form-group">
                     <label>RIB</label>
                     <input type="text" id="clientRib" value="${client?.rib || ''}">
                 </div>
@@ -137,6 +141,7 @@ async function saveClient() {
         telephone: document.getElementById('clientTel').value,
         email: document.getElementById('clientEmail').value,
         adresse: document.getElementById('clientAdresse').value,
+        matriculeFiscale: document.getElementById('clientMF').value,
         rib: document.getElementById('clientRib').value,
         solde: parseFloat(document.getElementById('clientSolde').value) || 0,
         updatedAt: new Date().toISOString()

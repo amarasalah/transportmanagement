@@ -90,6 +90,7 @@ const COLLECTIONS = {
     bonCommandesVente: 'bon_commandes_vente',
     bonLivraisonsVente: 'bon_livraisons_vente',
     bonsRetour: 'bons_retour',
+    devisClients: 'devis_clients',
     facturesVente: 'factures_vente',
 
     // Planning

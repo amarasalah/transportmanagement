@@ -230,7 +230,45 @@ async function remove(id) {
     }
 }
 
+// ========== AUTO-TRANSACTION HELPER ==========
+// Called by Achat (decaissement) and Vente (encaissement) modules
+const MODE_MAP = {
+    'Virement': 'virement',
+    'Versement': 'especes',
+    'Chèque': 'cheque',
+    'Traite': 'cheque',
+    'Espèce': 'especes'
+};
+
+async function addAutoTransaction({ type, tiers, montant, mode, reference, notes, source }) {
+    const id = `TX-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const data = {
+        date: new Date().toISOString().split('T')[0],
+        type: type, // 'encaissement' or 'decaissement'
+        tiers: tiers || '',
+        montant: montant || 0,
+        mode: MODE_MAP[mode] || mode || 'especes',
+        reference: reference || '',
+        notes: notes || '',
+        source: source || '', // 'achat' or 'vente'
+        auto: true, // flag to identify auto-generated transactions
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+
+    try {
+        await setDoc(doc(db, COLLECTIONS.caisse, id), data);
+        // Refresh cache silently
+        await loadTransactions();
+        return id;
+    } catch (err) {
+        console.error('Error creating auto-transaction:', err);
+        return null;
+    }
+}
+
 export const CaisseModule = {
-    init, refresh, getTransactions, edit, remove, save, setFilter
+    init, refresh, getTransactions, edit, remove, save, setFilter,
+    addAutoTransaction, loadTransactions
 };
 window.CaisseModule = CaisseModule;
