@@ -1,6 +1,6 @@
 /**
  * ARTICLES MODULE - FIREBASE VERSION
- * Gestion des Produits/Articles
+ * Gestion des Produits/Articles (Achat & Vente)
  */
 
 import { db, collection, doc, getDocs, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
@@ -8,7 +8,8 @@ import { db, collection, doc, getDocs, setDoc, deleteDoc, COLLECTIONS } from './
 let cache = [];
 
 async function init() {
-    document.getElementById('addArticleBtn')?.addEventListener('click', () => openModal());
+    document.getElementById('addArticleAchatBtn')?.addEventListener('click', () => openModal(null, 'achat'));
+    document.getElementById('addArticleVenteBtn')?.addEventListener('click', () => openModal(null, 'vente'));
     await loadArticles();
 }
 
@@ -36,23 +37,39 @@ function getArticleByRef(ref) {
     return cache.find(a => a.reference === ref);
 }
 
+function getArticlesByType(type) {
+    return cache.filter(a => (a.type || 'achat') === type);
+}
+
+async function refreshAchat() {
+    await loadArticles();
+    renderArticlesAchat();
+}
+
+async function refreshVente() {
+    await loadArticles();
+    renderArticlesVente();
+}
+
 async function refresh() {
     await loadArticles();
-    await renderArticles();
 }
 
-function generateReference() {
-    const num = String(cache.length + 1).padStart(6, '0');
-    return `ART${num}`;
+function generateReference(type) {
+    const prefix = type === 'vente' ? 'AV' : 'AA';
+    const filtered = cache.filter(a => (a.type || 'achat') === type);
+    const num = String(filtered.length + 1).padStart(4, '0');
+    return `${prefix}${num}`;
 }
 
-async function renderArticles() {
-    const articles = await getArticles();
-    const container = document.getElementById('articlesTable');
+// ==================== RENDER ARTICLES ACHAT ====================
+function renderArticlesAchat() {
+    const articles = getArticlesByType('achat');
+    const container = document.getElementById('articlesAchatTable');
     if (!container) return;
 
     if (articles.length === 0) {
-        container.innerHTML = '<tr><td colspan="8" class="empty-state">Aucun article</td></tr>';
+        container.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:30px">Aucun article d\'achat</td></tr>';
         return;
     }
 
@@ -63,27 +80,62 @@ async function renderArticles() {
             <td>${a.categorie || '-'}</td>
             <td>${a.unite || 'Unité'}</td>
             <td>${(a.prixAchat || 0).toLocaleString('fr-FR')} TND</td>
+            <td class="${a.stock > 10 ? 'result-positive' : a.stock > 0 ? 'result-warning' : 'result-negative'}">
+                ${a.stock || 0}
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick="ArticlesModule.edit('${a.id}')">✏️</button>
+                <button class="btn btn-sm btn-outline" onclick="ArticlesModule.remove('${a.id}', 'achat')">🗑️</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// ==================== RENDER ARTICLES VENTE ====================
+function renderArticlesVente() {
+    const articles = getArticlesByType('vente');
+    const container = document.getElementById('articlesVenteTable');
+    if (!container) return;
+
+    if (articles.length === 0) {
+        container.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:30px">Aucun article de vente</td></tr>';
+        return;
+    }
+
+    container.innerHTML = articles.map(a => `
+        <tr>
+            <td><strong>${a.reference}</strong></td>
+            <td>${a.designation}</td>
+            <td>${a.categorie || '-'}</td>
+            <td>${a.unite || 'Unité'}</td>
             <td>${(a.prixVente || 0).toLocaleString('fr-FR')} TND</td>
             <td class="${a.stock > 10 ? 'result-positive' : a.stock > 0 ? 'result-warning' : 'result-negative'}">
                 ${a.stock || 0}
             </td>
             <td>
                 <button class="btn btn-sm btn-outline" onclick="ArticlesModule.edit('${a.id}')">✏️</button>
-                <button class="btn btn-sm btn-outline" onclick="ArticlesModule.remove('${a.id}')">🗑️</button>
+                <button class="btn btn-sm btn-outline" onclick="ArticlesModule.remove('${a.id}', 'vente')">🗑️</button>
             </td>
         </tr>
     `).join('');
 }
 
-async function openModal(articleId = null) {
+// ==================== MODAL ====================
+async function openModal(articleId = null, type = 'achat') {
     const article = articleId ? getArticleById(articleId) : null;
-    const title = article ? 'Modifier Article' : 'Nouvel Article';
-    const ref = article?.reference || generateReference();
+    const articleType = article?.type || type;
+    const title = article ? 'Modifier Article' : (articleType === 'vente' ? 'Nouvel Article de Vente' : 'Nouvel Article d\'Achat');
+    const ref = article?.reference || generateReference(articleType);
+
+    const categoriesAchat = ['Pièces', 'Lubrifiants', 'Pneus', 'Carburant', 'Fournitures', 'Autre'];
+    const categoriesVente = ['Produit fini', 'Service', 'Transport', 'Autre'];
+    const categories = articleType === 'vente' ? categoriesVente : categoriesAchat;
 
     document.getElementById('modalTitle').textContent = title;
     document.getElementById('modalBody').innerHTML = `
         <form id="articleForm">
             <input type="hidden" id="articleId" value="${article?.id || ''}">
+            <input type="hidden" id="articleType" value="${articleType}">
             <div class="form-row">
                 <div class="form-group">
                     <label>Référence</label>
@@ -99,11 +151,7 @@ async function openModal(articleId = null) {
                     <label>Catégorie</label>
                     <select id="articleCategorie">
                         <option value="">-- Sélectionner --</option>
-                        <option value="Pièces" ${article?.categorie === 'Pièces' ? 'selected' : ''}>Pièces</option>
-                        <option value="Lubrifiants" ${article?.categorie === 'Lubrifiants' ? 'selected' : ''}>Lubrifiants</option>
-                        <option value="Pneus" ${article?.categorie === 'Pneus' ? 'selected' : ''}>Pneus</option>
-                        <option value="Carburant" ${article?.categorie === 'Carburant' ? 'selected' : ''}>Carburant</option>
-                        <option value="Autre" ${article?.categorie === 'Autre' ? 'selected' : ''}>Autre</option>
+                        ${categories.map(c => `<option value="${c}" ${article?.categorie === c ? 'selected' : ''}>${c}</option>`).join('')}
                     </select>
                 </div>
                 <div class="form-group">
@@ -113,6 +161,7 @@ async function openModal(articleId = null) {
                         <option value="Litre" ${article?.unite === 'Litre' ? 'selected' : ''}>Litre</option>
                         <option value="Kg" ${article?.unite === 'Kg' ? 'selected' : ''}>Kg</option>
                         <option value="Mètre" ${article?.unite === 'Mètre' ? 'selected' : ''}>Mètre</option>
+                        <option value="Tonne" ${article?.unite === 'Tonne' ? 'selected' : ''}>Tonne</option>
                     </select>
                 </div>
             </div>
@@ -143,12 +192,14 @@ async function openModal(articleId = null) {
 }
 
 async function saveArticle() {
+    const articleType = document.getElementById('articleType').value || 'achat';
     const article = {
         id: document.getElementById('articleId').value || `article_${Date.now()}`,
         reference: document.getElementById('articleRef').value,
         designation: document.getElementById('articleDesignation').value,
         categorie: document.getElementById('articleCategorie').value,
         unite: document.getElementById('articleUnite').value,
+        type: articleType,
         prixAchat: parseFloat(document.getElementById('articlePrixAchat').value) || 0,
         prixVente: parseFloat(document.getElementById('articlePrixVente').value) || 0,
         stock: parseInt(document.getElementById('articleStock').value) || 0,
@@ -164,25 +215,34 @@ async function saveArticle() {
     try {
         await setDoc(doc(db, COLLECTIONS.articles, article.id), article);
         App.hideModal();
-        await refresh();
+        if (articleType === 'vente') await refreshVente();
+        else await refreshAchat();
     } catch (error) {
         console.error('Error saving article:', error);
         alert('Erreur lors de l\'enregistrement');
     }
 }
 
-function edit(id) { openModal(id); }
+function edit(id) {
+    const article = getArticleById(id);
+    openModal(id, article?.type || 'achat');
+}
 
-async function remove(id) {
+async function remove(id, type = 'achat') {
     if (confirm('Supprimer cet article ?')) {
         try {
             await deleteDoc(doc(db, COLLECTIONS.articles, id));
-            await refresh();
+            if (type === 'vente') await refreshVente();
+            else await refreshAchat();
         } catch (error) {
             console.error('Error deleting article:', error);
         }
     }
 }
 
-export const ArticlesModule = { init, refresh, getArticles, getArticleById, getArticleByRef, edit, remove };
+export const ArticlesModule = {
+    init, refresh, refreshAchat, refreshVente,
+    getArticles, getArticleById, getArticleByRef, getArticlesByType,
+    edit, remove
+};
 window.ArticlesModule = ArticlesModule;

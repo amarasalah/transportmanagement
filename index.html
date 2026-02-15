@@ -202,6 +202,10 @@
                         <span class="nav-icon">💸</span>
                         <span class="nav-label">Règlements</span>
                     </a>
+                    <a href="#" class="nav-item" data-page="articles-achat">
+                        <span class="nav-icon">📦</span>
+                        <span class="nav-label">Articles d'Achat</span>
+                    </a>
                     <a href="#" class="nav-item" data-page="fournisseurs">
                         <span class="nav-icon">🏢</span>
                         <span class="nav-label">Fournisseurs</span>
@@ -236,6 +240,10 @@
                         <span class="nav-icon">🧾</span>
                         <span class="nav-label">Factures Clients</span>
                     </a>
+                    <a href="#" class="nav-item" data-page="articles-vente">
+                        <span class="nav-icon">📦</span>
+                        <span class="nav-label">Articles de Vente</span>
+                    </a>
                     <a href="#" class="nav-item" data-page="clients">
                         <span class="nav-icon">👥</span>
                         <span class="nav-label">Clients</span>
@@ -246,10 +254,7 @@
                 <span class="nav-icon">💵</span>
                 <span class="nav-label">Caisse</span>
             </a>
-            <a href="#" class="nav-item" data-page="articles">
-                <span class="nav-icon">📦</span>
-                <span class="nav-label">Articles</span>
-            </a>
+
             <a href="#" class="nav-item" data-page="trucks">
                 <span class="nav-icon">🚚</span>
                 <span class="nav-label">Camions</span>
@@ -622,12 +627,12 @@
             </div>
         </section>
 
-        <!-- Articles / Produits -->
-        <section class="page" id="page-articles">
+        <!-- Articles d'Achat -->
+        <section class="page" id="page-articles-achat">
             <div class="page-header">
-                <h2>📦 Gestion des Articles</h2>
-                <button class="btn btn-primary" id="addArticleBtn">
-                    <span>+</span> Nouvel Article
+                <h2>📦 Articles d'Achat</h2>
+                <button class="btn btn-primary" id="addArticleAchatBtn">
+                    <span>+</span> Nouvel Article d'Achat
                 </button>
             </div>
             <div class="data-card">
@@ -640,12 +645,39 @@
                                 <th>Catégorie</th>
                                 <th>Unité</th>
                                 <th>Prix Achat</th>
+                                <th>Stock</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="articlesAchatTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Articles de Vente -->
+        <section class="page" id="page-articles-vente">
+            <div class="page-header">
+                <h2>📦 Articles de Vente</h2>
+                <button class="btn btn-primary" id="addArticleVenteBtn">
+                    <span>+</span> Nouvel Article de Vente
+                </button>
+            </div>
+            <div class="data-card">
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Référence</th>
+                                <th>Désignation</th>
+                                <th>Catégorie</th>
+                                <th>Unité</th>
                                 <th>Prix Vente</th>
                                 <th>Stock</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="articlesTable"></tbody>
+                        <tbody id="articlesVenteTable"></tbody>
                     </table>
                 </div>
             </div>

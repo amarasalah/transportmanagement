@@ -677,8 +677,11 @@ async function refreshCurrentPage() {
             case 'clients':
                 await ClientsModule.refresh();
                 break;
-            case 'articles':
-                await ArticlesModule.refresh();
+            case 'articles-achat':
+                await ArticlesModule.refreshAchat();
+                break;
+            case 'articles-vente':
+                await ArticlesModule.refreshVente();
                 break;
             case 'commandes-clients':
                 await SalesOrdersModule.refresh();

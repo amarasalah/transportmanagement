@@ -6,6 +6,7 @@
 
 import { SuppliersModule } from './suppliers-firebase.js';
 import { DataModule } from './data-firebase.js';
+import { ArticlesModule } from './articles-firebase.js';
 
 let currentPage = '';
 
@@ -176,16 +177,51 @@ async function openDemandeModal(demandeId = null) {
     App.showModal();
 }
 
-function renderLigneRow(index, ligne = {}) {
+function renderLigneRow(index, ligne = {}, articlesAchat = null) {
+    const articles = articlesAchat || ArticlesModule.getArticlesByType('achat');
+    const articleOpts = articles.map(a =>
+        `<option value="${a.id}" data-prix="${a.prixAchat || 0}" ${ligne.articleId === a.id || ligne.nom === a.designation ? 'selected' : ''}>${a.designation} (${a.reference})</option>`
+    ).join('');
+
     return `
         <tr data-ligne="${index}">
-            <td style="padding:4px"><input type="text" class="ligne-nom" value="${ligne.nom || ''}" placeholder="Nom article" style="width:100%;padding:6px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+            <td style="padding:4px"><select class="ligne-article" onchange="AchatModule.onArticleChange(this)" style="width:100%;padding:6px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px">
+                <option value="">-- Sélectionner --</option>
+                ${articleOpts}
+                <option value="__custom" ${ligne.nom && !articles.find(a => a.id === ligne.articleId || a.designation === ligne.nom) ? 'selected' : ''}>✏️ Saisie libre</option>
+            </select>
+            <input type="text" class="ligne-nom-custom" value="${ligne.nom || ''}" placeholder="Nom article" style="display:${ligne.nom && !articles.find(a => a.id === ligne.articleId || a.designation === ligne.nom) ? 'block' : 'none'};width:100%;padding:6px;margin-top:4px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px">
+            <input type="hidden" class="ligne-nom" value="${ligne.nom || ''}">
+            </td>
             <td style="padding:4px"><input type="number" class="ligne-pu" value="${ligne.prixUnitaire || 0}" step="0.001" min="0" onchange="AchatModule.recalcLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
             <td style="padding:4px"><input type="number" class="ligne-qte" value="${ligne.quantite || 1}" min="1" onchange="AchatModule.recalcLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
             <td style="padding:4px"><input type="number" class="ligne-total" value="${ligne.prixTotal || 0}" step="0.001" readonly style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.15);border:1px solid rgba(148,163,184,0.1);border-radius:4px;color:#10b981;font-weight:600;font-size:13px"></td>
             <td style="padding:4px;text-align:center"><button type="button" onclick="AchatModule.removeLigne(this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#ef4444">🗑️</button></td>
         </tr>
     `;
+}
+
+function onArticleChange(select) {
+    const row = select.closest('tr');
+    const customInput = row.querySelector('.ligne-nom-custom');
+    const nomHidden = row.querySelector('.ligne-nom');
+    const puInput = row.querySelector('.ligne-pu');
+
+    if (select.value === '__custom') {
+        customInput.style.display = 'block';
+        customInput.focus();
+        customInput.oninput = () => { nomHidden.value = customInput.value; };
+    } else if (select.value) {
+        customInput.style.display = 'none';
+        const option = select.selectedOptions[0];
+        const prix = parseFloat(option.dataset.prix) || 0;
+        nomHidden.value = option.textContent.split(' (')[0];
+        puInput.value = prix.toFixed(3);
+        recalcLigne(puInput);
+    } else {
+        customInput.style.display = 'none';
+        nomHidden.value = '';
+    }
 }
 
 function addLigne() {
@@ -220,12 +256,19 @@ function recalcTotal() {
 
 function getLignesFromForm() {
     const rows = document.querySelectorAll('#demandeLignesBody tr');
-    return Array.from(rows).map(row => ({
-        nom: row.querySelector('.ligne-nom')?.value || '',
-        prixUnitaire: parseFloat(row.querySelector('.ligne-pu')?.value) || 0,
-        quantite: parseFloat(row.querySelector('.ligne-qte')?.value) || 0,
-        prixTotal: parseFloat(row.querySelector('.ligne-total')?.value) || 0
-    })).filter(l => l.nom.trim());
+    return Array.from(rows).map(row => {
+        const select = row.querySelector('.ligne-article');
+        const nomHidden = row.querySelector('.ligne-nom');
+        const nom = nomHidden?.value || '';
+        const articleId = select?.value && select.value !== '__custom' ? select.value : null;
+        return {
+            nom: nom,
+            articleId: articleId,
+            prixUnitaire: parseFloat(row.querySelector('.ligne-pu')?.value) || 0,
+            quantite: parseFloat(row.querySelector('.ligne-qte')?.value) || 0,
+            prixTotal: parseFloat(row.querySelector('.ligne-total')?.value) || 0
+        };
+    }).filter(l => l.nom.trim());
 }
 
 async function saveDemande() {
@@ -372,7 +415,7 @@ async function openCommandeModal(commandeId = null) {
     App.showModal();
 }
 
-function onDemandeChange() {
+async function onDemandeChange() {
     const daId = document.getElementById('commandeDemandeId')?.value;
     if (!daId) return;
     const demande = SuppliersModule.getDemandeById(daId);
@@ -384,7 +427,7 @@ function onDemandeChange() {
     document.getElementById('commandeFournisseurId').value = demande.fournisseurId || '';
     document.getElementById('commandeCamionId').value = demande.camionId || '';
 
-    const trucks = DataModule.getTrucks ? DataModule.getTrucks() : [];
+    const trucks = DataModule.getTrucks ? (await DataModule.getTrucks()) : [];
     const truck = trucks.find(t => t.id === demande.camionId);
     document.getElementById('commandeCamionNom').value = truck?.matricule || demande.camionId || '';
 
@@ -961,7 +1004,7 @@ const AchatModule = {
     init, showPage, refreshCurrentPage,
     // Demandes
     editDemande, deleteDemande, openDemandeModal,
-    addLigne, removeLigne, recalcLigne,
+    addLigne, removeLigne, recalcLigne, onArticleChange,
     // Commandes
     editCommande, deleteCommande, openCommandeModal,
     onDemandeChange, recalcCmdLigne,
