@@ -6,6 +6,7 @@
 import { db, collection, doc, getDocs, setDoc, deleteDoc, query, orderBy, COLLECTIONS } from './firebase.js';
 
 let cache = [];
+let _loaded = false;
 let currentFilter = 'all'; // all | encaissement | decaissement
 
 function init() {
@@ -18,7 +19,8 @@ function init() {
 function setFilter(filter) {
     currentFilter = filter;
     document.querySelectorAll('.caisse-filter-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(`caisseFilter${filter === 'all' ? 'All' : filter === 'encaissement' ? 'In' : 'Out'}`)?.classList.add('active');
+    const filterMap = { all: 'All', encaissement: 'In', decaissement: 'Out', achat: 'Achat', vente: 'Vente', manuel: 'Manuel' };
+    document.getElementById(`caisseFilter${filterMap[filter] || 'All'}`)?.classList.add('active');
     renderCaisse();
 }
 
@@ -27,13 +29,17 @@ async function loadTransactions() {
         const q = query(collection(db, COLLECTIONS.caisse), orderBy('date', 'desc'));
         const snap = await getDocs(q);
         cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _loaded = true;
     } catch (err) {
         console.error('Error loading caisse:', err);
         cache = [];
     }
 }
 
-function getTransactions() { return cache; }
+async function getTransactions() {
+    if (!_loaded) await loadTransactions();
+    return cache;
+}
 
 async function refresh() {
     await loadTransactions();
@@ -81,8 +87,19 @@ function renderCaisse() {
         `;
     }
 
-    // Table
-    const filtered = currentFilter === 'all' ? cache : cache.filter(t => t.type === currentFilter);
+    // Table — filter by type OR by source
+    let filtered;
+    if (currentFilter === 'all') {
+        filtered = cache;
+    } else if (currentFilter === 'achat') {
+        filtered = cache.filter(t => t.source === 'achat');
+    } else if (currentFilter === 'vente') {
+        filtered = cache.filter(t => t.source === 'vente');
+    } else if (currentFilter === 'manuel') {
+        filtered = cache.filter(t => !t.auto);
+    } else {
+        filtered = cache.filter(t => t.type === currentFilter);
+    }
     const tbody = document.getElementById('caisseTableBody');
     if (!tbody) return;
 
@@ -107,16 +124,18 @@ function renderCaisse() {
         const typeLabel = isIn ? 'Encaissement' : 'Décaissement';
         const modeLabels = { especes: '💵 Espèces', cheque: '🏦 Chèque', virement: '🔄 Virement', carte: '💳 Carte' };
 
+        const sourceBadge = t.auto ? `<span style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:${t.source === 'achat' ? 'rgba(245,158,11,0.15);color:#f59e0b' : 'rgba(99,102,241,0.15);color:#818cf8'}">${t.source === 'achat' ? 'Achat' : 'Vente'}</span>` : '';
+
         return `<tr>
             <td>${formatDate(t.date)}</td>
-            <td><span style="color:${typeColor};font-weight:700">${typeIcon} ${typeLabel}</span></td>
+            <td><span style="color:${typeColor};font-weight:700">${typeIcon} ${typeLabel}</span>${sourceBadge}</td>
             <td><strong>${t.tiers || '-'}</strong></td>
             <td style="color:${typeColor};font-weight:700">${isIn ? '+' : '-'}${(t.montant || 0).toLocaleString('fr-FR')} TND</td>
             <td>${modeLabels[t.mode] || t.mode || '-'}</td>
             <td>${t.reference || '-'}</td>
             <td style="font-size:12px;color:#94a3b8">${t.notes || '-'}</td>
             <td>
-                <button class="btn btn-sm btn-outline" onclick="CaisseModule.edit('${t.id}')">✏️</button>
+                ${t.auto ? '' : `<button class="btn btn-sm btn-outline" onclick="CaisseModule.edit('${t.id}')">✏️</button>`}
                 <button class="btn btn-sm btn-outline" onclick="CaisseModule.remove('${t.id}')">🗑️</button>
             </td>
         </tr>`;
@@ -131,39 +150,36 @@ function formatDate(dateStr) {
 function openModal(txId = null) {
     const tx = txId ? cache.find(t => t.id === txId) : null;
 
-    const modal = document.getElementById('modal');
-    const overlay = document.getElementById('modalOverlay');
-    if (!modal || !overlay) return;
-
-    modal.innerHTML = `
-        <div class="modal-header">
-            <h2>${tx ? '✏️ Modifier' : '➕ Nouvelle'} Transaction</h2>
-            <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="form-grid">
+    document.getElementById('modalTitle').textContent = tx ? '✏️ Modifier Transaction' : '➕ Nouvelle Transaction';
+    document.getElementById('modalBody').innerHTML = `
+        <form id="caisseForm">
+            <div class="form-row">
                 <div class="form-group">
                     <label>Date</label>
-                    <input type="date" id="txDate" value="${tx?.date || new Date().toISOString().split('T')[0]}" class="form-control">
+                    <input type="date" id="txDate" value="${tx?.date || new Date().toISOString().split('T')[0]}">
                 </div>
                 <div class="form-group">
                     <label>Type</label>
-                    <select id="txType" class="form-control">
+                    <select id="txType">
                         <option value="encaissement" ${tx?.type === 'encaissement' ? 'selected' : ''}>↗ Encaissement (Entrée)</option>
                         <option value="decaissement" ${tx?.type === 'decaissement' ? 'selected' : ''}>↘ Décaissement (Sortie)</option>
                     </select>
                 </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label>Tiers (Client / Fournisseur)</label>
-                    <input type="text" id="txTiers" value="${tx?.tiers || ''}" placeholder="Nom du tiers" class="form-control">
+                    <input type="text" id="txTiers" value="${tx?.tiers || ''}" placeholder="Nom du tiers">
                 </div>
                 <div class="form-group">
                     <label>Montant (TND)</label>
-                    <input type="number" id="txMontant" value="${tx?.montant || ''}" placeholder="0.000" step="0.001" class="form-control">
+                    <input type="number" id="txMontant" value="${tx?.montant || ''}" placeholder="0.000" step="0.001">
                 </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label>Mode de Paiement</label>
-                    <select id="txMode" class="form-control">
+                    <select id="txMode">
                         <option value="especes" ${tx?.mode === 'especes' ? 'selected' : ''}>💵 Espèces</option>
                         <option value="cheque" ${tx?.mode === 'cheque' ? 'selected' : ''}>🏦 Chèque</option>
                         <option value="virement" ${tx?.mode === 'virement' ? 'selected' : ''}>🔄 Virement</option>
@@ -172,21 +188,20 @@ function openModal(txId = null) {
                 </div>
                 <div class="form-group">
                     <label>Référence (N° Facture / Chèque)</label>
-                    <input type="text" id="txReference" value="${tx?.reference || ''}" placeholder="Ex: FAC-2025-001" class="form-control">
-                </div>
-                <div class="form-group" style="grid-column:1/-1">
-                    <label>Notes</label>
-                    <textarea id="txNotes" rows="2" placeholder="Notes optionnelles..." class="form-control">${tx?.notes || ''}</textarea>
+                    <input type="text" id="txReference" value="${tx?.reference || ''}" placeholder="Ex: FAC-2025-001">
                 </div>
             </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="document.getElementById('modalOverlay').classList.remove('active')">Annuler</button>
-            <button class="btn btn-primary" onclick="CaisseModule.save('${txId || ''}')">💾 Enregistrer</button>
-        </div>
+            <div class="form-group">
+                <label>Notes</label>
+                <textarea id="txNotes" rows="2" placeholder="Notes optionnelles...">${tx?.notes || ''}</textarea>
+            </div>
+        </form>
     `;
 
-    overlay.classList.add('active');
+    const saveBtn = document.getElementById('modalSave');
+    saveBtn.style.display = '';
+    saveBtn.onclick = () => save(txId || '');
+    document.getElementById('modalOverlay').classList.add('active');
 }
 
 async function save(txId) {
@@ -211,6 +226,9 @@ async function save(txId) {
         if (!txId) data.createdAt = new Date().toISOString();
         await setDoc(doc(db, COLLECTIONS.caisse, id), data);
         document.getElementById('modalOverlay')?.classList.remove('active');
+        // Restore modalSave display for other modules
+        const saveBtn = document.getElementById('modalSave');
+        if (saveBtn) saveBtn.style.display = '';
         await refresh();
     } catch (err) {
         console.error('Error saving transaction:', err);
@@ -267,8 +285,19 @@ async function addAutoTransaction({ type, tiers, montant, mode, reference, notes
     }
 }
 
+// Remove an auto-generated transaction (called when facture/échéance is deleted)
+async function removeAutoTransaction(txId) {
+    if (!txId) return;
+    try {
+        await deleteDoc(doc(db, COLLECTIONS.caisse, txId));
+        await loadTransactions();
+    } catch (err) {
+        console.error('Error removing auto-transaction:', err);
+    }
+}
+
 export const CaisseModule = {
     init, refresh, getTransactions, edit, remove, save, setFilter,
-    addAutoTransaction, loadTransactions
+    addAutoTransaction, removeAutoTransaction, loadTransactions
 };
 window.CaisseModule = CaisseModule;

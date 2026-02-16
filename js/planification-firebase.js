@@ -8,6 +8,7 @@ import { DataModule } from './data-firebase.js';
 import { ClientsModule } from './clients-firebase.js';
 
 let cache = [];
+let _loaded = false;
 
 function init() {
     document.getElementById('addPlanBtn')?.addEventListener('click', () => openModal());
@@ -28,6 +29,7 @@ async function loadPlannings() {
     try {
         const snap = await getDocs(collection(db, COLLECTIONS.planifications));
         cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _loaded = true;
         return cache;
     } catch (error) {
         console.error('Error loading planifications:', error);
@@ -36,7 +38,7 @@ async function loadPlannings() {
 }
 
 async function getPlannings() {
-    if (cache.length === 0) await loadPlannings();
+    if (!_loaded) await loadPlannings();
     return cache;
 }
 

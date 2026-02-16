@@ -4,7 +4,7 @@
  * Flow: BC Client → BL Client → Facture Client (with stock reduction)
  */
 
-import { db, collection, doc, getDocs, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
+import { db, collection, doc, getDocs, getDoc, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
 import { ClientsModule } from './clients-firebase.js';
 import { SalesOrdersModule } from './sales-orders-firebase.js';
 import { CaisseModule } from './caisse-firebase.js';
@@ -321,16 +321,14 @@ async function saveBLForm() {
         for (const ligne of lignes) {
             let article = null;
             if (ligne.articleId) {
-                const { db: fireDb, doc: fireDoc, getDoc: fireGetDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
-                const artSnap = await fireGetDoc(fireDoc(fireDb, COLS.articles, ligne.articleId));
+                const artSnap = await getDoc(doc(db, COLLECTIONS.articles, ligne.articleId));
                 if (artSnap.exists()) {
                     article = { id: artSnap.id, ...artSnap.data() };
                 }
             }
             if (article) {
-                const newStock = Math.max(0, (article.stock || 0) - ligne.quantiteLivree);
-                const { db: fireDb, doc: fireDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
-                await fireSetDoc(fireDoc(fireDb, COLS.articles, article.id), { ...article, stock: newStock });
+                const newStock = Math.max(0, (article.stock || 0) - (ligne.quantiteLivree || 0));
+                await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
             }
         }
 
@@ -664,7 +662,20 @@ async function viewEcheancesClient(factureId) {
 function editFacture(id) { openFactureModal(id); }
 async function deleteFacture(id) {
     if (confirm('Supprimer cette facture client?')) {
+        // Remove linked caisse transactions before deleting
+        const facture = getFactureById(id);
+        if (facture) {
+            for (const ech of (facture.echeances || [])) {
+                if (ech.caisseId) {
+                    await CaisseModule.removeAutoTransaction(ech.caisseId);
+                }
+            }
+        }
         await deleteFactureData(id);
+        // Update client solde after deletion
+        if (facture?.clientId) {
+            await updateClientSolde(facture.clientId);
+        }
         await renderFactures();
     }
 }
@@ -963,10 +974,10 @@ async function renderReglementsClients() {
             <div style="overflow-x:auto">
                 <table class="data-table" style="width:100%">
                     <thead>
-                        <tr><th>Date</th><th>Facture</th><th>Client</th><th>Montant</th><th>Type</th><th>Statut</th></tr>
+                        <tr><th>Date</th><th>Facture</th><th>Client</th><th>Montant</th><th>Type</th><th>Statut</th><th>Caisse</th></tr>
                     </thead>
                     <tbody>
-                        ${allEcheances.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:30px">Aucune échéance</td></tr>' :
+                        ${allEcheances.length === 0 ? '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:30px">Aucune échéance</td></tr>' :
             allEcheances.map(e => `
                             <tr>
                                 <td>${e.date || '-'}</td>
@@ -975,6 +986,7 @@ async function renderReglementsClients() {
                                 <td><strong>${(e.montant || 0).toFixed(3)} TND</strong></td>
                                 <td>${e.typePaiement || '-'}</td>
                                 <td><span class="status-badge status-${e.statut === 'Payé' ? 'paye' : 'en-attente'}">${e.statut}</span></td>
+                                <td>${e.caisseId ? '<span style="color:#10b981;font-size:11px">✅ Caisse</span>' : '-'}</td>
                             </tr>
                         `).join('')}
                     </tbody>

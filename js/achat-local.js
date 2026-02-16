@@ -4,6 +4,7 @@
  * Linked workflow: Demande d'Achat → BC → BL → Factures
  */
 
+import { db, doc, setDoc, COLLECTIONS } from './firebase.js';
 import { SuppliersModule } from './suppliers-firebase.js';
 import { DataModule } from './data-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
@@ -698,13 +699,12 @@ async function saveLivraison() {
             }
             // Fallback: match by name/designation for old data without articleId
             if (!article && ligne.nom) {
-                const allArticles = ArticlesModule.getArticles();
+                const allArticles = await ArticlesModule.getArticles();
                 article = allArticles.find(a => a.designation === ligne.nom || a.reference === ligne.nom);
             }
             if (article) {
                 const newStock = (article.stock || 0) + ligne.quantiteRecue;
-                const { db: fireDb, doc: fireDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
-                await fireSetDoc(fireDoc(fireDb, COLS.articles, article.id), { ...article, stock: newStock });
+                await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
             }
         }
         // Refresh articles cache
@@ -1018,8 +1018,7 @@ async function updateSupplierSolde(supplierId) {
         const solde = totalDu - totalPaye;
         const supplier = SuppliersModule.getSupplierById(supplierId);
         if (supplier) {
-            const { db: fireDb, doc: fireDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
-            await fireSetDoc(fireDoc(fireDb, COLS.suppliers, supplierId), { ...supplier, solde: solde, updatedAt: new Date().toISOString() });
+            await setDoc(doc(db, COLLECTIONS.suppliers, supplierId), { ...supplier, solde: solde, updatedAt: new Date().toISOString() });
         }
     } catch (err) {
         console.error('Error updating supplier solde:', err);
@@ -1029,6 +1028,20 @@ async function updateSupplierSolde(supplierId) {
 function editFacture(id) { openFactureModal(id); }
 async function deleteFacture(id) {
     if (confirm('Supprimer cette facture?')) {
+        // Remove linked caisse transactions before deleting
+        const facture = SuppliersModule.getFactureById(id);
+        if (facture) {
+            for (const ech of (facture.echeances || [])) {
+                if (ech.caisseId) {
+                    await CaisseModule.removeAutoTransaction(ech.caisseId);
+                }
+            }
+            // Update supplier solde
+            if (facture.fournisseurId) {
+                // Will recalculate after delete
+                setTimeout(() => updateSupplierSolde(facture.fournisseurId), 500);
+            }
+        }
         await SuppliersModule.deleteFacture(id);
         await renderFactures();
     }
@@ -1094,20 +1107,24 @@ async function renderReglements() {
                         <tr>
                             <th>Date</th>
                             <th>Facture</th>
+                            <th>Fournisseur</th>
                             <th>Montant</th>
                             <th>Type</th>
                             <th>Statut</th>
+                            <th>Caisse</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${allEcheances.length === 0 ? '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:30px">Aucune échéance</td></tr>' :
+                        ${allEcheances.length === 0 ? '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:30px">Aucune échéance</td></tr>' :
             allEcheances.map(e => `
                             <tr>
                                 <td>${e.date || '-'}</td>
                                 <td>${e.factureNumero}</td>
+                                <td>${e.fournisseurNom}</td>
                                 <td><strong>${(e.montant || 0).toFixed(3)} TND</strong></td>
                                 <td>${e.typePaiement || '-'}</td>
                                 <td><span class="status-badge status-${e.statut === 'Payé' ? 'paye' : 'en-attente'}">${e.statut}</span></td>
+                                <td>${e.caisseId ? '<span style="color:#10b981;font-size:11px">✅ Caisse</span>' : '-'}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -1421,8 +1438,7 @@ async function saveSortieForm() {
                 const article = ArticlesModule.getArticleById(ligne.articleId);
                 if (article) {
                     const newStock = Math.max(0, (article.stock || 0) - ligne.quantiteSortie);
-                    const { db: fireDb, doc: fireDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
-                    await fireSetDoc(fireDoc(fireDb, COLS.articles, article.id), { ...article, stock: newStock });
+                    await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
                 }
             }
         }

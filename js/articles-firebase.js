@@ -6,6 +6,7 @@
 import { db, collection, doc, getDocs, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
 
 let cache = [];
+let _loaded = false;
 
 async function init() {
     document.getElementById('addArticleAchatBtn')?.addEventListener('click', () => openModal(null, 'achat'));
@@ -17,6 +18,7 @@ async function loadArticles() {
     try {
         const snap = await getDocs(collection(db, COLLECTIONS.articles));
         cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _loaded = true;
         return cache;
     } catch (error) {
         console.error('Error loading articles:', error);
@@ -25,7 +27,7 @@ async function loadArticles() {
 }
 
 async function getArticles() {
-    if (cache.length === 0) await loadArticles();
+    if (!_loaded) await loadArticles();
     return cache;
 }
 

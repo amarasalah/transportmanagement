@@ -8,6 +8,7 @@ import { ClientsModule } from './clients-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
 
 let cache = [];
+let _loaded = false;
 let _orderArticles = [];
 let _orderLines = [];
 
@@ -21,17 +22,19 @@ async function loadOrders() {
         const q = query(collection(db, COLLECTIONS.bonCommandesVente), orderBy('date', 'desc'));
         const snap = await getDocs(q);
         cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _loaded = true;
         return cache;
     } catch (error) {
         console.error('Error loading sales orders:', error);
         const snap = await getDocs(collection(db, COLLECTIONS.bonCommandesVente));
         cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _loaded = true;
         return cache;
     }
 }
 
 async function getOrders() {
-    if (cache.length === 0) await loadOrders();
+    if (!_loaded) await loadOrders();
     return cache;
 }
 

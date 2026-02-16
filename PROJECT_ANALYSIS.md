@@ -612,5 +612,37 @@ costPerKm    = totalCost / totalKm
 
 ---
 
-> **⚠️ Ce document est en attente de confirmation. Aucune modification n'a été effectuée.**  
-> Confirmez les fixes et enhancements que vous souhaitez implémenter, ou précisez lesquels prioriser.
+> **✅ Fixes appliqués le 16/02/2026 — Session 2**
+
+## Corrections Appliquées (Session 2)
+
+### Bugs Storage/Display Corrigés
+| Fix | Description | Fichier |
+|-----|-------------|---------|
+| **F1** | `await` manquant sur `ArticlesModule.getArticles()` — stock fallback silencieusement échoué | `achat-local.js:701` |
+| **F2** | Bug cache F6 (`_loaded` flag) dans `articles-firebase.js` — re-fetch infini sur collection vide | `articles-firebase.js` |
+| **F3** | Imports dynamiques redondants dans boucle BL Vente — remplacés par imports directs `getDoc/setDoc` | `vente-local.js` |
+| **F4** | Bug cache F6 dans `sales-orders-firebase.js` | `sales-orders-firebase.js` |
+| **F5** | Bug cache F6 dans `purchase-orders-firebase.js` | `purchase-orders-firebase.js` |
+| **F6** | Bug cache F6 dans `planification-firebase.js` | `planification-firebase.js` |
+| **F7** | Bug cache F6 dans `caisse-firebase.js` | `caisse-firebase.js` |
+| **F8** | Tous les `await import()` dynamiques dans `achat-local.js` remplacés par imports directs | `achat-local.js` |
+
+### Liaison Achat/Vente ↔ Caisse
+| Fix | Description | Fichier |
+|-----|-------------|---------|
+| **C1** | Achat Facture: échéances payées créent auto-décaissements Caisse avec `caisseId` stocké | `achat-local.js` |
+| **C2** | Achat Règlement: crée auto-décaissement Caisse avant ajout échéance | `achat-local.js` |
+| **C3** | Vente Facture: échéances payées créent auto-encaissements Caisse avec `caisseId` stocké | `vente-local.js` |
+| **C4** | Vente Règlement: crée auto-encaissement Caisse avant ajout échéance | `vente-local.js` |
+| **C5** | Suppression facture Achat: nettoie les transactions Caisse liées + recalcule solde fournisseur | `achat-local.js` |
+| **C6** | Suppression facture Vente: nettoie les transactions Caisse liées + recalcule solde client | `vente-local.js` |
+| **C7** | `removeAutoTransaction()` ajouté au module Caisse | `caisse-firebase.js` |
+| **C8** | Badge source (Achat/Vente) affiché dans table Caisse + protection édition auto-tx | `caisse-firebase.js` |
+
+### Flux Caisse Complet
+```
+ACHAT:  Facture/Règlement → CaisseModule.addAutoTransaction(décaissement) → caisseId stocké sur échéance
+VENTE:  Facture/Règlement → CaisseModule.addAutoTransaction(encaissement) → caisseId stocké sur échéance
+DELETE: Facture supprimée → CaisseModule.removeAutoTransaction(caisseId) pour chaque échéance
+```
