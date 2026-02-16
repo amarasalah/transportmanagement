@@ -6,6 +6,7 @@
 import { db, collection, doc, getDocs, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
 
 let cache = [];
+let _loaded = false;
 
 async function init() {
     document.getElementById('addClientBtn')?.addEventListener('click', () => openModal());
@@ -16,6 +17,7 @@ async function loadClients() {
     try {
         const snap = await getDocs(collection(db, COLLECTIONS.clients));
         cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _loaded = true;
         return cache;
     } catch (error) {
         console.error('Error loading clients:', error);
@@ -24,7 +26,7 @@ async function loadClients() {
 }
 
 async function getClients() {
-    if (cache.length === 0) await loadClients();
+    if (!_loaded) await loadClients();
     return cache;
 }
 

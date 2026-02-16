@@ -8,6 +8,8 @@ import { ClientsModule } from './clients-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
 
 let cache = [];
+let _orderArticles = [];
+let _orderLines = [];
 
 async function init() {
     document.getElementById('addSalesOrderBtn')?.addEventListener('click', () => openModal());
@@ -177,8 +179,8 @@ async function openModal(orderId = null) {
         </form>
     `;
 
-    window._orderArticles = articles;
-    window._orderLines = order?.lignes || [];
+    _orderArticles = articles;
+    _orderLines = order?.lignes || [];
 
     renderLines();
     document.getElementById('modalSave').onclick = saveOrder;
@@ -186,7 +188,7 @@ async function openModal(orderId = null) {
 }
 
 function addLine() {
-    window._orderLines.push({
+    _orderLines.push({
         articleId: '',
         designation: '',
         quantite: 1,
@@ -198,7 +200,7 @@ function addLine() {
 }
 
 function removeLine(index) {
-    window._orderLines.splice(index, 1);
+    _orderLines.splice(index, 1);
     renderLines();
 }
 
@@ -206,8 +208,8 @@ function renderLines() {
     const tbody = document.getElementById('orderLinesBody');
     if (!tbody) return;
 
-    const articles = window._orderArticles || [];
-    const lines = window._orderLines || [];
+    const articles = _orderArticles || [];
+    const lines = _orderLines || [];
 
     if (lines.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;">Aucune ligne</td></tr>';
@@ -235,22 +237,22 @@ function renderLines() {
 }
 
 function onArticleChange(index, articleId) {
-    const article = window._orderArticles.find(a => a.id === articleId);
+    const article = _orderArticles.find(a => a.id === articleId);
     if (article) {
-        window._orderLines[index].articleId = articleId;
-        window._orderLines[index].designation = article.designation;
-        window._orderLines[index].prixUnitaire = article.prixVente || 0; // Use sale price
+        _orderLines[index].articleId = articleId;
+        _orderLines[index].designation = article.designation;
+        _orderLines[index].prixUnitaire = article.prixVente || 0; // Use sale price
     }
     renderLines();
 }
 
 function updateLine(index, field, value) {
     if (field === 'quantite' || field === 'prixUnitaire' || field === 'tva') {
-        window._orderLines[index][field] = parseFloat(value) || 0;
+        _orderLines[index][field] = parseFloat(value) || 0;
     } else {
-        window._orderLines[index][field] = value;
+        _orderLines[index][field] = value;
     }
-    window._orderLines[index].totalHT = window._orderLines[index].quantite * window._orderLines[index].prixUnitaire;
+    _orderLines[index].totalHT = _orderLines[index].quantite * _orderLines[index].prixUnitaire;
     updateTotals();
 }
 
@@ -258,7 +260,7 @@ function updateTotals() {
     let totalHT = 0;
     let totalTVA = 0;
 
-    window._orderLines.forEach(line => {
+    _orderLines.forEach(line => {
         line.totalHT = (line.quantite || 0) * (line.prixUnitaire || 0);
         totalHT += line.totalHT;
         totalTVA += line.totalHT * (line.tva || 0) / 100;
@@ -277,7 +279,7 @@ function updateTotals() {
 
 async function saveOrder() {
     let totalHT = 0, totalTVA = 0;
-    window._orderLines.forEach(line => {
+    _orderLines.forEach(line => {
         line.totalHT = line.quantite * line.prixUnitaire;
         totalHT += line.totalHT;
         totalTVA += line.totalHT * (line.tva || 0) / 100;
@@ -289,7 +291,7 @@ async function saveOrder() {
         date: document.getElementById('orderDate').value,
         clientId: document.getElementById('orderClient').value,
         statut: document.getElementById('orderStatut').value,
-        lignes: window._orderLines,
+        lignes: _orderLines,
         totalHT,
         totalTVA,
         totalTTC: totalHT + totalTVA,
@@ -362,7 +364,45 @@ async function view(id) {
 }
 
 async function transformToBL(orderId) {
-    alert('Transformation BC → BL: Fonctionnalité en développement');
+    const order = getOrderById(orderId);
+    if (!order) return;
+    if (!confirm(`Transformer le BC Vente ${order.numero} en Bon de Livraison Client ?`)) return;
+
+    const lignes = (order.lignes || []).map(l => ({
+        nom: l.designation || l.nom || '',
+        articleId: l.articleId || null,
+        prixUnitaire: l.prixUnitaire || 0,
+        quantiteCommandee: l.quantite || 0,
+        quantiteLivree: l.quantite || 0,
+        prixTotal: (l.quantite || 0) * (l.prixUnitaire || 0)
+    }));
+
+    const blData = {
+        id: `blv_${Date.now()}`,
+        numero: `BLC-${Date.now().toString().slice(-6)}`,
+        date: new Date().toISOString().split('T')[0],
+        commandeId: order.id,
+        commandeNumero: order.numero,
+        clientId: order.clientId,
+        lignes: lignes,
+        montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
+        statut: 'Livré',
+        updatedAt: new Date().toISOString()
+    };
+
+    try {
+        await setDoc(doc(db, COLLECTIONS.bonLivraisonsVente, blData.id), blData);
+
+        // Update BC status
+        order.statut = 'Livré';
+        await setDoc(doc(db, COLLECTIONS.bonCommandesVente, order.id), { ...order, updatedAt: new Date().toISOString() });
+
+        alert(`✅ BL Client ${blData.numero} créé avec succès !`);
+        await refresh();
+    } catch (err) {
+        console.error('Erreur transformation BC → BL Vente:', err);
+        alert('Erreur: ' + err.message);
+    }
 }
 
 async function remove(id) {

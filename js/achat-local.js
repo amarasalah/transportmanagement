@@ -402,7 +402,7 @@ async function openCommandeModal(commandeId = null) {
                     </thead>
                     <tbody id="commandeLignesBody">
                         ${lignes.map((l, i) => `
-                            <tr>
+                            <tr data-article-id="${l.articleId || ''}">
                                 <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
                                 <td style="padding:4px"><input type="number" class="cmd-pu" value="${l.prixUnitaire}" step="0.001" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
                                 <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantite}</td>
@@ -445,7 +445,7 @@ async function onDemandeChange() {
     const lignes = demande.lignes || [];
     const tbody = document.getElementById('commandeLignesBody');
     tbody.innerHTML = lignes.map(l => `
-        <tr>
+        <tr data-article-id="${l.articleId || ''}">
             <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
             <td style="padding:4px"><input type="number" class="cmd-pu" value="${l.prixUnitaire}" step="0.001" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
             <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantite}</td>
@@ -479,9 +479,10 @@ async function saveCommande() {
     const rows = document.querySelectorAll('#commandeLignesBody tr');
     const lignes = Array.from(rows).map(row => {
         const nom = row.querySelector('td:first-child').textContent.trim();
+        const articleId = row.dataset.articleId || null;
         const pu = parseFloat(row.querySelector('.cmd-pu')?.value) || 0;
         const qte = parseFloat(row.querySelector('td:nth-child(3)').textContent) || 0;
-        return { nom, prixUnitaire: pu, quantite: qte, prixTotal: pu * qte };
+        return { nom, articleId, prixUnitaire: pu, quantite: qte, prixTotal: pu * qte };
     });
 
     if (lignes.length === 0) { alert('Aucun article'); return; }
@@ -500,7 +501,16 @@ async function saveCommande() {
     };
 
     try {
-        await SuppliersModule.saveCommande(commande);
+        const savedCommande = await SuppliersModule.saveCommande(commande);
+
+        // R6/D11: Update DA status to 'Transformée' and add backlink
+        if (daId && demande && !document.getElementById('commandeId').value) {
+            demande.statut = 'Transformée';
+            demande.bcId = savedCommande.id || commande.id;
+            demande.bcNumero = savedCommande.numero || commande.numero;
+            await SuppliersModule.saveDemande(demande);
+        }
+
         App.hideModal();
         await renderCommandes();
     } catch (err) {
@@ -647,14 +657,21 @@ async function onCommandeChangeBL() {
 async function saveLivraison() {
     const bcId = document.getElementById('livraisonCommandeId')?.value;
     const commande = bcId ? SuppliersModule.getCommandeById(bcId) : null;
+    const cmdLignes = commande?.lignes || [];
 
     const rows = document.querySelectorAll('#livraisonLignesBody tr');
-    const lignes = Array.from(rows).map(row => ({
-        nom: row.querySelector('td:first-child').textContent.trim(),
-        quantiteCommandee: parseFloat(row.querySelector('td:nth-child(2)').textContent) || 0,
-        dejaRecu: parseFloat(row.querySelector('td:nth-child(3)').textContent) || 0,
-        quantiteRecue: parseFloat(row.querySelector('.bl-qte')?.value) || 0
-    })).filter(l => l.quantiteRecue > 0);
+    const lignes = Array.from(rows).map(row => {
+        const nom = row.querySelector('td:first-child').textContent.trim();
+        // Match articleId from commande lignes
+        const cmdLine = cmdLignes.find(cl => cl.nom === nom);
+        return {
+            nom,
+            articleId: cmdLine?.articleId || null,
+            quantiteCommandee: parseFloat(row.querySelector('td:nth-child(2)').textContent) || 0,
+            dejaRecu: parseFloat(row.querySelector('td:nth-child(3)').textContent) || 0,
+            quantiteRecue: parseFloat(row.querySelector('.bl-qte')?.value) || 0
+        };
+    }).filter(l => l.quantiteRecue > 0);
 
     if (lignes.length === 0) { alert('Aucune quantité reçue'); return; }
 
@@ -672,11 +689,31 @@ async function saveLivraison() {
 
     try {
         await SuppliersModule.saveLivraison(livraison);
+
+        // ✅ Increase stock for each received article
+        for (const ligne of lignes) {
+            let article = null;
+            if (ligne.articleId) {
+                article = ArticlesModule.getArticleById(ligne.articleId);
+            }
+            // Fallback: match by name/designation for old data without articleId
+            if (!article && ligne.nom) {
+                const allArticles = ArticlesModule.getArticles();
+                article = allArticles.find(a => a.designation === ligne.nom || a.reference === ligne.nom);
+            }
+            if (article) {
+                const newStock = (article.stock || 0) + ligne.quantiteRecue;
+                const { db: fireDb, doc: fireDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
+                await fireSetDoc(fireDoc(fireDb, COLS.articles, article.id), { ...article, stock: newStock });
+            }
+        }
+        // Refresh articles cache
+        await ArticlesModule.refresh();
+
         // Update BC status
         if (commande) {
             const allBLs = await SuppliersModule.getLivraisons();
             const bcBLs = allBLs.filter(bl => bl.commandeId === bcId);
-            const cmdLignes = commande.lignes || [];
             let allDelivered = true;
             cmdLignes.forEach(cl => {
                 let totalRecu = 0;
@@ -924,12 +961,68 @@ async function saveFacture() {
     };
 
     try {
+        // Create Caisse décaissements for newly paid échéances
+        const existingFacture = facture.id ? SuppliersModule.getFactureById(facture.id) : null;
+        const existingEcheances = existingFacture?.echeances || [];
+
+        for (let i = 0; i < echeances.length; i++) {
+            const ech = echeances[i];
+            if (ech.statut === 'Payé' && !ech.caisseId) {
+                const wasAlreadyPaid = existingEcheances[i]?.statut === 'Payé' && existingEcheances[i]?.caisseId;
+                if (!wasAlreadyPaid) {
+                    const supplier = SuppliersModule.getSupplierById(livraison?.fournisseurId || facture.fournisseurId);
+                    const caisseId = await CaisseModule.addAutoTransaction({
+                        type: 'decaissement',
+                        tiers: supplier?.nom || 'Fournisseur',
+                        montant: ech.montant,
+                        mode: ech.typePaiement,
+                        reference: facture.numero,
+                        notes: `Paiement fournisseur ${facture.numero}`,
+                        source: 'achat'
+                    });
+                    if (caisseId) ech.caisseId = caisseId;
+                }
+            }
+        }
+        facture.echeances = echeances;
+
         await SuppliersModule.saveFacture(facture);
+
+        // Update supplier solde
+        const supplierId = livraison?.fournisseurId || facture.fournisseurId;
+        if (supplierId) {
+            await updateSupplierSolde(supplierId);
+        }
+
         App.hideModal();
         await renderFactures();
     } catch (err) {
         console.error('Erreur sauvegarde facture:', err);
         alert('Erreur: ' + err.message);
+    }
+}
+
+// R5: Recalculate supplier solde from all factures
+async function updateSupplierSolde(supplierId) {
+    try {
+        const factures = await SuppliersModule.getFactures();
+        const supplierFactures = factures.filter(f => f.fournisseurId === supplierId);
+        let totalDu = 0;
+        let totalPaye = 0;
+        supplierFactures.forEach(f => {
+            totalDu += parseFloat(f.montantTotal) || 0;
+            (f.echeances || []).forEach(e => {
+                if (e.statut === 'Payé') totalPaye += (e.montant || 0);
+            });
+        });
+        const solde = totalDu - totalPaye;
+        const supplier = SuppliersModule.getSupplierById(supplierId);
+        if (supplier) {
+            const { db: fireDb, doc: fireDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
+            await fireSetDoc(fireDoc(fireDb, COLS.suppliers, supplierId), { ...supplier, solde: solde, updatedAt: new Date().toISOString() });
+        }
+    } catch (err) {
+        console.error('Error updating supplier solde:', err);
     }
 }
 
@@ -1140,6 +1233,12 @@ async function saveReglement() {
 
     try {
         await SuppliersModule.saveFacture({ ...facture, echeances, etat });
+
+        // R5: Update supplier solde
+        if (facture.fournisseurId) {
+            await updateSupplierSolde(facture.fournisseurId);
+        }
+
         App.hideModal();
         await renderReglements();
     } catch (err) {

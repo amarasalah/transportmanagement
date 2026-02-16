@@ -11,6 +11,12 @@ let demandesCache = [];
 let commandesCache = [];
 let livraisonsCache = [];
 let facturesCache = [];
+let _suppliersLoaded = false;
+let _demandesLoaded = false;
+let _commandesLoaded = false;
+let _livraisonsLoaded = false;
+let _facturesLoaded = false;
+let _sortiesLoaded = false;
 
 // ========== SUPPLIERS ==========
 async function init() {
@@ -22,6 +28,7 @@ async function loadSuppliers() {
     try {
         const snap = await getDocs(collection(db, COLLECTIONS.suppliers));
         suppliersCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _suppliersLoaded = true;
         return suppliersCache;
     } catch (error) {
         console.error('Error loading suppliers:', error);
@@ -30,7 +37,7 @@ async function loadSuppliers() {
 }
 
 async function getSuppliers() {
-    if (suppliersCache.length === 0) await loadSuppliers();
+    if (!_suppliersLoaded) await loadSuppliers();
     return suppliersCache;
 }
 
@@ -189,6 +196,7 @@ async function loadDemandes() {
         const snap = await getDocs(collection(db, COLLECTIONS.demandesAchat));
         demandesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         demandesCache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        _demandesLoaded = true;
         return demandesCache;
     } catch (error) {
         console.error('Error loading demandes:', error);
@@ -197,7 +205,7 @@ async function loadDemandes() {
 }
 
 async function getDemandes() {
-    if (demandesCache.length === 0) await loadDemandes();
+    if (!_demandesLoaded) await loadDemandes();
     return demandesCache;
 }
 
@@ -225,6 +233,7 @@ async function loadCommandes() {
         const snap = await getDocs(collection(db, COLLECTIONS.bonCommandesAchat));
         commandesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         commandesCache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        _commandesLoaded = true;
         return commandesCache;
     } catch (error) {
         console.error('Error loading commandes:', error);
@@ -233,7 +242,7 @@ async function loadCommandes() {
 }
 
 async function getCommandes() {
-    if (commandesCache.length === 0) await loadCommandes();
+    if (!_commandesLoaded) await loadCommandes();
     return commandesCache;
 }
 
@@ -261,6 +270,7 @@ async function loadLivraisons() {
         const snap = await getDocs(collection(db, COLLECTIONS.bonLivraisonsAchat));
         livraisonsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         livraisonsCache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        _livraisonsLoaded = true;
         return livraisonsCache;
     } catch (error) {
         console.error('Error loading livraisons:', error);
@@ -269,7 +279,7 @@ async function loadLivraisons() {
 }
 
 async function getLivraisons() {
-    if (livraisonsCache.length === 0) await loadLivraisons();
+    if (!_livraisonsLoaded) await loadLivraisons();
     return livraisonsCache;
 }
 
@@ -297,6 +307,7 @@ async function loadFactures() {
         const snap = await getDocs(collection(db, COLLECTIONS.facturesAchat));
         facturesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         facturesCache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        _facturesLoaded = true;
         return facturesCache;
     } catch (error) {
         console.error('Error loading factures:', error);
@@ -305,7 +316,7 @@ async function loadFactures() {
 }
 
 async function getFactures() {
-    if (facturesCache.length === 0) await loadFactures();
+    if (!_facturesLoaded) await loadFactures();
     return facturesCache;
 }
 
@@ -334,6 +345,7 @@ async function loadSorties() {
     try {
         const snap = await getDocs(collection(db, COLLECTIONS.bonsSortie));
         sortiesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _sortiesLoaded = true;
         return sortiesCache;
     } catch (error) {
         console.error('Error loading sorties:', error);
@@ -342,7 +354,7 @@ async function loadSorties() {
 }
 
 async function getSorties() {
-    if (sortiesCache.length === 0) await loadSorties();
+    if (!_sortiesLoaded) await loadSorties();
     return sortiesCache;
 }
 

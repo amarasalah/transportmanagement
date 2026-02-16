@@ -9,6 +9,8 @@ import { SuppliersModule } from './suppliers-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
 
 let cache = [];
+let _orderArticles = [];
+let _orderLines = [];
 
 async function init() {
     document.getElementById('addCommandeBtn')?.addEventListener('click', () => openModal());
@@ -198,8 +200,8 @@ async function openModal(orderId = null) {
     `;
 
     // Store articles for line items
-    window._orderArticles = articles;
-    window._orderLines = order?.lignes || [];
+    _orderArticles = articles;
+    _orderLines = order?.lignes || [];
 
     renderLines();
     document.getElementById('modalSave').onclick = saveOrder;
@@ -207,7 +209,7 @@ async function openModal(orderId = null) {
 }
 
 function addLine() {
-    window._orderLines.push({
+    _orderLines.push({
         articleId: '',
         designation: '',
         quantite: 1,
@@ -219,7 +221,7 @@ function addLine() {
 }
 
 function removeLine(index) {
-    window._orderLines.splice(index, 1);
+    _orderLines.splice(index, 1);
     renderLines();
 }
 
@@ -227,8 +229,8 @@ function renderLines() {
     const tbody = document.getElementById('orderLinesBody');
     if (!tbody) return;
 
-    const articles = window._orderArticles || [];
-    const lines = window._orderLines || [];
+    const articles = _orderArticles || [];
+    const lines = _orderLines || [];
 
     if (lines.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;">Aucune ligne</td></tr>';
@@ -258,22 +260,22 @@ function renderLines() {
 }
 
 function onArticleChange(index, articleId) {
-    const article = window._orderArticles.find(a => a.id === articleId);
+    const article = _orderArticles.find(a => a.id === articleId);
     if (article) {
-        window._orderLines[index].articleId = articleId;
-        window._orderLines[index].designation = article.designation;
-        window._orderLines[index].prixUnitaire = article.prixAchat || 0;
+        _orderLines[index].articleId = articleId;
+        _orderLines[index].designation = article.designation;
+        _orderLines[index].prixUnitaire = article.prixAchat || 0;
     }
     renderLines();
 }
 
 function updateLine(index, field, value) {
     if (field === 'quantite' || field === 'prixUnitaire' || field === 'tva') {
-        window._orderLines[index][field] = parseFloat(value) || 0;
+        _orderLines[index][field] = parseFloat(value) || 0;
     } else {
-        window._orderLines[index][field] = value;
+        _orderLines[index][field] = value;
     }
-    window._orderLines[index].totalHT = window._orderLines[index].quantite * window._orderLines[index].prixUnitaire;
+    _orderLines[index].totalHT = _orderLines[index].quantite * _orderLines[index].prixUnitaire;
     updateTotals();
 }
 
@@ -281,7 +283,7 @@ function updateTotals() {
     let totalHT = 0;
     let totalTVA = 0;
 
-    window._orderLines.forEach(line => {
+    _orderLines.forEach(line => {
         line.totalHT = (line.quantite || 0) * (line.prixUnitaire || 0);
         totalHT += line.totalHT;
         totalTVA += line.totalHT * (line.tva || 0) / 100;
@@ -300,7 +302,7 @@ function updateTotals() {
 
 async function saveOrder() {
     let totalHT = 0, totalTVA = 0;
-    window._orderLines.forEach(line => {
+    _orderLines.forEach(line => {
         line.totalHT = line.quantite * line.prixUnitaire;
         totalHT += line.totalHT;
         totalTVA += line.totalHT * (line.tva || 0) / 100;
@@ -313,7 +315,7 @@ async function saveOrder() {
         camionId: document.getElementById('orderCamion').value || null,
         fournisseurId: document.getElementById('orderFournisseur').value,
         statut: document.getElementById('orderStatut').value,
-        lignes: window._orderLines,
+        lignes: _orderLines,
         totalHT,
         totalTVA,
         totalTTC: totalHT + totalTVA,
@@ -330,26 +332,20 @@ async function saveOrder() {
     try {
         await setDoc(doc(db, COLLECTIONS.bonCommandesAchat, order.id), order);
 
-        // Si un camion est lié, mettre à jour ses charges fixes
+        // R4: Store purchase charges separately (not in chargesFixes)
         if (order.camionId && order.totalTTC > 0) {
             const truck = DataModule.getTruckById(order.camionId);
             if (truck) {
-                // Récupérer l'ancien montant si c'est une modification
                 const oldOrder = getOrderById(order.id);
                 const oldAmount = (oldOrder?.camionId === order.camionId) ? (oldOrder.totalTTC || 0) : 0;
-
-                // Calculer la différence à ajouter
                 const difference = order.totalTTC - oldAmount;
-
-                // Mettre à jour les charges fixes du camion
-                const updatedCharges = (truck.chargesFixes || 0) + difference;
+                const updatedChargesAchat = (truck.chargesAchat || 0) + difference;
                 await setDoc(doc(db, COLLECTIONS.trucks, order.camionId), {
                     ...truck,
-                    chargesFixes: updatedCharges,
+                    chargesAchat: updatedChargesAchat,
                     updatedAt: new Date().toISOString()
                 });
-
-                console.log(`✅ Charges fixes du camion ${truck.matricule} mises à jour: +${difference.toFixed(3)} TND`);
+                console.log(`✅ Charges achat du camion ${truck.matricule} mises à jour: +${difference.toFixed(3)} TND`);
             }
         }
 
@@ -410,7 +406,46 @@ async function view(id) {
 }
 
 async function transformToBL(orderId) {
-    alert('Transformation BC → BL: Fonctionnalité en développement');
+    const order = getOrderById(orderId);
+    if (!order) return;
+    if (!confirm(`Transformer le BC ${order.numero} en Bon de Livraison Achat ?`)) return;
+
+    const lignes = (order.lignes || []).map(l => ({
+        nom: l.designation || l.nom || '',
+        articleId: l.articleId || null,
+        quantiteCommandee: l.quantite || 0,
+        dejaRecu: 0,
+        quantiteRecue: l.quantite || 0
+    }));
+
+    const blData = {
+        id: `bl_${Date.now()}`,
+        numero: `BL-${Date.now().toString().slice(-6)}`,
+        date: new Date().toISOString().split('T')[0],
+        commandeId: order.id,
+        commandeNumero: order.numero,
+        fournisseurId: order.fournisseurId,
+        depot: 'Magasin principal',
+        lignes: lignes,
+        statut: 'Reçu',
+        updatedAt: new Date().toISOString()
+    };
+
+    try {
+        // Import SuppliersModule dynamically to avoid circular deps
+        const { SuppliersModule } = await import('./suppliers-firebase.js');
+        await SuppliersModule.saveLivraison(blData);
+
+        // Update BC status to Livré
+        order.statut = 'Livré';
+        await setDoc(doc(db, COLLECTIONS.bonCommandesAchat, order.id), { ...order, updatedAt: new Date().toISOString() });
+
+        alert(`✅ BL ${blData.numero} créé avec succès !`);
+        await refresh();
+    } catch (err) {
+        console.error('Erreur transformation BC → BL:', err);
+        alert('Erreur: ' + err.message);
+    }
 }
 
 async function remove(id) {
@@ -419,17 +454,17 @@ async function remove(id) {
             // Récupérer le bon de commande avant suppression
             const order = getOrderById(id);
 
-            // Si lié à un camion, retirer des charges fixes
+            // R4: Remove from chargesAchat (not chargesFixes)
             if (order?.camionId && order.totalTTC > 0) {
                 const truck = DataModule.getTruckById(order.camionId);
                 if (truck) {
-                    const updatedCharges = (truck.chargesFixes || 0) - order.totalTTC;
+                    const updatedChargesAchat = Math.max(0, (truck.chargesAchat || 0) - order.totalTTC);
                     await setDoc(doc(db, COLLECTIONS.trucks, order.camionId), {
                         ...truck,
-                        chargesFixes: Math.max(0, updatedCharges), // Ne pas descendre en dessous de 0
+                        chargesAchat: updatedChargesAchat,
                         updatedAt: new Date().toISOString()
                     });
-                    console.log(`✅ Charges fixes du camion ${truck.matricule} mises à jour: -${order.totalTTC.toFixed(3)} TND`);
+                    console.log(`✅ Charges achat du camion ${truck.matricule} mises à jour: -${order.totalTTC.toFixed(3)} TND`);
                 }
             }
 

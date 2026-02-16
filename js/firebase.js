@@ -100,6 +100,24 @@ const COLLECTIONS = {
     caisse: 'caisse_transactions'
 };
 
+// R9: Sequential numbering utility
+async function getNextNumber(prefix) {
+    const counterDocRef = doc(db, 'counters', prefix);
+    try {
+        const snap = await getDoc(counterDocRef);
+        let next = 1;
+        if (snap.exists()) {
+            next = (snap.data().next || 0) + 1;
+        }
+        await setDoc(counterDocRef, { next, updatedAt: new Date().toISOString() });
+        const year = new Date().getFullYear().toString().slice(-2);
+        return `${prefix}${year}-${String(next).padStart(4, '0')}`;
+    } catch (err) {
+        console.error('Error getting next number for', prefix, err);
+        return `${prefix}-${Date.now().toString().slice(-6)}`;
+    }
+}
+
 // Export for use in other modules
 export {
     db,
@@ -130,6 +148,7 @@ export {
     rtdbQuery,
     orderByChild,
     limitToLast,
-    COLLECTIONS
+    COLLECTIONS,
+    getNextNumber
 };
 

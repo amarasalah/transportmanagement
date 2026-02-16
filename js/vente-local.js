@@ -13,6 +13,8 @@ import { CaisseModule } from './caisse-firebase.js';
 let blVenteCache = [];
 let factureVenteCache = [];
 let devisClientCache = [];
+let _blLoaded = false;
+let _factureLoaded = false;
 let currentPage = '';
 
 // ========== INIT ==========
@@ -58,6 +60,7 @@ async function loadBLs() {
     try {
         const snap = await getDocs(collection(db, COLLECTIONS.bonLivraisonsVente));
         blVenteCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _blLoaded = true;
         return blVenteCache;
     } catch (error) {
         console.error('Error loading BL vente:', error);
@@ -66,7 +69,7 @@ async function loadBLs() {
 }
 
 async function getBLs() {
-    if (blVenteCache.length === 0) await loadBLs();
+    if (!_blLoaded) await loadBLs();
     return blVenteCache;
 }
 
@@ -92,6 +95,7 @@ async function loadFactures() {
     try {
         const snap = await getDocs(collection(db, COLLECTIONS.facturesVente));
         factureVenteCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _factureLoaded = true;
         return factureVenteCache;
     } catch (error) {
         console.error('Error loading factures vente:', error);
@@ -100,7 +104,7 @@ async function loadFactures() {
 }
 
 async function getFactures() {
-    if (factureVenteCache.length === 0) await loadFactures();
+    if (!_factureLoaded) await loadFactures();
     return factureVenteCache;
 }
 
@@ -312,6 +316,24 @@ async function saveBLForm() {
 
     try {
         await saveBL(bl);
+
+        // R3/D4: Reduce stock for each delivered article
+        for (const ligne of lignes) {
+            let article = null;
+            if (ligne.articleId) {
+                const { db: fireDb, doc: fireDoc, getDoc: fireGetDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
+                const artSnap = await fireGetDoc(fireDoc(fireDb, COLS.articles, ligne.articleId));
+                if (artSnap.exists()) {
+                    article = { id: artSnap.id, ...artSnap.data() };
+                }
+            }
+            if (article) {
+                const newStock = Math.max(0, (article.stock || 0) - ligne.quantiteLivree);
+                const { db: fireDb, doc: fireDoc, setDoc: fireSetDoc, COLLECTIONS: COLS } = await import('./firebase.js');
+                await fireSetDoc(fireDoc(fireDb, COLS.articles, article.id), { ...article, stock: newStock });
+            }
+        }
+
         App.hideModal();
         await renderBLs();
     } catch (err) {
@@ -571,6 +593,13 @@ async function saveFactureForm() {
         facture.echeances = echeances;
 
         await saveFactureData(facture);
+
+        // R5: Update client solde
+        const clientId = document.getElementById('factureClientClientId').value;
+        if (clientId) {
+            await updateClientSolde(clientId);
+        }
+
         App.hideModal();
         await renderFactures();
     } catch (err) {
@@ -1070,11 +1099,40 @@ async function saveReglementClient() {
 
     try {
         await saveFactureData({ ...facture, echeances, etat });
+
+        // R5: Update client solde
+        if (facture.clientId) {
+            await updateClientSolde(facture.clientId);
+        }
+
         App.hideModal();
         await renderReglementsClients();
     } catch (err) {
         console.error('Erreur sauvegarde règlement client:', err);
         alert('Erreur: ' + err.message);
+    }
+}
+
+// R5: Recalculate client solde from all factures
+async function updateClientSolde(clientId) {
+    try {
+        await loadFactures();
+        const clientFactures = factureVenteCache.filter(f => f.clientId === clientId);
+        let totalDu = 0;
+        let totalPaye = 0;
+        clientFactures.forEach(f => {
+            totalDu += parseFloat(f.montantTotal) || 0;
+            (f.echeances || []).forEach(e => {
+                if (e.statut === 'Payé') totalPaye += (e.montant || 0);
+            });
+        });
+        const solde = totalDu - totalPaye;
+        const client = ClientsModule.getClientById(clientId);
+        if (client) {
+            await setDoc(doc(db, COLLECTIONS.clients, clientId), { ...client, solde: solde, updatedAt: new Date().toISOString() });
+        }
+    } catch (err) {
+        console.error('Error updating client solde:', err);
     }
 }
 
