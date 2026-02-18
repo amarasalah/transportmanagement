@@ -19,10 +19,13 @@ async function refresh() {
 }
 
 function calculateTruckStats(truckId) {
-    // Use proper accessor - getCachedEntries() is a sync function
     const allEntries = DataModule.getCachedEntries();
-    const truckEntries = allEntries.filter(e => e.camionId === truckId);
     const truck = DataModule.getTruckById(truckId);
+    // Match entries by ID directly, or by old-format ID containing matricule
+    const matNorm = truck?.matricule?.replace(/\s+/g, '_') || '';
+    const truckEntries = allEntries.filter(e =>
+        e.camionId === truckId || (matNorm && e.camionId === `truck_${matNorm}`)
+    );
 
     if (truckEntries.length === 0) {
         return {

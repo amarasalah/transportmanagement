@@ -15,9 +15,13 @@ async function refresh() {
 }
 
 function calculateDriverStats(driverId) {
-    // Use proper accessor - getCachedEntries() is a sync function
     const allEntries = DataModule.getCachedEntries();
-    const driverEntries = allEntries.filter(e => e.chauffeurId === driverId);
+    const driver = DataModule.getDriverById(driverId);
+    // Match entries by ID directly, or by old-format ID containing driver name
+    const nomNorm = driver?.nom?.replace(/\s+/g, '_') || '';
+    const driverEntries = allEntries.filter(e =>
+        e.chauffeurId === driverId || (nomNorm && e.chauffeurId === `driver_${nomNorm}`)
+    );
 
     if (driverEntries.length === 0) {
         return {

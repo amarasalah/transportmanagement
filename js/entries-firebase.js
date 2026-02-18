@@ -73,7 +73,9 @@ async function renderEntries(selectedDate) {
 }
 
 function formatDate(dateStr) {
-    const date = new Date(dateStr);
+    // Parse as local date to avoid UTC timezone shift
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
     return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 

@@ -1,14 +1,72 @@
 /**
  * EXCEL IMPORT MODULE - FIREBASE VERSION
- * Parses Excel files and saves data directly to Firebase
+ * Parses Excel files (Tableau_suivi_journalier_camions) and saves to Firebase
+ *
+ * Excel structure per daily sheet (DD-MM-YY):
+ *   Row 0: Title
+ *   Row 2: Date (serial col 2), Prix gasoil (col 5)
+ *   Row 5: Headers (N°, Matricule, Chauffeur, Type, Destination, Km, KmGlobal,
+ *           Gasoil, PrixGasoil, MontantGasoil, ChargesFixes, Assurance, Taxe,
+ *           Maintenance, ChargePersonnel, CoutTotal, PrixLivraison, Resultat, Remarques)
+ *   Rows 6-20: 15 truck entries
+ *   Last row: TOTAL
  */
 
-import { db, collection, doc, setDoc, COLLECTIONS } from './firebase.js';
+import { db, collection, doc, getDocs, setDoc, COLLECTIONS } from './firebase.js';
 import { DataModule } from './data-firebase.js';
 
 let selectedFile = null;
 let parsedData = null;
 
+// ==================== KNOWN TRUCKS & DRIVERS ====================
+// Maps matricule → id (matching DEFAULT_TRUCKS in data-firebase.js)
+const TRUCK_MAP = {
+    '8565 TU 257': { id: 't1', type: 'PLATEAU', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 },
+    '8563 TU 257': { id: 't2', type: 'PLATEAU', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 },
+    '5305 TU 236': { id: 't3', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '924 TU 98':   { id: 't4', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '6980 TU 101': { id: 't5', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '7775 TU 252': { id: 't6', type: 'PLATEAU', chargesFixes: 400, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '4176 TU 250': { id: 't7', type: 'PLATEAU', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 },
+    '3380 TU 104': { id: 't8', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '446 TU 228':  { id: 't9', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '7243 TU 75':  { id: 't10', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '4188 TU 80':  { id: 't11', type: 'PLATEAU', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '2318 TU 155': { id: 't12', type: 'BENNE', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '788 TU 99':   { id: 't13', type: 'BENNE', chargesFixes: 80, montantAssurance: 20, montantTaxe: 20, chargePersonnel: 80 },
+    '8564 TU 257': { id: 't14', type: 'BENNE', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 },
+    '8566 TU 257': { id: 't15', type: 'BENNE', chargesFixes: 400, montantAssurance: 32, montantTaxe: 20, chargePersonnel: 80 }
+};
+
+// Maps driver name (uppercase trimmed) → id
+const DRIVER_MAP = {
+    'CHOKAIRI':       { id: 'd1', camionId: 't1' },
+    'LASSAD CHATAOUI':{ id: 'd2', camionId: 't2' },
+    'HAMZA':          { id: 'd3', camionId: 't3' },
+    'IKRAMI':         { id: 'd4', camionId: 't4' },
+    'ABDELBARI':      { id: 'd5', camionId: 't5' },
+    'JAMIL':          { id: 'd6', camionId: 't6' },
+    'HEDI':           { id: 'd7', camionId: 't7' },
+    'MALEK':          { id: 'd8', camionId: 't8' },
+    'LASSAD AMRI':    { id: 'd9', camionId: 't10' },
+    'SAMI':           { id: 'd10', camionId: 't11' },
+    'KAMEL CH':       { id: 'd11', camionId: 't12' },
+    'KAMEL ZAY':      { id: 'd12', camionId: 't13' },
+    'CHOKRI THAMER':  { id: 'd13', camionId: 't14' },
+    'HSAN REBII':     { id: 'd14', camionId: 't15' }
+};
+
+function resolveTruckId(matricule) {
+    const known = TRUCK_MAP[matricule];
+    return known ? known.id : `truck_${matricule.replace(/\s+/g, '_')}`;
+}
+
+function resolveDriverId(chauffeurName) {
+    const known = DRIVER_MAP[chauffeurName];
+    return known ? known.id : (chauffeurName ? `driver_${chauffeurName.replace(/\s+/g, '_')}` : null);
+}
+
+// ==================== INIT ====================
 function init() {
     setupDropZone();
     setupImportButton();
@@ -65,27 +123,25 @@ function setupImportButton() {
     }
 }
 
+// ==================== FILE PARSING ====================
 async function handleFile(file) {
     selectedFile = file;
     const dropZone = document.getElementById('excelDropZone');
     const importBtn = document.getElementById('importExcelBtn');
 
-    // Update UI
     dropZone.innerHTML = `
         <div style="font-size: 3rem; margin-bottom: 10px;">✅</div>
         <p style="color: #10b981; font-weight: 500;">${file.name}</p>
         <p style="color: #64748b; font-size: 0.875rem;">${(file.size / 1024).toFixed(1)} KB - Prêt à importer</p>
     `;
 
-    // Parse the file
     try {
         parsedData = await parseExcelFile(file);
         console.log('📊 Parsed data:', parsedData);
 
-        // Enable import button
         if (importBtn) {
             importBtn.disabled = false;
-            importBtn.textContent = `📥 Importer ${parsedData.entries?.length || 0} saisies`;
+            importBtn.textContent = `📥 Importer ${parsedData.entries?.length || 0} saisies, ${parsedData.trucks?.length || 0} camions, ${parsedData.drivers?.length || 0} chauffeurs`;
         }
     } catch (error) {
         console.error('Error parsing Excel:', error);
@@ -106,23 +162,16 @@ async function parseExcelFile(file) {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array', cellDates: true });
 
-                const result = {
-                    trucks: [],
-                    drivers: [],
-                    entries: []
-                };
+                const result = { trucks: [], drivers: [], entries: [] };
 
-                // Process each sheet
                 workbook.SheetNames.forEach(sheetName => {
                     const sheet = workbook.Sheets[sheetName];
                     const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-
-                    // Try to parse as entries (main data)
                     const entries = parseEntriesSheet(jsonData, sheetName);
                     result.entries.push(...entries);
                 });
 
-                // Extract unique trucks and drivers from entries
+                // Extract unique trucks and drivers from parsed entries
                 result.trucks = extractTrucks(result.entries);
                 result.drivers = extractDrivers(result.entries);
 
@@ -139,39 +188,37 @@ async function parseExcelFile(file) {
 
 function parseEntriesSheet(data, sheetName) {
     const entries = [];
+    const trimmedName = sheetName.trim();
 
-    // Skip summary sheets
-    if (sheetName.toLowerCase().includes('recap') || sheetName.toLowerCase().includes('récap')) {
-        console.log(`Sheet ${sheetName}: Summary sheet, skipping`);
+    // Skip summary/recap sheets
+    if (trimmedName.toLowerCase().includes('recap') || trimmedName.toLowerCase().includes('récap')) {
+        console.log(`⏭️ Sheet "${sheetName}": Récap sheet, skipping`);
         return entries;
     }
 
-    // Find header row (look for "Matricule camion" or "N°")
+    // Find header row (look for "Matricule" in first 10 rows)
     let headerIndex = -1;
     for (let i = 0; i < Math.min(10, data.length); i++) {
         const row = data[i];
-        if (row && row.some(cell => {
-            const cellStr = String(cell).toLowerCase();
-            return cellStr.includes('matricule') || cellStr.includes('n°') && cellStr.includes('camion');
-        })) {
+        if (row && row.some(cell => String(cell).toLowerCase().includes('matricule'))) {
             headerIndex = i;
             break;
         }
     }
 
     if (headerIndex === -1) {
-        console.log(`Sheet ${sheetName}: No header found, skipping`);
+        console.log(`⏭️ Sheet "${sheetName}": No header found, skipping`);
         return entries;
     }
 
-    // Get date from sheet name (format: DD-MM-YY) or from row 2
+    // Get date from sheet name (format: DD-MM-YY, may have trailing spaces)
     let dateStr = '';
-    const dateMatch = sheetName.match(/(\d{2})-(\d{2})-(\d{2})/);
+    const dateMatch = trimmedName.match(/(\d{2})-(\d{2})-(\d{2})/);
     if (dateMatch) {
         const [, day, month, year] = dateMatch;
         dateStr = `20${year}-${month}-${day}`;
     } else {
-        // Try to get date from row 2 (Excel serial date in column 2)
+        // Fallback: Excel serial date in row 2, column 2
         const dateVal = data[2]?.[2];
         if (typeof dateVal === 'number') {
             const excelEpoch = new Date(1899, 11, 30);
@@ -184,48 +231,45 @@ function parseEntriesSheet(data, sheetName) {
         dateStr = new Date().toISOString().split('T')[0];
     }
 
-    console.log(`Sheet ${sheetName}: Date = ${dateStr}, Header at row ${headerIndex}`);
+    console.log(`📅 Sheet "${trimmedName}": Date=${dateStr}, Header at row ${headerIndex}`);
 
-    // Column indices based on analysis (0-indexed):
-    // 0: N°, 1: Matricule, 2: Chauffeur, 3: Type transport, 4: Destination
-    // 5: KM jour, 6: KM global, 7: Gasoil (L), 8: Prix gasoil/L, 9: Montant gasoil
-    // 10: Charges fixes, 11: Assurance, 12: Taxe, 13: Maintenance, 14: Charge personnel
-    // 15: Coût total, 16: Prix livraison, 17: Résultat, 18: Remarques
+    // Column layout (0-indexed):
+    // 0:N° 1:Matricule 2:Chauffeur 3:Type 4:Destination 5:KmJour 6:KmGlobal
+    // 7:Gasoil(L) 8:PrixGasoil 9:MontantGasoil 10:ChargesFixes 11:Assurance
+    // 12:Taxe 13:Maintenance 14:ChargePersonnel 15:CoutTotal 16:PrixLivraison
+    // 17:Resultat 18:Remarques
 
-    // Parse data rows (skip header and TOTAL rows)
     for (let i = headerIndex + 1; i < data.length; i++) {
         const row = data[i];
         if (!row || row.length < 2) continue;
 
-        // Skip TOTAL row and empty rows
-        const firstCell = String(row[0] || '').toLowerCase();
-        if (firstCell.includes('total')) continue;
+        // Skip TOTAL row
+        if (String(row[0] || '').toLowerCase().includes('total')) continue;
 
-        // Skip if no matricule or row number > 18 (empty template rows)
-        const rowNum = parseInt(row[0]);
         const matricule = String(row[1] || '').trim();
-
-        if (!matricule || rowNum > 18) continue;
+        if (!matricule) continue;
 
         const chauffeur = String(row[2] || '').trim();
         const typeTransport = String(row[3] || '').trim();
         const destination = String(row[4] || '').trim();
 
-        // Generate IDs for truck and driver to link to existing records
-        const camionId = matricule ? `truck_${matricule.replace(/\s+/g, '_')}` : null;
-        const chauffeurId = chauffeur ? `driver_${chauffeur.replace(/\s+/g, '_')}` : null;
+        // Resolve IDs using known truck/driver maps
+        const camionId = resolveTruckId(matricule);
+        const chauffeurId = resolveDriverId(chauffeur);
 
         const entry = {
-            id: `entry_${dateStr}_${matricule}_${i}`.replace(/\s+/g, '_'),
+            id: `entry_${dateStr}_${camionId}`.replace(/\s+/g, '_'),
             date: dateStr,
+            matricule: matricule,
+            chauffeur: chauffeur,
             camionId: camionId,
             chauffeurId: chauffeurId,
             typeTransport: typeTransport,
             destination: destination,
-            origine: 'GABES', // Default origin
+            origine: 'GABES',
             origineGouvernorat: 'Gabès',
-            gouvernorat: destination.split(',')[1]?.trim() || destination,
-            delegation: destination.split(',')[0]?.trim() || '',
+            gouvernorat: destination.split('/')[0]?.trim() || destination,
+            delegation: destination.split('/')[1]?.trim() || '',
             kilometrage: parseFloat(row[5]) || 0,
             kmGlobal: parseFloat(row[6]) || 0,
             quantiteGasoil: parseFloat(row[7]) || 0,
@@ -244,39 +288,32 @@ function parseEntriesSheet(data, sheetName) {
             source: 'excel_import'
         };
 
-        // Calculate if not already calculated
+        // Auto-calculate montantGasoil if missing
         if (!entry.montantGasoil && entry.quantiteGasoil > 0) {
             entry.montantGasoil = entry.quantiteGasoil * entry.prixGasoilLitre;
         }
 
-        // Note: DataModule.calculateEntryCosts will handle full cost calculation
-        // including truck-specific costs when displaying
-
         entries.push(entry);
     }
 
-    console.log(`Sheet ${sheetName}: ${entries.length} entries parsed`);
+    console.log(`✅ Sheet "${trimmedName}": ${entries.length} entries parsed`);
     return entries;
 }
 
-function findColumnIndex(headers, keywords) {
-    for (let i = 0; i < headers.length; i++) {
-        const header = headers[i];
-        if (keywords.some(kw => header.includes(kw))) {
-            return i;
-        }
-    }
-    return -1;
-}
-
+// ==================== EXTRACT TRUCKS & DRIVERS ====================
 function extractTrucks(entries) {
     const trucksMap = new Map();
     entries.forEach(e => {
         if (e.matricule && !trucksMap.has(e.matricule)) {
+            const known = TRUCK_MAP[e.matricule];
             trucksMap.set(e.matricule, {
-                id: `truck_${e.matricule.replace(/\s+/g, '_')}`,
+                id: e.camionId,
                 matricule: e.matricule,
-                marque: 'Import',
+                type: known?.type || e.typeTransport || 'PLATEAU',
+                chargesFixes: known?.chargesFixes || 80,
+                montantAssurance: known?.montantAssurance || 20,
+                montantTaxe: known?.montantTaxe || 20,
+                chargePersonnel: known?.chargePersonnel || 80,
                 createdAt: new Date().toISOString()
             });
         }
@@ -288,9 +325,11 @@ function extractDrivers(entries) {
     const driversMap = new Map();
     entries.forEach(e => {
         if (e.chauffeur && !driversMap.has(e.chauffeur)) {
+            const known = DRIVER_MAP[e.chauffeur];
             driversMap.set(e.chauffeur, {
-                id: `driver_${e.chauffeur.replace(/\s+/g, '_')}`,
+                id: e.chauffeurId,
                 nom: e.chauffeur,
+                camionId: known?.camionId || e.camionId,
                 telephone: '',
                 createdAt: new Date().toISOString()
             });
@@ -299,6 +338,7 @@ function extractDrivers(entries) {
     return Array.from(driversMap.values());
 }
 
+// ==================== IMPORT TO FIREBASE ====================
 async function importToFirebase() {
     if (!parsedData) {
         alert('Aucun fichier à importer');
@@ -314,7 +354,6 @@ async function importToFirebase() {
     importBtn.disabled = true;
 
     try {
-        // Check for existing data first
         progressText.textContent = 'Vérification des doublons...';
         progressBar.style.width = '5%';
 
@@ -322,25 +361,39 @@ async function importToFirebase() {
         const existingTrucks = await DataModule.getTrucks();
         const existingDrivers = await DataModule.getDrivers();
 
-        // Find duplicates
+        // Build lookup sets
         const existingEntryIds = new Set(existingEntries.map(e => e.id));
         const existingTruckIds = new Set(existingTrucks.map(t => t.id));
         const existingDriverIds = new Set(existingDrivers.map(d => d.id));
 
-        // Also check by date+matricule for entries
-        const existingEntryKeys = new Set(existingEntries.map(e => `${e.date}_${e.matricule}`));
+        // Check by date+camionId for entries
+        const existingEntryKeys = new Set(existingEntries.map(e => `${e.date}_${e.camionId}`));
 
-        const duplicateEntries = parsedData.entries.filter(e =>
-            existingEntryIds.has(e.id) || existingEntryKeys.has(`${e.date}_${e.matricule}`)
-        );
+        // Also check by date+matricule (format-independent — catches old & new ID formats)
+        const existingEntryByMatricule = new Set(existingEntries.map(e => {
+            const mat = e.matricule || '';
+            // If no matricule stored, reverse-resolve from camionId
+            if (!mat && e.camionId) {
+                const truck = existingTrucks.find(t => t.id === e.camionId);
+                return `${e.date}_${truck?.matricule || ''}`;
+            }
+            return `${e.date}_${mat}`;
+        }).filter(k => !k.endsWith('_')));
+
+        function isDuplicateEntry(e) {
+            if (existingEntryIds.has(e.id)) return true;
+            if (existingEntryKeys.has(`${e.date}_${e.camionId}`)) return true;
+            if (e.matricule && existingEntryByMatricule.has(`${e.date}_${e.matricule}`)) return true;
+            return false;
+        }
+
+        const duplicateEntries = parsedData.entries.filter(e => isDuplicateEntry(e));
         const duplicateTrucks = parsedData.trucks.filter(t => existingTruckIds.has(t.id));
         const duplicateDrivers = parsedData.drivers.filter(d => existingDriverIds.has(d.id));
 
-        const newEntries = parsedData.entries.filter(e =>
-            !existingEntryIds.has(e.id) && !existingEntryKeys.has(`${e.date}_${e.matricule}`)
-        );
-        const newTrucks = parsedData.trucks.filter(t => !existingTruckIds.has(t.id));
-        const newDrivers = parsedData.drivers.filter(d => !existingDriverIds.has(d.id));
+        let newEntries = parsedData.entries.filter(e => !isDuplicateEntry(e));
+        let newTrucks = parsedData.trucks.filter(t => !existingTruckIds.has(t.id));
+        let newDrivers = parsedData.drivers.filter(d => !existingDriverIds.has(d.id));
 
         progressBar.style.width = '10%';
 
@@ -355,70 +408,66 @@ async function importToFirebase() {
                 `- ${newEntries.length} nouvelles saisies\n` +
                 `- ${newTrucks.length} nouveaux camions\n` +
                 `- ${newDrivers.length} nouveaux chauffeurs\n\n` +
-                `Voulez-vous:\n` +
                 `OK = Importer uniquement les nouvelles données\n` +
                 `Annuler = Ne rien importer`;
 
             if (!confirm(message)) {
-                progressText.innerHTML = `<span style="color: #f59e0b;">⚠️ Import annulé par l'utilisateur</span>`;
+                progressText.innerHTML = `<span style="color: #f59e0b;">⚠️ Import annulé</span>`;
                 importBtn.disabled = false;
                 return;
             }
-
-            // Use only new data
-            parsedData.entries = newEntries;
-            parsedData.trucks = newTrucks;
-            parsedData.drivers = newDrivers;
         }
 
-        // Check if nothing to import
-        if (parsedData.entries.length === 0 && parsedData.trucks.length === 0 && parsedData.drivers.length === 0) {
-            progressText.innerHTML = `<span style="color: #f59e0b;">⚠️ Aucune nouvelle donnée à importer - tout existe déjà!</span>`;
+        // Update parsedData with only new items
+        parsedData.entries = newEntries;
+        parsedData.trucks = newTrucks;
+        parsedData.drivers = newDrivers;
+
+        if (newEntries.length === 0 && newTrucks.length === 0 && newDrivers.length === 0) {
+            progressText.innerHTML = `<span style="color: #f59e0b;">⚠️ Aucune nouvelle donnée — tout existe déjà!</span>`;
             importBtn.disabled = false;
             return;
         }
 
-        const total = (parsedData.trucks?.length || 0) +
-            (parsedData.drivers?.length || 0) +
-            (parsedData.entries?.length || 0);
+        const total = newTrucks.length + newDrivers.length + newEntries.length;
         let current = 0;
 
-        // Import trucks
-        progressText.textContent = 'Importation des camions...';
-        for (const truck of parsedData.trucks || []) {
+        // 1. Import trucks
+        progressText.textContent = `Importation de ${newTrucks.length} camions...`;
+        for (const truck of newTrucks) {
             await setDoc(doc(db, COLLECTIONS.trucks, truck.id), truck);
             current++;
             progressBar.style.width = `${10 + (current / total) * 90}%`;
         }
 
-        // Import drivers
-        progressText.textContent = 'Importation des chauffeurs...';
-        for (const driver of parsedData.drivers || []) {
+        // 2. Import drivers
+        progressText.textContent = `Importation de ${newDrivers.length} chauffeurs...`;
+        for (const driver of newDrivers) {
             await setDoc(doc(db, COLLECTIONS.drivers, driver.id), driver);
             current++;
             progressBar.style.width = `${10 + (current / total) * 90}%`;
         }
 
-        // Import entries
-        progressText.textContent = 'Importation des saisies...';
-        for (const entry of parsedData.entries || []) {
+        // 3. Import entries
+        progressText.textContent = `Importation de ${newEntries.length} saisies...`;
+        for (const entry of newEntries) {
             await setDoc(doc(db, COLLECTIONS.entries, entry.id), entry);
             current++;
             progressBar.style.width = `${10 + (current / total) * 90}%`;
         }
 
         progressBar.style.width = '100%';
-        progressText.innerHTML = `<span style="color: #10b981;">✅ Import terminé! ${parsedData.trucks?.length || 0} camions, ${parsedData.drivers?.length || 0} chauffeurs, ${parsedData.entries?.length || 0} saisies</span>`;
+        progressText.innerHTML = `<span style="color: #10b981;">✅ Import terminé! ${newTrucks.length} camions, ${newDrivers.length} chauffeurs, ${newEntries.length} saisies</span>`;
 
-        // Refresh data
+        // Refresh data caches
         await DataModule.init();
 
-        alert(`Import réussi!\n\n${parsedData.trucks?.length || 0} camions\n${parsedData.drivers?.length || 0} chauffeurs\n${parsedData.entries?.length || 0} saisies`);
+        alert(`✅ Import réussi!\n\n${newTrucks.length} camions\n${newDrivers.length} chauffeurs\n${newEntries.length} saisies`);
 
     } catch (error) {
         console.error('Import error:', error);
         progressText.innerHTML = `<span style="color: #ef4444;">❌ Erreur: ${error.message}</span>`;
-        alert('Erreur lors de l\'import: ' + error.message);
+        alert('Erreur: ' + error.message);
     }
 
     importBtn.disabled = false;

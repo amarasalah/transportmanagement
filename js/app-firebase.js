@@ -814,7 +814,9 @@ function setupDatePicker() {
 function updateDateDisplay() {
     const display = document.getElementById('currentDate');
     if (display) {
-        const date = new Date(selectedDate);
+        // Parse as local date to avoid UTC timezone shift
+        const [y, m, d] = selectedDate.split('-').map(Number);
+        const date = new Date(y, m - 1, d);
         display.textContent = date.toLocaleDateString('fr-FR', {
             weekday: 'long',
             day: 'numeric',

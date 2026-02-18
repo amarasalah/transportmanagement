@@ -169,6 +169,9 @@ async function init() {
         // Preload cache
         await refreshCache();
 
+        // Auto-repair entries with old-format IDs
+        await repairEntryIds();
+
     } catch (error) {
         console.error('❌ Firebase initialization error:', error);
         console.log('⚠️ Falling back to localStorage...');
@@ -227,10 +230,16 @@ async function getTrucks() {
 }
 
 function getTruckById(id) {
-    if (cache.trucks) {
-        return cache.trucks.find(t => t.id === id);
+    if (!cache.trucks) return null;
+    // Direct ID match
+    let truck = cache.trucks.find(t => t.id === id);
+    if (truck) return truck;
+    // Fallback: old import format 'truck_8565_TU_257' → match by matricule
+    if (id && id.startsWith('truck_')) {
+        const mat = id.replace('truck_', '').replace(/_/g, ' ');
+        truck = cache.trucks.find(t => t.matricule === mat);
     }
-    return null;
+    return truck || null;
 }
 
 async function saveTruck(truck) {
@@ -288,10 +297,16 @@ async function getDrivers() {
 }
 
 function getDriverById(id) {
-    if (cache.drivers) {
-        return cache.drivers.find(d => d.id === id);
+    if (!cache.drivers) return null;
+    // Direct ID match
+    let driver = cache.drivers.find(d => d.id === id);
+    if (driver) return driver;
+    // Fallback: old import format 'driver_CHOKAIRI' → match by nom
+    if (id && id.startsWith('driver_')) {
+        const nom = id.replace('driver_', '').replace(/_/g, ' ');
+        driver = cache.drivers.find(d => d.nom === nom);
     }
-    return null;
+    return driver || null;
 }
 
 async function saveDriver(driver) {
@@ -449,18 +464,113 @@ async function saveSettings(settings) {
     }
 }
 
+// ==================== AUTO-REPAIR & DEDUPLICATE ENTRIES ====================
+async function repairEntryIds() {
+    if (!cache.entries || !cache.trucks || !cache.drivers) return;
+    let repaired = 0;
+    let deleted = 0;
+
+    // Phase 1: Fix old-format camionId/chauffeurId
+    for (const entry of cache.entries) {
+        let needsUpdate = false;
+        const updated = { ...entry };
+
+        // Fix camionId: truck_8565_TU_257 → t1
+        if (entry.camionId && entry.camionId.startsWith('truck_')) {
+            const mat = entry.camionId.replace('truck_', '').replace(/_/g, ' ');
+            const truck = cache.trucks.find(t => t.matricule === mat);
+            if (truck && truck.id !== entry.camionId) {
+                updated.camionId = truck.id;
+                updated.matricule = updated.matricule || mat;
+                needsUpdate = true;
+            }
+        }
+
+        // Fix chauffeurId: driver_CHOKAIRI → d1
+        if (entry.chauffeurId && entry.chauffeurId.startsWith('driver_')) {
+            const nom = entry.chauffeurId.replace('driver_', '').replace(/_/g, ' ');
+            const driver = cache.drivers.find(d => d.nom === nom);
+            if (driver && driver.id !== entry.chauffeurId) {
+                updated.chauffeurId = driver.id;
+                updated.chauffeur = updated.chauffeur || nom;
+                needsUpdate = true;
+            }
+        }
+
+        // Ensure matricule/chauffeur fields are populated
+        if (!updated.matricule && updated.camionId) {
+            const truck = cache.trucks.find(t => t.id === updated.camionId);
+            if (truck) { updated.matricule = truck.matricule; needsUpdate = true; }
+        }
+        if (!updated.chauffeur && updated.chauffeurId) {
+            const driver = cache.drivers.find(d => d.id === updated.chauffeurId);
+            if (driver) { updated.chauffeur = driver.nom; needsUpdate = true; }
+        }
+
+        if (needsUpdate) {
+            try {
+                await setDoc(doc(db, COLLECTIONS.entries, entry.id), updated);
+                Object.assign(entry, updated);
+                repaired++;
+            } catch (err) {
+                console.error('Repair failed for entry', entry.id, err);
+            }
+        }
+    }
+
+    // Phase 2: Deduplicate (remove old-format entries if new-format exists for same date+truck)
+    const seen = new Map(); // key: date_camionId → best entry
+    const toDelete = [];
+
+    for (const entry of cache.entries) {
+        const key = `${entry.date}_${entry.camionId}`;
+        if (seen.has(key)) {
+            // Keep the newer/better entry (prefer entry_date_tX format)
+            const existing = seen.get(key);
+            const existingIsNew = existing.id.match(/^entry_\d{4}-\d{2}-\d{2}_t\d+$/);
+            const currentIsNew = entry.id.match(/^entry_\d{4}-\d{2}-\d{2}_t\d+$/);
+            if (currentIsNew && !existingIsNew) {
+                toDelete.push(existing.id);
+                seen.set(key, entry);
+            } else {
+                toDelete.push(entry.id);
+            }
+        } else {
+            seen.set(key, entry);
+        }
+    }
+
+    for (const id of toDelete) {
+        try {
+            await deleteDoc(doc(db, COLLECTIONS.entries, id));
+            deleted++;
+        } catch (err) {
+            console.error('Dedup delete failed for', id, err);
+        }
+    }
+
+    if (deleted > 0) {
+        cache.entries = cache.entries.filter(e => !toDelete.includes(e.id));
+        console.log(`🧹 Removed ${deleted} duplicate entries`);
+    }
+    if (repaired > 0) {
+        console.log(`🔧 Auto-repaired ${repaired} entries (old-format IDs → standard IDs)`);
+    }
+}
+
 // ==================== CALCULATIONS ====================
 function calculateEntryCosts(entry, truck) {
     if (!truck) truck = getTruckById(entry.camionId);
-    if (!truck) return { montantGasoil: 0, coutTotal: 0, resultat: 0 };
 
-    const montantGasoil = (entry.quantiteGasoil || 0) * (entry.prixGasoilLitre || 2);
-    const coutTotal = montantGasoil +
-        (truck.chargesFixes || 0) +
-        (truck.montantAssurance || 0) +
-        (truck.montantTaxe || 0) +
-        (entry.maintenance || 0) +
-        (truck.chargePersonnel || 0);
+    // Use entry-level values when available (from Excel import), fallback to truck defaults
+    const montantGasoil = entry.montantGasoil || ((entry.quantiteGasoil || 0) * (entry.prixGasoilLitre || 2));
+    const chargesFixes = entry.chargesFixes != null ? entry.chargesFixes : (truck?.chargesFixes || 0);
+    const montantAssurance = entry.montantAssurance != null ? entry.montantAssurance : (truck?.montantAssurance || 0);
+    const montantTaxe = entry.montantTaxe != null ? entry.montantTaxe : (truck?.montantTaxe || 0);
+    const chargePersonnel = entry.chargePersonnel != null ? entry.chargePersonnel : (truck?.chargePersonnel || 0);
+    const maintenance = entry.maintenance || 0;
+
+    const coutTotal = montantGasoil + chargesFixes + montantAssurance + montantTaxe + maintenance + chargePersonnel;
     const resultat = (entry.prixLivraison || 0) - coutTotal;
 
     return { montantGasoil, coutTotal, resultat };

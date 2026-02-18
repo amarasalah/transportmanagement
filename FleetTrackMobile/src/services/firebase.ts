@@ -18,15 +18,14 @@ import {
     orderBy,
     onSnapshot,
 } from 'firebase/firestore';
-
 const firebaseConfig = {
-    apiKey: 'AIzaSyB4SNzrvJfnFlBnByU8cdYXPomxaoBHQB8',
-    authDomain: 'managementsirep.firebaseapp.com',
-    projectId: 'managementsirep',
-    storageBucket: 'managementsirep.firebasestorage.app',
-    messagingSenderId: '141121672067',
-    appId: '1:141121672067:web:39687e8d5020cd07e31cb6',
-    measurementId: 'G-V0B7ZJD2YL',
+  apiKey: "AIzaSyAKcCDbEDa-Pt-tpuM7MkXHiPb-Xarvuns",
+  authDomain: "transportmanagement-9e6eb.firebaseapp.com",
+  projectId: "transportmanagement-9e6eb",
+  storageBucket: "transportmanagement-9e6eb.firebasestorage.app",
+  messagingSenderId: "90479889953",
+  appId: "1:90479889953:web:78f475e7bf658021ccdd60",
+  measurementId: "G-4888WV1R7J"
 };
 
 const app = initializeApp(firebaseConfig);

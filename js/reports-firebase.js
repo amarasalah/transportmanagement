@@ -21,9 +21,13 @@ async function populateMonthSelector() {
     const months = new Set();
 
     entries.forEach(entry => {
-        const date = new Date(entry.date);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        months.add(key);
+        if (!entry.date) return;
+        // Parse as local date to avoid UTC timezone shift
+        const parts = entry.date.split('-');
+        if (parts.length === 3) {
+            const key = `${parts[0]}-${parts[1]}`;
+            months.add(key);
+        }
     });
 
     const sortedMonths = Array.from(months).sort().reverse();
@@ -88,7 +92,7 @@ async function renderMonthlyReport() {
         truckData[truck.id].result += costs.resultat;
     });
 
-    const activeTrucks = Object.values(truckData).filter(t => t.totalKm > 0 || t.totalRevenue > 0);
+    const activeTrucks = Object.values(truckData).filter(t => t.totalKm > 0 || t.totalRevenue > 0 || t.totalCost > 0);
 
     let grandTotalKm = 0, grandTotalGasoil = 0, grandTotalGasoilCost = 0;
     let grandTotalCost = 0, grandTotalRevenue = 0, grandTotalResult = 0;

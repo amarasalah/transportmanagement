@@ -27,16 +27,21 @@ async function openTruckProfile(truckId) {
     currentType = 'truck';
 
     const allEntries = await DataModule.getEntries();
-    const entries = allEntries.filter(e => e.camionId === truckId);
+    // Match entries by truck ID or old-format ID containing matricule
+    const matNorm = truck.matricule?.replace(/\s+/g, '_') || '';
+    const entries = allEntries.filter(e =>
+        e.camionId === truckId || (matNorm && e.camionId === `truck_${matNorm}`)
+    );
 
-    // Set default date range (last 6 months)
+    // Set default date range from actual data
     const today = new Date();
-    const sixMonthsAgo = new Date(today);
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const entryDates = entries.map(e => e.date).filter(Boolean).sort();
+    const earliest = entryDates[0] ? new Date(entryDates[0].replace(/-/g, '/')) : new Date(today);
+    earliest.setDate(1); // Start of month
 
     currentFilters = {
-        startDate: sixMonthsAgo.toISOString().split('T')[0],
-        endDate: today.toISOString().split('T')[0],
+        startDate: toLocalDateStr(earliest),
+        endDate: toLocalDateStr(today),
         destination: 'all'
     };
 
@@ -55,16 +60,21 @@ async function openDriverProfile(driverId) {
     driver.truck = truck;
 
     const allEntries = await DataModule.getEntries();
-    const entries = allEntries.filter(e => e.chauffeurId === driverId);
+    // Match entries by driver ID or old-format ID containing name
+    const nomNorm = driver.nom?.replace(/\s+/g, '_') || '';
+    const entries = allEntries.filter(e =>
+        e.chauffeurId === driverId || (nomNorm && e.chauffeurId === `driver_${nomNorm}`)
+    );
 
-    // Set default date range
+    // Set default date range from actual data
     const today = new Date();
-    const sixMonthsAgo = new Date(today);
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const entryDates = entries.map(e => e.date).filter(Boolean).sort();
+    const earliest = entryDates[0] ? new Date(entryDates[0].replace(/-/g, '/')) : new Date(today);
+    earliest.setDate(1);
 
     currentFilters = {
-        startDate: sixMonthsAgo.toISOString().split('T')[0],
-        endDate: today.toISOString().split('T')[0],
+        startDate: toLocalDateStr(earliest),
+        endDate: toLocalDateStr(today),
         destination: 'all'
     };
 
@@ -102,6 +112,7 @@ function calculateDetailedStats(entries, truck) {
     }
 
     let totalKm = 0, totalGasoil = 0, totalCout = 0, totalRevenue = 0, totalMaintenance = 0;
+    let totalGasoilCost = 0, totalChargesFixes = 0, totalAssurance = 0, totalTaxe = 0, totalPersonnel = 0;
     const monthlyMap = {}, weeklyMap = {}, dailyMap = {}, routesMap = {};
     const dates = new Set();
 
@@ -110,6 +121,14 @@ function calculateDetailedStats(entries, truck) {
         totalGasoil += entry.quantiteGasoil || 0;
         totalRevenue += entry.prixLivraison || 0;
         totalMaintenance += entry.maintenance || 0;
+
+        // Accumulate cost breakdown
+        const entryGasoilCost = entry.montantGasoil || ((entry.quantiteGasoil || 0) * (entry.prixGasoilLitre || 2));
+        totalGasoilCost += entryGasoilCost;
+        totalChargesFixes += entry.chargesFixes != null ? entry.chargesFixes : (truck?.chargesFixes || 0);
+        totalAssurance += entry.montantAssurance != null ? entry.montantAssurance : (truck?.montantAssurance || 0);
+        totalTaxe += entry.montantTaxe != null ? entry.montantTaxe : (truck?.montantTaxe || 0);
+        totalPersonnel += entry.chargePersonnel != null ? entry.chargePersonnel : (truck?.chargePersonnel || 0);
 
         const costs = DataModule.calculateEntryCosts(entry, truck);
         totalCout += costs.coutTotal;
@@ -126,8 +145,8 @@ function calculateDetailedStats(entries, truck) {
         monthlyMap[monthKey].count++;
 
         // Weekly aggregation
-        const weekNum = getWeekNumber(new Date(entry.date));
-        const weekKey = `${entry.date?.substring(0, 4)}-W${weekNum}`;
+        const weekNum = getWeekNumber(entry.date);
+        const weekKey = `${entry.date?.substring(0, 4)}-W${String(weekNum).padStart(2, '0')}`;
         if (!weeklyMap[weekKey]) weeklyMap[weekKey] = { km: 0, gasoil: 0, cout: 0, revenue: 0, count: 0 };
         weeklyMap[weekKey].km += entry.kilometrage || 0;
         weeklyMap[weekKey].revenue += entry.prixLivraison || 0;
@@ -178,6 +197,7 @@ function calculateDetailedStats(entries, truck) {
 
     return {
         totalKm, totalGasoil, totalCout, totalRevenue, resultat, coutParKm, consommation,
+        totalGasoilCost, totalChargesFixes, totalAssurance, totalTaxe, totalPersonnel,
         nbTrajets: entries.length, performance, totalMaintenance,
         avgKmPerTrip: entries.length > 0 ? totalKm / entries.length : 0,
         avgCostPerTrip: entries.length > 0 ? totalCout / entries.length : 0,
@@ -188,11 +208,13 @@ function calculateDetailedStats(entries, truck) {
     };
 }
 
-function getWeekNumber(date) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+function getWeekNumber(dateStr) {
+    // Parse as local date to avoid timezone issues
+    const parts = dateStr.split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    const dayNum = d.getDay() || 7;
+    d.setDate(d.getDate() + 4 - dayNum);
+    const yearStart = new Date(d.getFullYear(), 0, 1);
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
@@ -437,24 +459,22 @@ async function applyFilters() {
     currentFilters.destination = document.getElementById('filterDestination').value;
 
     if (currentType === 'truck') {
-        const allEntries = (await DataModule.getEntries()).filter(e => e.camionId === currentEntity.id);
+        const matNorm = currentEntity.matricule?.replace(/\s+/g, '_') || '';
+        const allEntries = (await DataModule.getEntries()).filter(e =>
+            e.camionId === currentEntity.id || (matNorm && e.camionId === `truck_${matNorm}`)
+        );
         showProfileModal('truck', currentEntity, allEntries);
     } else {
-        const allEntries = (await DataModule.getEntries()).filter(e => e.chauffeurId === currentEntity.id);
+        const nomNorm = currentEntity.nom?.replace(/\s+/g, '_') || '';
+        const allEntries = (await DataModule.getEntries()).filter(e =>
+            e.chauffeurId === currentEntity.id || (nomNorm && e.chauffeurId === `driver_${nomNorm}`)
+        );
         showProfileModal('driver', currentEntity, allEntries);
     }
 }
 
 async function resetFilters() {
-    const today = new Date();
-    const sixMonthsAgo = new Date(today);
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-    currentFilters = {
-        startDate: sixMonthsAgo.toISOString().split('T')[0],
-        endDate: today.toISOString().split('T')[0],
-        destination: 'all'
-    };
+    currentFilters = { startDate: null, endDate: null, destination: 'all' };
 
     if (currentType === 'truck') {
         await openTruckProfile(currentEntity.id);
@@ -541,17 +561,21 @@ function renderCostsChart(stats) {
     const ctx = document.getElementById('profileCostsChart')?.getContext('2d');
     if (!ctx) return;
 
-    const gasoilCost = stats.totalGasoil * 2;
-    const maintenance = stats.totalMaintenance;
-    const fixedCosts = Math.max(0, stats.totalCout - gasoilCost - maintenance);
+    // Use actual breakdown from stats
+    const gasoilCost = stats.totalGasoilCost || 0;
+    const fixedCosts = stats.totalChargesFixes || 0;
+    const assurance = stats.totalAssurance || 0;
+    const taxe = stats.totalTaxe || 0;
+    const personnel = stats.totalPersonnel || 0;
+    const maintenance = stats.totalMaintenance || 0;
 
     profileCharts.costs = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Gasoil', 'Charges Fixes', 'Maintenance'],
+            labels: ['Gasoil', 'Ch. Fixes', 'Assurance', 'Taxe', 'Personnel', 'Maintenance'],
             datasets: [{
-                data: [gasoilCost, fixedCosts, maintenance],
-                backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6'],
+                data: [gasoilCost, fixedCosts, assurance, taxe, personnel, maintenance],
+                backgroundColor: ['#ef4444', '#f59e0b', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6'],
                 borderWidth: 0
             }]
         },
@@ -594,9 +618,19 @@ function renderRoutesChart(stats) {
 }
 
 // ==================== UTILITIES ====================
+function toLocalDateStr(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
 function formatDate(dateStr) {
     if (!dateStr || dateStr === '-') return '-';
-    return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    // Parse as local date to avoid timezone shift
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function formatMonth(monthStr) {

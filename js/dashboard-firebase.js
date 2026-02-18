@@ -177,6 +177,13 @@ function initCharts() {
     }
 }
 
+function toLocalDateStr(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
 async function updateTrendChart(selectedDate) {
     if (!trendChart) return;
 
@@ -184,16 +191,18 @@ async function updateTrendChart(selectedDate) {
     // Chauffeur data scope
     const cu = window.currentUser;
     const entries = cu?.driverId ? allEntries.filter(e => e.chauffeurId === cu.driverId) : allEntries;
-    const date = new Date(selectedDate);
+    // Parse selectedDate as local (avoid UTC shift)
+    const [sy, sm, sd] = selectedDate.split('-').map(Number);
+    const baseDate = new Date(sy, sm - 1, sd);
     const dates = [];
     const results = [];
 
     // Last 30 days
     for (let i = 29; i >= 0; i--) {
-        const d = new Date(date);
+        const d = new Date(baseDate);
         d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-        dates.push(d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+        const dateStr = toLocalDateStr(d);
+        dates.push(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`);
 
         const dayEntries = entries.filter(e => e.date === dateStr);
         let dayResult = 0;
@@ -222,13 +231,12 @@ async function updateCostsChart(selectedDate) {
 
     entries.forEach(entry => {
         const truck = DataModule.getTruckById(entry.camionId);
-        if (!truck) return;
-
-        gasoil += (entry.quantiteGasoil || 0) * (entry.prixGasoilLitre || 2);
-        chargesFixes += truck.chargesFixes || 0;
-        assurance += truck.montantAssurance || 0;
-        taxe += truck.montantTaxe || 0;
-        personnel += truck.chargePersonnel || 0;
+        // Use entry-level values when available, fallback to truck defaults
+        gasoil += entry.montantGasoil || ((entry.quantiteGasoil || 0) * (entry.prixGasoilLitre || 2));
+        chargesFixes += entry.chargesFixes != null ? entry.chargesFixes : (truck?.chargesFixes || 0);
+        assurance += entry.montantAssurance != null ? entry.montantAssurance : (truck?.montantAssurance || 0);
+        taxe += entry.montantTaxe != null ? entry.montantTaxe : (truck?.montantTaxe || 0);
+        personnel += entry.chargePersonnel != null ? entry.chargePersonnel : (truck?.chargePersonnel || 0);
         maintenance += entry.maintenance || 0;
     });
 

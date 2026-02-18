@@ -97,7 +97,8 @@ async function renderOrders() {
 
 function formatDate(dateStr) {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('fr-FR');
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('fr-FR');
 }
 
 async function openModal(orderId = null) {
