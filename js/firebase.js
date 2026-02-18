@@ -84,12 +84,12 @@ const COLLECTIONS = {
     facturesAchat: 'factures_achat',
     reglementsFournisseurs: 'reglements_fournisseurs',
     bonsSortie: 'bons_sortie_achat',
+    bonsRetour: 'bons_retour_achat',
 
     // Vente Client (Sales)
     offresPrix: 'offres_prix',
     bonCommandesVente: 'bon_commandes_vente',
     bonLivraisonsVente: 'bon_livraisons_vente',
-    bonsRetour: 'bons_retour',
     devisClients: 'devis_clients',
     facturesVente: 'factures_vente',
 

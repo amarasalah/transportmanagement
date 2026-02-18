@@ -621,6 +621,8 @@ async function navigateTo(page) {
         'offres-prix': 'Demandes d\'Achat',
         'bon-commandes': 'Bon Commandes Achat',
         'bon-livraisons': 'Bon Livraisons Achat',
+        'bon-sorties': 'Bons de Sortie',
+        'retours-fournisseurs': 'Bons de Retour Fournisseur',
         factures: 'Factures Fournisseurs',
         reglements: 'Règlements Fournisseurs',
         // ERP Vente Client
@@ -628,7 +630,6 @@ async function navigateTo(page) {
         'devis-clients': 'Devis / Offres Clients',
         'commandes-clients': 'Bon Commandes Vente',
         'livraisons-clients': 'Bon Livraisons Vente',
-        'retours-clients': 'Bon de Retour',
         'factures-clients': 'Factures Clients',
         'reglements-clients': 'Règlements Clients',
         // Articles
@@ -673,6 +674,7 @@ async function refreshCurrentPage() {
             case 'bon-commandes':
             case 'bon-livraisons':
             case 'bon-sorties':
+            case 'retours-fournisseurs':
             case 'factures':
             case 'reglements':
                 AchatModule.showPage(currentPage);
@@ -697,10 +699,6 @@ async function refreshCurrentPage() {
             case 'devis-clients':
             case 'reglements-clients':
                 VenteModule.showPage(currentPage);
-                break;
-            case 'retours-clients':
-                // Module en développement
-                console.log(`Page ${currentPage} - module en développement`);
                 break;
             case 'admin':
                 loadAdminData();

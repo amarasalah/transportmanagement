@@ -108,7 +108,7 @@ async function openModal(orderId = null) {
 
     const suppliers = await SuppliersModule.getSuppliers();
     const trucks = await DataModule.getTrucks();
-    const articles = await ArticlesModule.getArticles();
+    const articles = ArticlesModule.getArticlesByType('achat');
 
     const supplierOptions = suppliers.map(s =>
         `<option value="${s.id}" ${order?.fournisseurId === s.id ? 'selected' : ''}>${s.nom}</option>`

@@ -375,9 +375,49 @@ async function deleteSortie(id) {
     await loadSorties();
 }
 
+// ========== BONS DE RETOUR FOURNISSEUR ==========
+let retoursCache = [];
+let _retoursLoaded = false;
+
+async function loadRetours() {
+    try {
+        const snap = await getDocs(collection(db, COLLECTIONS.bonsRetour));
+        retoursCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        retoursCache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        _retoursLoaded = true;
+        return retoursCache;
+    } catch (error) {
+        console.error('Error loading retours:', error);
+        return [];
+    }
+}
+
+async function getRetours() {
+    if (!_retoursLoaded) await loadRetours();
+    return retoursCache;
+}
+
+function getRetourById(id) {
+    return retoursCache.find(r => r.id === id);
+}
+
+async function saveRetour(retour) {
+    const id = retour.id || `br_${Date.now()}`;
+    retour.id = id;
+    retour.updatedAt = new Date().toISOString();
+    await setDoc(doc(db, COLLECTIONS.bonsRetour, id), retour);
+    await loadRetours();
+    return retour;
+}
+
+async function deleteRetour(id) {
+    await deleteDoc(doc(db, COLLECTIONS.bonsRetour, id));
+    await loadRetours();
+}
+
 // ========== RELOAD ALL ==========
 async function reloadAll() {
-    await Promise.all([loadSuppliers(), loadDemandes(), loadCommandes(), loadLivraisons(), loadFactures(), loadSorties()]);
+    await Promise.all([loadSuppliers(), loadDemandes(), loadCommandes(), loadLivraisons(), loadFactures(), loadSorties(), loadRetours()]);
 }
 
 export const SuppliersModule = {
@@ -393,6 +433,8 @@ export const SuppliersModule = {
     // Factures
     loadFactures, getFactures, getFactureById, saveFacture, deleteFacture,
     // Bons de Sortie
-    loadSorties, getSorties, getSortieById, saveSortie, deleteSortie
+    loadSorties, getSorties, getSortieById, saveSortie, deleteSortie,
+    // Bons de Retour
+    loadRetours, getRetours, getRetourById, saveRetour, deleteRetour
 };
 window.SuppliersModule = SuppliersModule;

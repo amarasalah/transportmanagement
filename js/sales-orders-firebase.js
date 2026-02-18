@@ -1,16 +1,17 @@
 /**
  * SALES ORDERS MODULE - FIREBASE VERSION
  * Bon Commandes Vente (Clients)
+ * Flow: Devis Client → BC Client → BL Client → Facture Client
+ * Mirrors Achat BC pattern: BC pulls articles from Devis source
  */
 
-import { db, collection, doc, getDocs, setDoc, deleteDoc, query, orderBy, COLLECTIONS } from './firebase.js';
+import { db, collection, doc, getDocs, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
 import { ClientsModule } from './clients-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
 
 let cache = [];
 let _loaded = false;
-let _orderArticles = [];
-let _orderLines = [];
+let _devisCache = [];
 
 async function init() {
     document.getElementById('addSalesOrderBtn')?.addEventListener('click', () => openModal());
@@ -19,17 +20,26 @@ async function init() {
 
 async function loadOrders() {
     try {
-        const q = query(collection(db, COLLECTIONS.bonCommandesVente), orderBy('date', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocs(collection(db, COLLECTIONS.bonCommandesVente));
         cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        cache.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         _loaded = true;
         return cache;
     } catch (error) {
         console.error('Error loading sales orders:', error);
-        const snap = await getDocs(collection(db, COLLECTIONS.bonCommandesVente));
-        cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        _loaded = true;
-        return cache;
+        return [];
+    }
+}
+
+async function loadDevis() {
+    try {
+        const snap = await getDocs(collection(db, COLLECTIONS.devisClients));
+        _devisCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        return _devisCache;
+    } catch (err) {
+        console.error('Error loading devis:', err);
+        _devisCache = [];
+        return [];
     }
 }
 
@@ -47,270 +57,201 @@ async function refresh() {
     await renderOrders();
 }
 
-function generateNumero() {
-    const year = new Date().getFullYear().toString().slice(-2);
-    const count = cache.filter(o => o.numero?.startsWith(`BCV${year}`)).length + 1;
-    return `BCV${year}${String(count).padStart(6, '0')}`;
-}
-
+// ==================== TABLE RENDER ====================
 async function renderOrders() {
     const orders = await getOrders();
     const tbody = document.getElementById('salesOrdersTable');
     if (!tbody) return;
 
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Aucun bon de commande vente</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#64748b;padding:30px">Aucun bon de commande vente</td></tr>';
         return;
     }
 
-    const clients = await ClientsModule.getClients();
-
     tbody.innerHTML = orders.map(o => {
-        const client = clients.find(c => c.id === o.clientId);
-        const statusClass = o.statut === 'Validé' ? 'status-success' :
-            o.statut === 'En cours' ? 'status-warning' : 'status-default';
+        const client = ClientsModule.getClientById(o.clientId);
+        const total = (o.lignes || []).reduce((sum, l) => sum + (l.prixTotal || 0), 0);
         return `
             <tr>
-                <td><strong>${o.numero}</strong></td>
-                <td>${formatDate(o.date)}</td>
+                <td><strong>${o.numero || o.id}</strong></td>
+                <td>${o.date || '-'}</td>
+                <td>${o.devisNumero || '-'}</td>
                 <td>${client?.nom || '-'}</td>
-                <td>${o.lignes?.length || 0}</td>
-                <td><strong>${(o.totalHT || 0).toLocaleString('fr-FR')} TND</strong></td>
-                <td>${(o.totalTVA || 0).toLocaleString('fr-FR')} TND</td>
-                <td><strong>${(o.totalTTC || 0).toLocaleString('fr-FR')} TND</strong></td>
-                <td><span class="status-badge ${statusClass}">${o.statut || 'Brouillon'}</span></td>
+                <td>${(o.lignes || []).length} article(s)</td>
+                <td><strong>${(o.montantTotal || total).toFixed(3)} TND</strong></td>
+                <td><span class="status-badge status-${(o.statut || '').toLowerCase().replace(/\s/g, '-').replace(/é/g, 'e')}">${o.statut || 'En cours'}</span></td>
                 <td>
-                    <button class="btn btn-sm btn-primary" onclick="SalesOrdersModule.edit('${o.id}')" title="Modifier">✏️</button>
-                    <button class="btn btn-sm btn-info" onclick="SalesOrdersModule.view('${o.id}')" title="Voir">👁️</button>
-                    <button class="btn btn-sm btn-success" onclick="SalesOrdersModule.transformToBL('${o.id}')" title="Transformer en BL">📦</button>
-                    <button class="btn btn-sm btn-danger" onclick="SalesOrdersModule.remove('${o.id}')" title="Supprimer">🗑️</button>
+                    <button class="btn-icon" onclick="SalesOrdersModule.edit('${o.id}')" title="Modifier">✏️</button>
+                    <button class="btn-icon" onclick="SalesOrdersModule.transformToBL('${o.id}')" title="Transformer en BL">📦</button>
+                    <button class="btn-icon" onclick="SalesOrdersModule.remove('${o.id}')" title="Supprimer">🗑️</button>
                 </td>
             </tr>
         `;
     }).join('');
 }
 
-function formatDate(dateStr) {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('fr-FR');
-}
-
+// ==================== BC CLIENT MODAL (mirrors Achat BC) ====================
 async function openModal(orderId = null) {
     const order = orderId ? getOrderById(orderId) : null;
-    const title = order ? 'Modifier Bon Commande Vente' : 'Nouveau Bon Commande Vente';
-    const numero = order?.numero || generateNumero();
-    const today = new Date().toISOString().split('T')[0];
+    await loadDevis();
+    const validDevis = _devisCache.filter(d => d.statut === 'Accepté' || d.id === order?.devisId);
 
-    const clients = await ClientsModule.getClients();
-    const articles = await ArticlesModule.getArticles();
+    const devisOpts = validDevis.map(d => {
+        const c = ClientsModule.getClientById(d.clientId);
+        return `<option value="${d.id}" ${order?.devisId === d.id ? 'selected' : ''}>${d.numero || d.id} - ${c?.nom || ''} (${(d.montantTotal || 0).toFixed(3)} TND)</option>`;
+    }).join('');
 
-    const clientOptions = clients.map(c =>
-        `<option value="${c.id}" ${order?.clientId === c.id ? 'selected' : ''}>${c.nom}</option>`
-    ).join('');
+    const lignes = order?.lignes || [];
 
-    document.getElementById('modalTitle').textContent = title;
-    document.getElementById('modal').classList.add('modal-large');
+    document.getElementById('modalTitle').textContent = order ? 'Modifier BC Client' : 'Nouveau BC Client';
     document.getElementById('modalBody').innerHTML = `
-        <form id="salesOrderForm">
-            <input type="hidden" id="orderId" value="${order?.id || ''}">
-            
+        <form id="bcClientForm">
+            <input type="hidden" id="bcClientId" value="${order?.id || ''}">
             <div class="form-row">
                 <div class="form-group">
-                    <label>N° BC Vente</label>
-                    <input type="text" id="orderNumero" value="${numero}" readonly>
-                </div>
-                <div class="form-group">
-                    <label>Date *</label>
-                    <input type="date" id="orderDate" value="${order?.date || today}" required>
-                </div>
-                <div class="form-group">
-                    <label>Client *</label>
-                    <select id="orderClient" required>
-                        <option value="">-- Sélectionner --</option>
-                        ${clientOptions}
+                    <label>Devis source</label>
+                    <select id="bcClientDevisId" onchange="SalesOrdersModule.onDevisChange()" ${order ? 'disabled' : ''} required>
+                        <option value="">-- Sélectionner un Devis --</option>
+                        ${devisOpts}
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Statut</label>
-                    <select id="orderStatut">
-                        <option value="Brouillon" ${order?.statut === 'Brouillon' ? 'selected' : ''}>Brouillon</option>
-                        <option value="En cours" ${order?.statut === 'En cours' ? 'selected' : ''}>En cours</option>
-                        <option value="Validé" ${order?.statut === 'Validé' ? 'selected' : ''}>Validé</option>
-                    </select>
+                    <label>Date BC</label>
+                    <input type="date" id="bcClientDate" value="${order?.date || new Date().toISOString().split('T')[0]}" required>
                 </div>
             </div>
-
-            <div style="background: rgba(16, 185, 129, 0.1); border-radius: 8px; padding: 16px; margin: 16px 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <h4 style="color: #10b981; margin: 0;">🛒 Lignes de Vente</h4>
-                    <button type="button" class="btn btn-sm btn-success" onclick="SalesOrdersModule.addLine()">+ Ajouter Ligne</button>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Client</label>
+                    <input type="text" id="bcClientNom" value="${order?.clientId ? ClientsModule.getClientById(order.clientId)?.nom || '' : ''}" readonly style="background:rgba(15,23,42,0.2)">
+                    <input type="hidden" id="bcClientClientId" value="${order?.clientId || ''}">
                 </div>
-                <div id="orderLinesContainer">
-                    <table class="data-table" style="font-size: 0.85rem;">
-                        <thead>
-                            <tr>
-                                <th>Article</th>
-                                <th>Désignation</th>
-                                <th>Qté</th>
-                                <th>Prix Vente</th>
-                                <th>TVA %</th>
-                                <th>Total HT</th>
-                                <th></th>
+            </div>
+            <div style="margin-top:16px">
+                <label style="font-weight:600;margin-bottom:8px;display:block">📦 Articles (prix modifiables)</label>
+                <table style="width:100%;border-collapse:collapse;font-size:13px">
+                    <thead>
+                        <tr style="background:rgba(148,163,184,0.1)">
+                            <th style="padding:8px;text-align:left">Désignation</th>
+                            <th style="padding:8px;text-align:right;width:120px">Prix Unit.</th>
+                            <th style="padding:8px;text-align:right;width:80px">Qté</th>
+                            <th style="padding:8px;text-align:right;width:120px">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bcClientLignesBody">
+                        ${lignes.map((l, i) => `
+                            <tr data-article-id="${l.articleId || ''}">
+                                <td style="padding:6px;color:#f1f5f9">${l.designation || l.nom || ''}</td>
+                                <td style="padding:4px"><input type="number" class="bcv-pu" value="${l.prixUnitaire || 0}" step="0.001" onchange="SalesOrdersModule.recalcBCLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+                                <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantite || 0}</td>
+                                <td style="padding:6px;text-align:right;font-weight:600;color:#10b981" class="bcv-total">${((l.prixUnitaire || 0) * (l.quantite || 0)).toFixed(3)}</td>
                             </tr>
-                        </thead>
-                        <tbody id="orderLinesBody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div style="background: rgba(16, 185, 129, 0.1); border-radius: 8px; padding: 16px;">
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: center;">
-                    <div>
-                        <span style="color: #94a3b8; font-size: 0.75rem;">Total HT</span>
-                        <div id="orderTotalHT" style="font-size: 1.25rem; font-weight: bold;">0.000 TND</div>
-                    </div>
-                    <div>
-                        <span style="color: #94a3b8; font-size: 0.75rem;">Total TVA</span>
-                        <div id="orderTotalTVA" style="font-size: 1.25rem; font-weight: bold;">0.000 TND</div>
-                    </div>
-                    <div>
-                        <span style="color: #94a3b8; font-size: 0.75rem;">Total TTC</span>
-                        <div id="orderTotalTTC" style="font-size: 1.5rem; font-weight: bold; color: #10b981;">0.000 TND</div>
-                    </div>
-                </div>
+                        `).join('')}
+                    </tbody>
+                    <tfoot>
+                        <tr style="border-top:2px solid rgba(148,163,184,0.2)">
+                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">Total:</td>
+                            <td style="padding:8px;text-align:right;font-weight:700;font-size:15px;color:#10b981" id="bcClientTotalGeneral">${lignes.reduce((s, l) => s + ((l.prixUnitaire || 0) * (l.quantite || 0)), 0).toFixed(3)} TND</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:13px">Sélectionnez un Devis pour charger les articles</div>' : ''}
             </div>
         </form>
     `;
-
-    _orderArticles = articles;
-    _orderLines = order?.lignes || [];
-
-    renderLines();
     document.getElementById('modalSave').onclick = saveOrder;
     App.showModal();
 }
 
-function addLine() {
-    _orderLines.push({
-        articleId: '',
-        designation: '',
-        quantite: 1,
-        prixUnitaire: 0,
-        tva: 19,
-        totalHT: 0
-    });
-    renderLines();
-}
+function onDevisChange() {
+    const devisId = document.getElementById('bcClientDevisId')?.value;
+    if (!devisId) return;
+    const devis = _devisCache.find(d => d.id === devisId);
+    if (!devis) return;
 
-function removeLine(index) {
-    _orderLines.splice(index, 1);
-    renderLines();
-}
+    // Fill client
+    const client = ClientsModule.getClientById(devis.clientId);
+    document.getElementById('bcClientNom').value = client?.nom || '';
+    document.getElementById('bcClientClientId').value = devis.clientId || '';
 
-function renderLines() {
-    const tbody = document.getElementById('orderLinesBody');
-    if (!tbody) return;
-
-    const articles = _orderArticles || [];
-    const lines = _orderLines || [];
-
-    if (lines.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;">Aucune ligne</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = lines.map((line, i) => `
-        <tr>
-            <td>
-                <select onchange="SalesOrdersModule.onArticleChange(${i}, this.value)" style="width: 100px;">
-                    <option value="">--</option>
-                    ${articles.map(a => `<option value="${a.id}" ${line.articleId === a.id ? 'selected' : ''}>${a.reference}</option>`).join('')}
-                </select>
-            </td>
-            <td><input type="text" value="${line.designation || ''}" onchange="SalesOrdersModule.updateLine(${i}, 'designation', this.value)" style="width: 150px;"></td>
-            <td><input type="number" value="${line.quantite || 1}" min="1" onchange="SalesOrdersModule.updateLine(${i}, 'quantite', this.value)" style="width: 60px;"></td>
-            <td><input type="number" value="${line.prixUnitaire || 0}" step="0.001" onchange="SalesOrdersModule.updateLine(${i}, 'prixUnitaire', this.value)" style="width: 80px;"></td>
-            <td><input type="number" value="${line.tva || 19}" onchange="SalesOrdersModule.updateLine(${i}, 'tva', this.value)" style="width: 50px;"></td>
-            <td style="font-weight: bold;">${(line.totalHT || 0).toFixed(3)}</td>
-            <td><button type="button" class="btn btn-sm btn-danger" onclick="SalesOrdersModule.removeLine(${i})">✕</button></td>
+    // Fill lignes from Devis
+    const lignes = devis.lignes || [];
+    const tbody = document.getElementById('bcClientLignesBody');
+    tbody.innerHTML = lignes.map(l => `
+        <tr data-article-id="${l.articleId || ''}">
+            <td style="padding:6px;color:#f1f5f9">${l.designation || ''}</td>
+            <td style="padding:4px"><input type="number" class="bcv-pu" value="${l.prixUnitaire || 0}" step="0.001" onchange="SalesOrdersModule.recalcBCLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+            <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantite || 0}</td>
+            <td style="padding:6px;text-align:right;font-weight:600;color:#10b981" class="bcv-total">${((l.prixUnitaire || 0) * (l.quantite || 0)).toFixed(3)}</td>
         </tr>
     `).join('');
-
-    updateTotals();
+    recalcBCTotal();
 }
 
-function onArticleChange(index, articleId) {
-    const article = _orderArticles.find(a => a.id === articleId);
-    if (article) {
-        _orderLines[index].articleId = articleId;
-        _orderLines[index].designation = article.designation;
-        _orderLines[index].prixUnitaire = article.prixVente || 0; // Use sale price
-    }
-    renderLines();
+function recalcBCLigne(input) {
+    const row = input.closest('tr');
+    const pu = parseFloat(row.querySelector('.bcv-pu').value) || 0;
+    const qte = parseFloat(row.querySelector('td:nth-child(3)').textContent) || 0;
+    row.querySelector('.bcv-total').textContent = (pu * qte).toFixed(3);
+    recalcBCTotal();
 }
 
-function updateLine(index, field, value) {
-    if (field === 'quantite' || field === 'prixUnitaire' || field === 'tva') {
-        _orderLines[index][field] = parseFloat(value) || 0;
-    } else {
-        _orderLines[index][field] = value;
-    }
-    _orderLines[index].totalHT = _orderLines[index].quantite * _orderLines[index].prixUnitaire;
-    updateTotals();
-}
-
-function updateTotals() {
-    let totalHT = 0;
-    let totalTVA = 0;
-
-    _orderLines.forEach(line => {
-        line.totalHT = (line.quantite || 0) * (line.prixUnitaire || 0);
-        totalHT += line.totalHT;
-        totalTVA += line.totalHT * (line.tva || 0) / 100;
-    });
-
-    const totalTTC = totalHT + totalTVA;
-
-    const htEl = document.getElementById('orderTotalHT');
-    const tvaEl = document.getElementById('orderTotalTVA');
-    const ttcEl = document.getElementById('orderTotalTTC');
-
-    if (htEl) htEl.textContent = `${totalHT.toFixed(3)} TND`;
-    if (tvaEl) tvaEl.textContent = `${totalTVA.toFixed(3)} TND`;
-    if (ttcEl) ttcEl.textContent = `${totalTTC.toFixed(3)} TND`;
+function recalcBCTotal() {
+    const totals = document.querySelectorAll('#bcClientLignesBody .bcv-total');
+    let grand = 0;
+    totals.forEach(t => grand += parseFloat(t.textContent) || 0);
+    const el = document.getElementById('bcClientTotalGeneral');
+    if (el) el.textContent = grand.toFixed(3) + ' TND';
 }
 
 async function saveOrder() {
-    let totalHT = 0, totalTVA = 0;
-    _orderLines.forEach(line => {
-        line.totalHT = line.quantite * line.prixUnitaire;
-        totalHT += line.totalHT;
-        totalTVA += line.totalHT * (line.tva || 0) / 100;
+    const devisId = document.getElementById('bcClientDevisId')?.value;
+    const devis = devisId ? _devisCache.find(d => d.id === devisId) : null;
+
+    // Get lignes from table
+    const rows = document.querySelectorAll('#bcClientLignesBody tr');
+    const lignes = Array.from(rows).map(row => {
+        const designation = row.querySelector('td:first-child').textContent.trim();
+        const articleId = row.dataset.articleId || null;
+        const pu = parseFloat(row.querySelector('.bcv-pu')?.value) || 0;
+        const qte = parseFloat(row.querySelector('td:nth-child(3)').textContent) || 0;
+        return { designation, nom: designation, articleId, prixUnitaire: pu, quantite: qte, prixTotal: pu * qte };
     });
 
+    if (lignes.length === 0) { alert('Aucun article'); return; }
+
     const order = {
-        id: document.getElementById('orderId').value || `bcv_${Date.now()}`,
-        numero: document.getElementById('orderNumero').value,
-        date: document.getElementById('orderDate').value,
-        clientId: document.getElementById('orderClient').value,
-        statut: document.getElementById('orderStatut').value,
-        lignes: _orderLines,
-        totalHT,
-        totalTVA,
-        totalTTC: totalHT + totalTVA,
-        type: 'vente',
-        createdAt: document.getElementById('orderId').value ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        id: document.getElementById('bcClientId').value || null,
+        numero: document.getElementById('bcClientId').value
+            ? getOrderById(document.getElementById('bcClientId').value)?.numero
+            : `BCV-${Date.now().toString().slice(-6)}`,
+        date: document.getElementById('bcClientDate').value,
+        devisId: devisId || null,
+        devisNumero: devis?.numero || '',
+        clientId: document.getElementById('bcClientClientId').value,
+        lignes: lignes,
+        montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
+        statut: 'En cours',
+        type: 'vente'
     };
 
-    if (!order.clientId) {
-        alert('Veuillez sélectionner un client');
-        return;
-    }
+    if (!order.clientId) { alert('Sélectionnez un client'); return; }
 
     try {
-        await setDoc(doc(db, COLLECTIONS.bonCommandesVente, order.id), order);
-        document.getElementById('modal').classList.remove('modal-large');
+        const id = order.id || `bcv_${Date.now()}`;
+        order.id = id;
+        order.updatedAt = new Date().toISOString();
+        if (!document.getElementById('bcClientId').value) order.createdAt = new Date().toISOString();
+        await setDoc(doc(db, COLLECTIONS.bonCommandesVente, id), order);
+
+        // Update Devis status to 'Transformé' + add backlink
+        if (devisId && devis && !document.getElementById('bcClientId').value) {
+            devis.statut = 'Accepté';
+            devis.bcId = order.id;
+            devis.bcNumero = order.numero;
+            await setDoc(doc(db, COLLECTIONS.devisClients, devisId), devis);
+        }
+
         App.hideModal();
         await refresh();
     } catch (error) {
@@ -321,55 +262,11 @@ async function saveOrder() {
 
 function edit(id) { openModal(id); }
 
-async function view(id) {
-    const order = getOrderById(id);
-    if (!order) return;
-
-    const clients = await ClientsModule.getClients();
-    const client = clients.find(c => c.id === order.clientId);
-
-    document.getElementById('modalTitle').textContent = `BC Vente: ${order.numero}`;
-    document.getElementById('modal').classList.add('modal-large');
-    document.getElementById('modalBody').innerHTML = `
-        <div style="padding: 16px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div><strong>Client:</strong> ${client?.nom || '-'}</div>
-                <div><strong>Date:</strong> ${formatDate(order.date)}</div>
-                <div><strong>Statut:</strong> ${order.statut}</div>
-            </div>
-            <table class="data-table">
-                <thead>
-                    <tr><th>Article</th><th>Désignation</th><th>Qté</th><th>Prix</th><th>TVA</th><th>Total</th></tr>
-                </thead>
-                <tbody>
-                    ${order.lignes?.map(l => `
-                        <tr>
-                            <td>${l.articleId || '-'}</td>
-                            <td>${l.designation}</td>
-                            <td>${l.quantite}</td>
-                            <td>${l.prixUnitaire?.toFixed(3)}</td>
-                            <td>${l.tva}%</td>
-                            <td><strong>${l.totalHT?.toFixed(3)}</strong></td>
-                        </tr>
-                    `).join('') || '<tr><td colspan="6">Aucune ligne</td></tr>'}
-                </tbody>
-            </table>
-            <div style="text-align: right; margin-top: 16px; font-size: 1.1rem;">
-                <div>Total HT: <strong>${order.totalHT?.toFixed(3)} TND</strong></div>
-                <div>Total TVA: <strong>${order.totalTVA?.toFixed(3)} TND</strong></div>
-                <div style="font-size: 1.3rem; color: #10b981;">Total TTC: <strong>${order.totalTTC?.toFixed(3)} TND</strong></div>
-            </div>
-        </div>
-    `;
-    document.getElementById('modalSave').style.display = 'none';
-    document.getElementById('modalCancel').textContent = 'Fermer';
-    App.showModal();
-}
-
 async function transformToBL(orderId) {
     const order = getOrderById(orderId);
     if (!order) return;
-    if (!confirm(`Transformer le BC Vente ${order.numero} en Bon de Livraison Client ?`)) return;
+    if (order.statut === 'Livré') { alert('Ce BC est déjà transformé en BL'); return; }
+    if (!confirm(`Transformer le BC ${order.numero} en Bon de Livraison Client ?`)) return;
 
     const lignes = (order.lignes || []).map(l => ({
         nom: l.designation || l.nom || '',
@@ -396,7 +293,24 @@ async function transformToBL(orderId) {
     try {
         await setDoc(doc(db, COLLECTIONS.bonLivraisonsVente, blData.id), blData);
 
-        // Update BC status
+        // Reduce stock for each delivered article
+        for (const ligne of lignes) {
+            let article = null;
+            if (ligne.articleId) {
+                article = ArticlesModule.getArticleById(ligne.articleId);
+            }
+            if (!article && ligne.nom) {
+                const allArticles = await ArticlesModule.getArticles();
+                article = allArticles.find(a => a.designation === ligne.nom);
+            }
+            if (article) {
+                const newStock = Math.max(0, (article.stock || 0) - (ligne.quantiteLivree || 0));
+                await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
+            }
+        }
+        await ArticlesModule.refresh();
+
+        // Update BC status to Livré
         order.statut = 'Livré';
         await setDoc(doc(db, COLLECTIONS.bonCommandesVente, order.id), { ...order, updatedAt: new Date().toISOString() });
 
@@ -420,7 +334,7 @@ async function remove(id) {
 }
 
 export const SalesOrdersModule = {
-    init, refresh, getOrders, getOrderById, edit, view, remove,
-    addLine, removeLine, onArticleChange, updateLine, transformToBL
+    init, refresh, getOrders, getOrderById, edit, remove,
+    onDevisChange, recalcBCLigne, transformToBL
 };
 window.SalesOrdersModule = SalesOrdersModule;

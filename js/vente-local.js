@@ -8,6 +8,7 @@ import { db, collection, doc, getDocs, getDoc, setDoc, deleteDoc, COLLECTIONS } 
 import { ClientsModule } from './clients-firebase.js';
 import { SalesOrdersModule } from './sales-orders-firebase.js';
 import { CaisseModule } from './caisse-firebase.js';
+import { ArticlesModule } from './articles-firebase.js';
 
 // ========== CACHES ==========
 let blVenteCache = [];
@@ -16,6 +17,7 @@ let devisClientCache = [];
 let _blLoaded = false;
 let _factureLoaded = false;
 let currentPage = '';
+let _devisArticles = [];
 
 // ========== INIT ==========
 function init() {
@@ -162,12 +164,12 @@ async function renderBLs() {
 async function openBLModal(blId = null) {
     const bl = blId ? getBLById(blId) : null;
     const orders = await SalesOrdersModule.getOrders();
-    const activeOrders = orders.filter(o => o.statut === 'Confirmé' || o.statut === 'En cours' || o.id === bl?.commandeId);
+    const activeOrders = orders.filter(o => o.statut === 'En cours' || o.statut === 'Validé' || o.statut === 'Confirmé' || o.id === bl?.commandeId);
     const clients = await ClientsModule.getClients();
 
     const cmdOpts = activeOrders.map(o => {
         const c = ClientsModule.getClientById(o.clientId);
-        return `<option value="${o.id}" ${bl?.commandeId === o.id ? 'selected' : ''}>${o.numero || o.id} - ${c?.nom || ''} (${(o.totalTTC || 0).toFixed(3)} TND)</option>`;
+        return `<option value="${o.id}" ${bl?.commandeId === o.id ? 'selected' : ''}>${o.numero || o.id} - ${c?.nom || ''} (${(o.montantTotal || o.totalTTC || 0).toFixed(3)} TND)</option>`;
     }).join('');
 
     const lignes = bl?.lignes || [];
@@ -321,16 +323,18 @@ async function saveBLForm() {
         for (const ligne of lignes) {
             let article = null;
             if (ligne.articleId) {
-                const artSnap = await getDoc(doc(db, COLLECTIONS.articles, ligne.articleId));
-                if (artSnap.exists()) {
-                    article = { id: artSnap.id, ...artSnap.data() };
-                }
+                article = ArticlesModule.getArticleById(ligne.articleId);
+            }
+            if (!article && ligne.nom) {
+                const allArticles = await ArticlesModule.getArticles();
+                article = allArticles.find(a => a.designation === ligne.nom);
             }
             if (article) {
                 const newStock = Math.max(0, (article.stock || 0) - (ligne.quantiteLivree || 0));
                 await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
             }
         }
+        await ArticlesModule.refresh();
 
         App.hideModal();
         await renderBLs();
@@ -740,7 +744,7 @@ async function renderDevisClients() {
 async function openDevisModal(devisId = null) {
     const devis = devisId ? getDevisById(devisId) : null;
     const clients = await ClientsModule.getClients();
-    const articles = (await getDocs(collection(db, COLLECTIONS.articles || 'articles'))).docs.map(d => ({ id: d.id, ...d.data() }));
+    _devisArticles = ArticlesModule.getArticlesByType('vente');
 
     const clientOpts = clients.map(c => `<option value="${c.id}" ${devis?.clientId === c.id ? 'selected' : ''}>${c.nom}</option>`).join('');
     const lignes = devis?.lignes || [{ articleId: '', designation: '', quantite: 1, prixUnitaire: 0 }];
@@ -810,15 +814,32 @@ async function openDevisModal(devisId = null) {
 }
 
 function renderDevisLigneRow(index, l = {}) {
+    const artOpts = _devisArticles.map(a => `<option value="${a.id}" ${l.articleId === a.id ? 'selected' : ''}>${a.designation || a.reference}</option>`).join('');
     return `
         <tr data-dl="${index}">
-            <td style="padding:4px"><input type="text" class="dl-designation" value="${l.designation || ''}" placeholder="Article / Service" style="width:100%;padding:6px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:12px"></td>
+            <td style="padding:4px">
+                <select class="dl-article" onchange="VenteModule.onDevisArticleChange(this)" style="width:100%;padding:6px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:12px">
+                    <option value="">-- Article --</option>
+                    ${artOpts}
+                </select>
+            </td>
             <td style="padding:4px"><input type="number" class="dl-quantite" value="${l.quantite || 1}" min="1" onchange="VenteModule.recalcDevisTotal()" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:12px"></td>
             <td style="padding:4px"><input type="number" class="dl-prix" value="${l.prixUnitaire || 0}" step="0.001" onchange="VenteModule.recalcDevisTotal()" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:12px"></td>
             <td style="padding:4px;text-align:right" class="dl-total">${((l.quantite || 1) * (l.prixUnitaire || 0)).toFixed(3)}</td>
             <td style="padding:4px;text-align:center"><button type="button" onclick="VenteModule.removeDevisLigne(this)" style="background:none;border:none;cursor:pointer;font-size:14px;color:#ef4444">🗑️</button></td>
         </tr>
     `;
+}
+
+function onDevisArticleChange(selectEl) {
+    const articleId = selectEl.value;
+    const article = _devisArticles.find(a => a.id === articleId);
+    const row = selectEl.closest('tr');
+    if (article && row) {
+        const prixInput = row.querySelector('.dl-prix');
+        if (prixInput) prixInput.value = (article.prixVente || article.prix || 0).toFixed(3);
+        recalcDevisTotal();
+    }
 }
 
 function addDevisLigne() {
@@ -848,11 +869,17 @@ async function saveDevis() {
     if (!clientId) { alert('Sélectionnez un client'); return; }
 
     const rows = document.querySelectorAll('#devisLignesBody tr');
-    const lignes = Array.from(rows).map(r => ({
-        designation: r.querySelector('.dl-designation')?.value || '',
-        quantite: parseFloat(r.querySelector('.dl-quantite')?.value) || 0,
-        prixUnitaire: parseFloat(r.querySelector('.dl-prix')?.value) || 0
-    }));
+    const lignes = Array.from(rows).map(r => {
+        const sel = r.querySelector('.dl-article');
+        const articleId = sel?.value || '';
+        const article = _devisArticles.find(a => a.id === articleId);
+        return {
+            articleId: articleId,
+            designation: article ? (article.designation || article.reference) : '',
+            quantite: parseFloat(r.querySelector('.dl-quantite')?.value) || 0,
+            prixUnitaire: parseFloat(r.querySelector('.dl-prix')?.value) || 0
+        };
+    }).filter(l => l.articleId);
     const montantTotal = lignes.reduce((s, l) => s + (l.quantite * l.prixUnitaire), 0);
 
     const existingId = document.getElementById('devisId').value;
@@ -893,30 +920,36 @@ async function transformDevisToBC(devisId) {
     if (!devis) return;
     if (!confirm(`Transformer le devis ${devis.numero} en Bon de Commande Client ?`)) return;
 
-    // Use SalesOrdersModule to create a BC from this devis
+    const lignes = devis.lignes.map(l => ({
+        designation: l.designation,
+        nom: l.designation,
+        quantite: l.quantite,
+        prixUnitaire: l.prixUnitaire,
+        articleId: l.articleId || '',
+        prixTotal: (l.quantite || 0) * (l.prixUnitaire || 0)
+    }));
+
     const bcData = {
-        id: `BCC-${Date.now()}`,
-        numero: `BCC-${Date.now().toString().slice(-6)}`,
+        id: `bcv_${Date.now()}`,
+        numero: `BCV-${Date.now().toString().slice(-6)}`,
         date: new Date().toISOString().split('T')[0],
         clientId: devis.clientId,
         devisId: devis.id,
         devisNumero: devis.numero,
-        lignes: devis.lignes.map(l => ({
-            designation: l.designation,
-            quantite: l.quantite,
-            prixUnitaire: l.prixUnitaire,
-            articleId: l.articleId || ''
-        })),
-        montantTotal: devis.montantTotal,
-        statut: 'Confirmé',
-        createdAt: new Date().toISOString()
+        lignes: lignes,
+        montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
+        statut: 'En cours',
+        type: 'vente',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
     };
 
     try {
         await setDoc(doc(db, COLLECTIONS.bonCommandesVente, bcData.id), bcData);
-        // Update devis statut to Transformé
+        // Update devis statut + add backlink
         devis.statut = 'Accepté';
         devis.bcId = bcData.id;
+        devis.bcNumero = bcData.numero;
         await setDoc(doc(db, COLLECTIONS.devisClients, devis.id), devis);
         alert(`✅ BC Client ${bcData.numero} créé avec succès !`);
         await renderDevisClients();
@@ -1160,7 +1193,7 @@ export const VenteModule = {
     viewEcheancesClient, addEcheanceClient, removeEcheanceClient, recalcEcheancesClient,
     // Devis Client
     editDevis, deleteDevis, openDevisModal, transformDevisToBC,
-    addDevisLigne, removeDevisLigne, recalcDevisTotal,
+    addDevisLigne, removeDevisLigne, recalcDevisTotal, onDevisArticleChange,
     // Reglements Client
     openReglementClientModal, onFactureChangeReglementClient
 };

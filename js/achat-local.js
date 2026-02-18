@@ -43,6 +43,10 @@ function init() {
             e.preventDefault();
             e.stopPropagation();
             openReglementModal();
+        } else if (btn && (btn.id === 'addRetourBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            openRetourModal();
         }
     });
 }
@@ -59,6 +63,7 @@ async function refreshCurrentPage() {
         case 'bon-commandes': await renderCommandes(); break;
         case 'bon-livraisons': await renderLivraisons(); break;
         case 'bon-sorties': await renderSorties(); break;
+        case 'retours-fournisseurs': await renderRetours(); break;
         case 'factures': await renderFactures(); break;
         case 'reglements': await renderReglements(); break;
         case 'fournisseurs': await SuppliersModule.refresh(); break;
@@ -1461,6 +1466,225 @@ async function deleteSortie(id) {
     }
 }
 
+// ==================== BONS DE RETOUR FOURNISSEUR ====================
+async function renderRetours() {
+    const retours = await SuppliersModule.getRetours();
+    const tbody = document.getElementById('retoursBody');
+    if (!tbody) return;
+
+    if (retours.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#64748b;padding:30px">Aucun bon de retour</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = retours.map(r => {
+        const supplier = SuppliersModule.getSupplierById(r.fournisseurId);
+        const nbArticles = (r.lignes || []).reduce((s, l) => s + (l.quantiteRetour || 0), 0);
+        return `
+            <tr>
+                <td><strong>${r.numero || r.id}</strong></td>
+                <td>${r.date || '-'}</td>
+                <td>${r.livraisonNumero || '-'}</td>
+                <td>${supplier?.nom || '-'}</td>
+                <td>${nbArticles} article(s)</td>
+                <td>${r.motif || '-'}</td>
+                <td><span class="status-badge status-${(r.statut || '').toLowerCase().replace(/\s/g, '-')}">${r.statut || 'En cours'}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline" onclick="AchatModule.editRetour('${r.id}')">&#x270F;&#xFE0F;</button>
+                    <button class="btn btn-sm btn-outline" onclick="AchatModule.deleteRetour('${r.id}')" style="color:#ef4444">&#x1F5D1;&#xFE0F;</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function openRetourModal(retourId = null) {
+    const retour = retourId ? SuppliersModule.getRetourById(retourId) : null;
+    const livraisons = await SuppliersModule.getLivraisons();
+    const activeBLs = livraisons.filter(bl => bl.statut === 'Re\u00e7u' || bl.id === retour?.livraisonId);
+
+    const blOpts = activeBLs.map(bl => {
+        const s = SuppliersModule.getSupplierById(bl.fournisseurId);
+        return `<option value="${bl.id}" ${retour?.livraisonId === bl.id ? 'selected' : ''}>${bl.numero || bl.id} - ${s?.nom || ''}</option>`;
+    }).join('');
+
+    const lignes = retour?.lignes || [];
+
+    document.getElementById('modalTitle').textContent = retour ? 'Modifier Bon de Retour' : 'Nouveau Bon de Retour Fournisseur';
+    document.getElementById('modalBody').innerHTML = `
+        <form id="retourForm">
+            <input type="hidden" id="retourId" value="${retour?.id || ''}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>BL Source</label>
+                    <select id="retourBLId" onchange="AchatModule.onBLChangeRetour()" ${retour ? 'disabled' : ''} required>
+                        <option value="">-- S\u00e9lectionner un BL --</option>
+                        ${blOpts}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date Retour</label>
+                    <input type="date" id="retourDate" value="${retour?.date || new Date().toISOString().split('T')[0]}" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Fournisseur</label>
+                    <input type="text" id="retourFournisseurNom" value="${retour?.fournisseurId ? SuppliersModule.getSupplierById(retour.fournisseurId)?.nom || '' : ''}" readonly style="background:rgba(15,23,42,0.2)">
+                    <input type="hidden" id="retourFournisseurId" value="${retour?.fournisseurId || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Motif</label>
+                    <select id="retourMotif">
+                        <option value="D\u00e9fectueux" ${retour?.motif === 'D\u00e9fectueux' ? 'selected' : ''}>D\u00e9fectueux</option>
+                        <option value="Non conforme" ${retour?.motif === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
+                        <option value="Erreur commande" ${retour?.motif === 'Erreur commande' ? 'selected' : ''}>Erreur commande</option>
+                        <option value="Surplus" ${retour?.motif === 'Surplus' ? 'selected' : ''}>Surplus</option>
+                        <option value="Autre" ${retour?.motif === 'Autre' ? 'selected' : ''}>Autre</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-top:16px">
+                <label style="font-weight:600;margin-bottom:8px;display:block">&#x21A9;&#xFE0F; Articles \u00e0 retourner</label>
+                <table style="width:100%;border-collapse:collapse;font-size:13px">
+                    <thead>
+                        <tr style="background:rgba(148,163,184,0.1)">
+                            <th style="padding:8px;text-align:left">Article</th>
+                            <th style="padding:8px;text-align:right;width:80px">Re\u00e7u</th>
+                            <th style="padding:8px;text-align:right;width:100px">Qt\u00e9 Retour</th>
+                        </tr>
+                    </thead>
+                    <tbody id="retourLignesBody">
+                        ${lignes.map(l => `
+                            <tr>
+                                <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
+                                <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantiteRecue || 0}</td>
+                                <td style="padding:4px"><input type="number" class="br-qte" value="${l.quantiteRetour || 0}" min="0" max="${l.quantiteRecue || 0}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:13px">S\u00e9lectionnez un BL pour charger les articles</div>' : ''}
+            </div>
+        </form>
+    `;
+    document.getElementById('modalSave').onclick = saveRetourForm;
+    App.showModal();
+}
+
+async function onBLChangeRetour() {
+    const blId = document.getElementById('retourBLId')?.value;
+    if (!blId) return;
+    const livraison = SuppliersModule.getLivraisonById(blId);
+    if (!livraison) return;
+
+    const supplier = SuppliersModule.getSupplierById(livraison.fournisseurId);
+    const fournisseurNomEl = document.getElementById('retourFournisseurNom');
+    const fournisseurIdEl = document.getElementById('retourFournisseurId');
+    if (fournisseurNomEl) fournisseurNomEl.value = supplier?.nom || '';
+    if (fournisseurIdEl) fournisseurIdEl.value = livraison.fournisseurId || '';
+
+    const tbody = document.getElementById('retourLignesBody');
+    tbody.innerHTML = (livraison.lignes || []).map(l => `
+        <tr>
+            <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
+            <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantiteRecue || 0}</td>
+            <td style="padding:4px"><input type="number" class="br-qte" value="0" min="0" max="${l.quantiteRecue || 0}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+        </tr>
+    `).join('');
+}
+
+async function saveRetourForm() {
+    const blId = document.getElementById('retourBLId')?.value;
+    const livraison = blId ? SuppliersModule.getLivraisonById(blId) : null;
+    const blLignes = livraison?.lignes || [];
+
+    const rows = document.querySelectorAll('#retourLignesBody tr');
+    const lignes = Array.from(rows).map((row, i) => {
+        const nom = row.querySelector('td:first-child').textContent.trim();
+        const quantiteRecue = parseFloat(row.querySelector('td:nth-child(2)').textContent) || 0;
+        const quantiteRetour = parseFloat(row.querySelector('.br-qte')?.value) || 0;
+        const blLine = blLignes.find(cl => cl.nom === nom);
+        return {
+            nom,
+            articleId: blLine?.articleId || null,
+            quantiteRecue,
+            quantiteRetour
+        };
+    }).filter(l => l.quantiteRetour > 0);
+
+    if (lignes.length === 0) { alert('Aucune quantit\u00e9 \u00e0 retourner'); return; }
+
+    const retour = {
+        id: document.getElementById('retourId').value || null,
+        numero: document.getElementById('retourId').value
+            ? SuppliersModule.getRetourById(document.getElementById('retourId').value)?.numero
+            : `BR-${Date.now().toString().slice(-6)}`,
+        date: document.getElementById('retourDate').value,
+        livraisonId: blId || null,
+        livraisonNumero: livraison?.numero || '',
+        fournisseurId: document.getElementById('retourFournisseurId').value || '',
+        motif: document.getElementById('retourMotif').value,
+        lignes: lignes,
+        statut: 'Retourn\u00e9'
+    };
+
+    try {
+        await SuppliersModule.saveRetour(retour);
+
+        // Decrease stock for each returned article
+        for (const ligne of lignes) {
+            let article = null;
+            if (ligne.articleId) {
+                article = ArticlesModule.getArticleById(ligne.articleId);
+            }
+            if (!article && ligne.nom) {
+                const allArticles = await ArticlesModule.getArticles();
+                article = allArticles.find(a => a.designation === ligne.nom || a.reference === ligne.nom);
+            }
+            if (article) {
+                const newStock = Math.max(0, (article.stock || 0) - ligne.quantiteRetour);
+                await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
+            }
+        }
+        await ArticlesModule.refresh();
+
+        App.hideModal();
+        await renderRetours();
+    } catch (err) {
+        console.error('Erreur sauvegarde BR:', err);
+        alert('Erreur: ' + err.message);
+    }
+}
+
+function editRetour(id) { openRetourModal(id); }
+
+async function deleteRetour(id) {
+    if (confirm('Supprimer ce bon de retour? Le stock sera r\u00e9-ajust\u00e9.')) {
+        const retour = SuppliersModule.getRetourById(id);
+        if (retour) {
+            // Re-increase stock for returned articles
+            for (const ligne of (retour.lignes || [])) {
+                let article = null;
+                if (ligne.articleId) {
+                    article = ArticlesModule.getArticleById(ligne.articleId);
+                }
+                if (!article && ligne.nom) {
+                    const allArticles = await ArticlesModule.getArticles();
+                    article = allArticles.find(a => a.designation === ligne.nom || a.reference === ligne.nom);
+                }
+                if (article) {
+                    const newStock = (article.stock || 0) + ligne.quantiteRetour;
+                    await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
+                }
+            }
+            await ArticlesModule.refresh();
+        }
+        await SuppliersModule.deleteRetour(id);
+        await renderRetours();
+    }
+}
+
 // ==================== EXPORT ====================
 const AchatModule = {
     init, showPage, refreshCurrentPage,
@@ -1476,6 +1700,9 @@ const AchatModule = {
     // Bons de Sortie
     editSortie, deleteSortie, openSortieModal,
     onBLChangeSortie,
+    // Bons de Retour
+    editRetour, deleteRetour, openRetourModal,
+    onBLChangeRetour,
     // Factures
     editFacture, deleteFacture, openFactureModal,
     viewEcheances, addEcheance, removeEcheance, recalcEcheances,

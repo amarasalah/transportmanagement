@@ -183,35 +183,39 @@
                 </a>
                 <div class="nav-submenu" id="achat-local-submenu">
                     <a href="#" class="nav-item" data-page="offres-prix">
-                        <span class="nav-icon">📋</span>
+                        <span class="nav-icon">&#x1F4CB;</span>
                         <span class="nav-label">Demandes d'Achat</span>
                     </a>
                     <a href="#" class="nav-item" data-page="bon-commandes">
-                        <span class="nav-icon">📄</span>
+                        <span class="nav-icon">&#x1F4C4;</span>
                         <span class="nav-label">Bon Commandes</span>
                     </a>
                     <a href="#" class="nav-item" data-page="bon-livraisons">
-                        <span class="nav-icon">📦</span>
+                        <span class="nav-icon">&#x1F4E6;</span>
                         <span class="nav-label">Bon Livraisons</span>
                     </a>
                     <a href="#" class="nav-item" data-page="bon-sorties">
-                        <span class="nav-icon">🚚</span>
+                        <span class="nav-icon">&#x1F69A;</span>
                         <span class="nav-label">Bon de Sortie</span>
                     </a>
+                    <a href="#" class="nav-item" data-page="retours-fournisseurs">
+                        <span class="nav-icon">&#x21A9;&#xFE0F;</span>
+                        <span class="nav-label">Bon de Retour</span>
+                    </a>
                     <a href="#" class="nav-item" data-page="factures">
-                        <span class="nav-icon">🧾</span>
+                        <span class="nav-icon">&#x1F9FE;</span>
                         <span class="nav-label">Factures Fournisseurs</span>
                     </a>
                     <a href="#" class="nav-item" data-page="reglements">
-                        <span class="nav-icon">💸</span>
+                        <span class="nav-icon">&#x1F4B8;</span>
                         <span class="nav-label">Règlements</span>
                     </a>
                     <a href="#" class="nav-item" data-page="articles-achat">
-                        <span class="nav-icon">📦</span>
+                        <span class="nav-icon">&#x1F4E6;</span>
                         <span class="nav-label">Articles d'Achat</span>
                     </a>
                     <a href="#" class="nav-item" data-page="fournisseurs">
-                        <span class="nav-icon">🏢</span>
+                        <span class="nav-icon">&#x1F3E2;</span>
                         <span class="nav-label">Fournisseurs</span>
                     </a>
                 </div>
@@ -235,10 +239,6 @@
                     <a href="#" class="nav-item" data-page="livraisons-clients">
                         <span class="nav-icon">📦</span>
                         <span class="nav-label">Bon Livraisons</span>
-                    </a>
-                    <a href="#" class="nav-item" data-page="retours-clients">
-                        <span class="nav-icon">↩️</span>
-                        <span class="nav-label">Bon Retours</span>
                     </a>
                     <a href="#" class="nav-item" data-page="factures-clients">
                         <span class="nav-icon">🧾</span>
@@ -620,11 +620,10 @@
                             <tr>
                                 <th>N° BC</th>
                                 <th>Date</th>
+                                <th>Devis Source</th>
                                 <th>Client</th>
-                                <th>Lignes</th>
-                                <th>Total HT</th>
-                                <th>TVA</th>
-                                <th>Total TTC</th>
+                                <th>Articles</th>
+                                <th>Total</th>
                                 <th>Statut</th>
                                 <th>Actions</th>
                             </tr>
@@ -1052,6 +1051,35 @@
                                 </tr>
                             </thead>
                             <tbody id="sortiesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bon de Retour Fournisseur Page -->
+        <section class="page" id="page-retours-fournisseurs">
+            <div class="page-content">
+                <div class="card" style="padding:24px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                        <h2 style="font-size:1.25rem">&#x21A9;&#xFE0F; Bons de Retour Fournisseur</h2>
+                        <button class="btn btn-primary" id="addRetourBtn">&#x2795; Nouveau Retour</button>
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>N&#xB0; BR</th>
+                                    <th>Date</th>
+                                    <th>BL Source</th>
+                                    <th>Fournisseur</th>
+                                    <th>Articles</th>
+                                    <th>Motif</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="retoursBody"></tbody>
                         </table>
                     </div>
                 </div>
