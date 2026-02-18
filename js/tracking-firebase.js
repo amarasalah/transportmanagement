@@ -3,12 +3,15 @@
  * GPS Map Tracking using Leaflet.js + OpenStreetMap (Free)
  */
 
-import { db, collection, doc, updateDoc, COLLECTIONS } from './firebase.js';
+import { db, collection, doc, updateDoc, getDocs, onSnapshot, COLLECTIONS } from './firebase.js';
 import { DataModule } from './data-firebase.js';
+
+console.log('[GPS] ✅ tracking-firebase.js loaded successfully');
 
 let map = null;
 let markers = {};
 let autoRefreshInterval = null;
+let firestoreUnsubscribe = null;
 
 // Tunisia center coordinates
 const TUNISIA_CENTER = [36.8065, 10.1815];
@@ -29,24 +32,47 @@ function init() {
 }
 
 async function refresh() {
+    console.log('[GPS] refresh() called');
     if (typeof L === 'undefined') {
         const container = document.getElementById('trackingMap');
         if (container) container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:16px">⚠️ Carte non disponible — vérifiez votre connexion internet</div>';
         return;
     }
-    if (!map) {
-        initMap();
-    }
+
+    // Destroy old map if it exists (handles page switching)
     if (map) {
-        setTimeout(() => map.invalidateSize(), 300);
+        try { map.remove(); } catch(e) {}
+        map = null;
+        markers = {};
+    }
+
+    initMap();
+
+    if (map) {
+        // Give DOM time to render, then fix map size
+        setTimeout(() => {
+            map.invalidateSize();
+            console.log('[GPS] Map size invalidated');
+        }, 400);
+        // Initial load with fresh Firestore data
         await loadTruckPositions();
+        // Start real-time listener (will auto-update map on changes)
+        startRealtimeListener();
+        // Fallback polling every 30s
         startAutoRefresh();
+    } else {
+        console.error('[GPS] ❌ Map failed to initialize');
     }
 }
 
 function initMap() {
     const container = document.getElementById('trackingMap');
-    if (!container || map) return;
+    if (!container) {
+        console.error('[GPS] ❌ #trackingMap container not found in DOM');
+        return;
+    }
+    // Clear container contents before initializing
+    container.innerHTML = '';
 
     // Initialize Leaflet map
     map = L.map('trackingMap', {
@@ -93,11 +119,27 @@ function createTruckIcon(type, hasLocation) {
     });
 }
 
-async function loadTruckPositions() {
+async function loadTruckPositions(trucksOverride) {
     try {
-        const trucks = await DataModule.getTrucks();
+        let trucks;
+        if (trucksOverride) {
+            // Use data passed directly from onSnapshot (no extra fetch needed)
+            trucks = trucksOverride;
+            console.log('[GPS] loadTruckPositions: using snapshot data (' + trucks.length + ' trucks)');
+        } else {
+            // Fallback: fetch fresh from Firestore
+            const trucksSnap = await getDocs(collection(db, COLLECTIONS.trucks));
+            trucks = trucksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            console.log('[GPS] loadTruckPositions: fetched ' + trucks.length + ' trucks from Firestore');
+        }
         const drivers = await DataModule.getDrivers();
-        const entries = DataModule.getEntries ? DataModule.getEntries() : [];
+
+        // Log GPS data for each truck
+        trucks.forEach(t => {
+            if (t.lastLocation) {
+                console.log(`[GPS] 🚛 ${t.matricule} → lat=${t.lastLocation.lat}, lng=${t.lastLocation.lng}, source=${t.lastLocation.source}, time=${t.lastLocation.timestamp}`);
+            }
+        });
 
         // Update info panel
         renderInfoPanel(trucks, drivers);
@@ -110,29 +152,57 @@ async function loadTruckPositions() {
             const driver = drivers.find(d => d.camionId === truck.id);
             const loc = truck.lastLocation;
 
-            // Default to Tunisia center with offset if no location
-            const lat = loc?.lat || (TUNISIA_CENTER[0] + (Math.random() - 0.5) * 2);
-            const lng = loc?.lng || (TUNISIA_CENTER[1] + (Math.random() - 0.5) * 2);
-            const hasLocation = !!loc?.lat;
+            // Parse coordinates as numbers (Firestore may return strings)
+            const rawLat = loc?.lat;
+            const rawLng = loc?.lng;
+            const lat = parseFloat(rawLat);
+            const lng = parseFloat(rawLng);
+            const hasLocation = !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+
+            // Only place marker if truck has a real GPS position
+            let markerLat, markerLng;
+            if (hasLocation) {
+                markerLat = lat;
+                markerLng = lng;
+            } else {
+                // No location: place at Tunisia center with offset (faded marker)
+                markerLat = TUNISIA_CENTER[0] + (Math.random() - 0.5) * 2;
+                markerLng = TUNISIA_CENTER[1] + (Math.random() - 0.5) * 2;
+            }
+
+            console.log(`[GPS] Marker: ${truck.matricule} → [${markerLat}, ${markerLng}] hasLocation=${hasLocation} raw=[${rawLat}, ${rawLng}]`);
 
             const icon = createTruckIcon(truck.type, hasLocation);
-            const marker = L.marker([lat, lng], { icon }).addTo(map);
+            const marker = L.marker([markerLat, markerLng], { icon }).addTo(map);
 
             // Popup content
             const lastUpdate = loc?.timestamp
                 ? new Date(loc.timestamp).toLocaleString('fr-FR')
                 : 'Jamais';
 
+            // GPS source badge
+            const sourceLabel = loc?.source === 'mobile_gps' ? '📱 GPS Mobile'
+                : loc?.source === 'gps' ? '🌐 GPS Web'
+                : loc?.source ? '📌 Manuel' : '';
+            const sourceBadge = sourceLabel
+                ? `<div style="margin-top:4px"><span style="display:inline-block;padding:2px 8px;background:rgba(139,92,246,0.1);border-radius:4px;font-size:11px;color:#8b5cf6;font-weight:600">${sourceLabel}</span></div>`
+                : '';
+            const speedVal = parseFloat(loc?.speed);
+            const speedInfo = (!isNaN(speedVal) && speedVal >= 0)
+                ? `<div><strong>Vitesse:</strong> ${(speedVal * 3.6).toFixed(0)} km/h</div>` : '';
+
             marker.bindPopup(`
-                <div style="min-width:200px;font-family:Inter,sans-serif">
+                <div style="min-width:220px;font-family:Inter,sans-serif">
                     <div style="font-weight:700;font-size:15px;margin-bottom:8px;color:#1e293b">
                         🚛 ${truck.matricule}
                     </div>
                     <div style="display:grid;gap:4px;font-size:13px;color:#475569">
                         <div><strong>Type:</strong> <span style="color:${TYPE_COLORS[truck.type] || '#6366f1'};font-weight:600">${truck.type}</span></div>
                         <div><strong>Chauffeur:</strong> ${driver?.nom || 'Non assigné'}</div>
-                        <div><strong>Position:</strong> ${hasLocation ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : 'Non définie'}</div>
+                        <div><strong>Position:</strong> ${hasLocation ? `${markerLat.toFixed(5)}, ${markerLng.toFixed(5)}` : 'Non définie'}</div>
+                        ${speedInfo}
                         <div><strong>Dernière MAJ:</strong> ${lastUpdate}</div>
+                        ${sourceBadge}
                     </div>
                     ${window.currentUser?.role === 'super_admin' ? `
                     <div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:8px">
@@ -157,6 +227,7 @@ function renderInfoPanel(trucks, drivers) {
     if (!panel) return;
 
     const withLoc = trucks.filter(t => t.lastLocation?.lat).length;
+    const mobileGps = trucks.filter(t => t.lastLocation?.source === 'mobile_gps').length;
     const total = trucks.length;
 
     panel.innerHTML = `
@@ -173,6 +244,13 @@ function renderInfoPanel(trucks, drivers) {
                 <div>
                     <div style="font-size:18px;font-weight:700;color:#10b981">${withLoc}</div>
                     <div style="font-size:11px;color:#64748b">Localisés</div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(139,92,246,0.1);border-radius:8px;border:1px solid rgba(139,92,246,0.2)">
+                <span style="font-size:18px">📱</span>
+                <div>
+                    <div style="font-size:18px;font-weight:700;color:#8b5cf6">${mobileGps}</div>
+                    <div style="font-size:11px;color:#64748b">GPS Mobile</div>
                 </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(239,68,68,0.1);border-radius:8px;border:1px solid rgba(239,68,68,0.2)">
@@ -222,7 +300,7 @@ async function showSetPositionMenu(latlng) {
 async function setTruckPosition(truckId, lat, lng) {
     try {
         await updateDoc(doc(db, COLLECTIONS.trucks, truckId), {
-            lastLocation: { lat, lng, timestamp: new Date().toISOString() }
+            lastLocation: { lat, lng, timestamp: new Date().toISOString(), source: 'manual' }
         });
         map.closePopup();
         await loadTruckPositions();
@@ -308,11 +386,92 @@ function stopAutoRefresh() {
 }
 
 async function refreshPositions() {
+    console.log('[GPS] Manual refresh triggered');
     await loadTruckPositions();
+}
+
+// Test function: simulate a mobile GPS update from browser console
+// Usage: TrackingModule.testGpsUpdate('TRUCK_ID') or TrackingModule.testGpsUpdate() for first truck
+async function testGpsUpdate(truckId) {
+    try {
+        if (!truckId) {
+            const trucksSnap = await getDocs(collection(db, COLLECTIONS.trucks));
+            if (trucksSnap.empty) { console.error('[GPS] No trucks found'); return; }
+            truckId = trucksSnap.docs[0].id;
+            console.log('[GPS] Using first truck:', truckId, trucksSnap.docs[0].data().matricule);
+        }
+        const testLat = 36.8 + (Math.random() - 0.5) * 0.1;
+        const testLng = 10.18 + (Math.random() - 0.5) * 0.1;
+        console.log(`[GPS] 🧪 Writing test GPS: truck=${truckId}, lat=${testLat.toFixed(5)}, lng=${testLng.toFixed(5)}`);
+        await updateDoc(doc(db, COLLECTIONS.trucks, truckId), {
+            lastLocation: {
+                lat: testLat,
+                lng: testLng,
+                speed: 60,
+                heading: 90,
+                timestamp: new Date().toISOString(),
+                source: 'mobile_gps'
+            }
+        });
+        console.log('[GPS] ✅ Test GPS write successful! onSnapshot should fire now...');
+    } catch (err) {
+        console.error('[GPS] ❌ Test GPS write failed:', err);
+    }
+}
+
+// Real-time Firestore listener for truck location updates (e.g. from mobile GPS)
+function startRealtimeListener() {
+    if (firestoreUnsubscribe) return; // already listening
+    try {
+        let isFirstSnapshot = true;
+        firestoreUnsubscribe = onSnapshot(
+            collection(db, COLLECTIONS.trucks),
+            (snapshot) => {
+                const allTrucks = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                console.log(`[GPS] 📡 onSnapshot fired: ${allTrucks.length} trucks, isFirst=${isFirstSnapshot}`);
+
+                // Log changes
+                snapshot.docChanges().forEach(change => {
+                    const data = change.doc.data();
+                    console.log(`[GPS]   change: type=${change.type}, truck=${data.matricule || change.doc.id}, hasLocation=${!!data.lastLocation}`);
+                    if (data.lastLocation) {
+                        console.log(`[GPS]   → lat=${data.lastLocation.lat}, lng=${data.lastLocation.lng}, source=${data.lastLocation.source}`);
+                    }
+                });
+
+                // Skip initial snapshot (we already loaded in refresh())
+                if (isFirstSnapshot) {
+                    isFirstSnapshot = false;
+                    console.log('[GPS] 📡 Initial snapshot skipped (already loaded)');
+                    return;
+                }
+
+                // Use snapshot data DIRECTLY to update map (no extra fetch)
+                if (map) {
+                    console.log('[GPS] 📡 Updating map with real-time data...');
+                    loadTruckPositions(allTrucks);
+                }
+            },
+            (err) => {
+                console.error('[GPS] ❌ onSnapshot error:', err);
+            }
+        );
+        console.log('[GPS] 📡 Real-time GPS listener started');
+    } catch (err) {
+        console.error('[GPS] ❌ Could not start realtime listener:', err);
+    }
+}
+
+function stopRealtimeListener() {
+    if (firestoreUnsubscribe) {
+        firestoreUnsubscribe();
+        firestoreUnsubscribe = null;
+    }
 }
 
 function destroy() {
     stopAutoRefresh();
+    stopRealtimeListener();
     if (map) {
         map.remove();
         map = null;
@@ -324,6 +483,7 @@ export const TrackingModule = {
     init, refresh, destroy,
     setTruckPosition, removeTruckLocation,
     centerOnTruck, fitAllTrucks,
-    shareMyLocation, refreshPositions
+    shareMyLocation, refreshPositions,
+    testGpsUpdate
 };
 window.TrackingModule = TrackingModule;

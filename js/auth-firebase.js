@@ -255,7 +255,7 @@ function hasPermission(user, page) {
         profil: '__always__', // Always allowed
         messagerie: '__always__', // Always allowed
         caisse: 'caisse',
-        tracking: 'tracking',
+        tracking: '__always__', // GPS tracking available to all authenticated users
         // Achat group
         'offres-prix': 'achat',
         'bon-commandes': 'achat',

@@ -175,7 +175,7 @@ export default function MoreScreen() {
             {/* App Info */}
             <View style={styles.appInfo}>
                 <Text style={styles.appName}>🚛 FleetTrack Mobile</Text>
-                <Text style={styles.appVersion}>v1.0.0 • Firebase: managementsirep</Text>
+                <Text style={styles.appVersion}>v1.0.0 • Firebase: transportmanagement-9e6eb</Text>
                 <Text style={styles.appDesc}>Connecté au même backend que l'app web</Text>
             </View>
         </ScrollView>

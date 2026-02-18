@@ -14,21 +14,45 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sirep.fleettrack"
+      "bundleIdentifier": "com.sirep.fleettrack",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FleetTrack utilise votre position pour partager la localisation de votre camion en temps réel.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "FleetTrack utilise votre position en arrière-plan pour le suivi GPS continu de votre camion.",
+        "NSLocationAlwaysUsageDescription": "FleetTrack utilise votre position en arrière-plan pour le suivi GPS continu de votre camion.",
+        "UIBackgroundModes": ["location"]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
       },
-      "package": "com.sirep.fleettrack"
+      "package": "com.sirep.fleettrack",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "FleetTrack utilise votre position pour le suivi GPS des camions.",
+          "locationAlwaysPermission": "FleetTrack utilise votre position en arrière-plan pour le suivi GPS continu.",
+          "locationWhenInUsePermission": "FleetTrack utilise votre position pour partager la localisation de votre camion.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-task-manager"
     ],
     "extra": {
       "router": {},

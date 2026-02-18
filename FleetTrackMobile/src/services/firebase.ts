@@ -1,6 +1,6 @@
 /**
  * Firebase Configuration
- * Same project as the web app: managementsirep
+ * Same project as the web app: transportmanagement-9e6eb
  */
 import { initializeApp } from 'firebase/app';
 import {
@@ -18,6 +18,19 @@ import {
     orderBy,
     onSnapshot,
 } from 'firebase/firestore';
+import {
+    getDatabase,
+    ref as dbRef,
+    push as dbPush,
+    set as dbSet,
+    onValue,
+    onChildAdded,
+    serverTimestamp as rtdbTimestamp,
+    query as rtdbQuery,
+    orderByChild,
+    limitToLast,
+} from 'firebase/database';
+
 const firebaseConfig = {
   apiKey: "AIzaSyAKcCDbEDa-Pt-tpuM7MkXHiPb-Xarvuns",
   authDomain: "transportmanagement-9e6eb.firebaseapp.com",
@@ -30,10 +43,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const rtdb = getDatabase(app);
 
 export {
     app,
     db,
+    rtdb,
     collection,
     doc,
     getDocs,
@@ -46,4 +61,14 @@ export {
     where,
     orderBy,
     onSnapshot,
+    // Realtime DB
+    dbRef,
+    dbPush,
+    dbSet,
+    onValue,
+    onChildAdded,
+    rtdbTimestamp,
+    rtdbQuery,
+    orderByChild,
+    limitToLast,
 };

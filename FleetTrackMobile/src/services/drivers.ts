@@ -15,7 +15,16 @@ export async function getDrivers(): Promise<Driver[]> {
 }
 
 export function getDriverById(id: string): Driver | undefined {
-    return cache?.find(d => d.id === id);
+    if (!cache) return undefined;
+    // Direct ID match
+    let driver = cache.find(d => d.id === id);
+    if (driver) return driver;
+    // Fallback: old import format 'driver_CHOKAIRI' → match by name
+    if (id && id.startsWith('driver_')) {
+        const name = id.replace('driver_', '').replace(/_/g, ' ');
+        driver = cache.find(d => d.nom === name);
+    }
+    return driver;
 }
 
 export function getCachedDrivers(): Driver[] {

@@ -635,6 +635,7 @@ async function navigateTo(page) {
         // Articles
         articles: 'Gestion des Articles',
         admin: '👑 Administration',
+        tracking: '📍 GPS Tracking',
         planification: 'Planification',
         caisse: '💵 Caisse',
         messagerie: '💬 Messagerie',
@@ -700,18 +701,20 @@ async function refreshCurrentPage() {
             case 'reglements-clients':
                 VenteModule.showPage(currentPage);
                 break;
-            case 'admin':
-                loadAdminData();
-                // Load GPS tracking map in admin panel
+            case 'tracking':
                 try {
                     const { TrackingModule } = await import('./tracking-firebase.js');
                     window.TrackingModule = TrackingModule;
-                    setTimeout(() => TrackingModule.refresh(), 500);
+                    TrackingModule.init();
+                    setTimeout(() => TrackingModule.refresh(), 300);
                 } catch (err) {
                     console.error('GPS Tracking load error:', err);
                     const mapEl = document.getElementById('trackingMap');
                     if (mapEl) mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:16px">⚠️ Erreur GPS: ' + err.message + '</div>';
                 }
+                break;
+            case 'admin':
+                loadAdminData();
                 break;
             case 'profil':
                 renderProfilPage();

@@ -215,6 +215,16 @@ function getCachedDrivers() {
     return cache.drivers || [];
 }
 
+// Lightweight refresh: trucks only (for GPS real-time updates)
+async function refreshTrucksOnly() {
+    try {
+        const trucksSnap = await getDocs(collection(db, COLLECTIONS.trucks));
+        cache.trucks = trucksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error('Trucks cache refresh error:', error);
+    }
+}
+
 // ==================== TRUCKS ====================
 async function getTrucks() {
     if (cache.trucks) return cache.trucks;
@@ -694,7 +704,8 @@ export const DataModule = {
     // Cached accessors (sync)
     getCachedEntries,
     getCachedTrucks,
-    getCachedDrivers
+    getCachedDrivers,
+    refreshTrucksOnly
 };
 
 // Make available globally

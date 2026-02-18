@@ -3,6 +3,15 @@
  * Matching the web app Firebase data models exactly
  */
 
+export interface TruckLocation {
+    lat: number;
+    lng: number;
+    speed?: number | null;
+    heading?: number | null;
+    timestamp: string;
+    source: 'mobile_gps' | 'gps' | 'manual';
+}
+
 export interface Truck {
     id: string;
     matricule: string;
@@ -12,6 +21,7 @@ export interface Truck {
     montantAssurance: number;
     montantTaxe: number;
     chargePersonnel: number;
+    lastLocation?: TruckLocation | null;
     updatedAt?: string;
 }
 
@@ -49,12 +59,20 @@ export interface Entry {
     // Costs
     maintenance: number;
     chargesFixes?: number;
+    montantAssurance?: number;
+    montantTaxe?: number;
+    chargePersonnel?: number;
     // Revenue
     prixLivraison: number;
     remarques?: string;
+    // Raw identifiers (from Excel import)
+    matricule?: string;
+    chauffeur?: string;
+    typeTransport?: string;
     // Meta
     createdAt?: string;
     updatedAt?: string;
+    importedAt?: string;
     source?: string;
 }
 
