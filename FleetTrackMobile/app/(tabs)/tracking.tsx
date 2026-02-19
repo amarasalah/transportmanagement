@@ -138,11 +138,11 @@ export default function TrackingScreen() {
         return () => unsub();
     }, [myTruck]);
 
-    // Fallback: reload truck metadata every 60s
+    // Fallback: reload truck metadata every 10s
     useEffect(() => {
         const interval = setInterval(() => {
             if (!loading) loadData();
-        }, 60000);
+        }, 10000);
         return () => clearInterval(interval);
     }, [loading, loadData]);
 

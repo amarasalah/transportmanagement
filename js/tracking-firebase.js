@@ -306,7 +306,7 @@ function startAutoRefresh() {
         // Only reload Firestore truck metadata as fallback
         // Real-time GPS comes from RTDB listener
         loadTruckPositions();
-    }, 60000);
+    }, 10000);
 }
 
 function stopAutoRefresh() {
