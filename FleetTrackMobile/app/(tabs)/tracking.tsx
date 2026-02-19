@@ -23,6 +23,7 @@ import {
     getCurrentPosition,
     getTrackedCamionId,
 } from '../../src/services/location';
+import { rtdb, dbRef, onValue } from '../../src/services/firebase';
 import { Truck, Driver } from '../../src/types';
 
 interface TruckLocationItem {
@@ -100,11 +101,48 @@ export default function TrackingScreen() {
 
     useEffect(() => { loadData(); }, [loadData]);
 
-    // Auto-refresh every 30s
+    // RTDB real-time listener for GPS positions
+    useEffect(() => {
+        const gpsRef = dbRef(rtdb, 'gps_positions');
+        const unsub = onValue(gpsRef, (snapshot) => {
+            const gpsData = snapshot.val();
+            if (!gpsData) return;
+
+            setTruckLocations(prev => {
+                return prev.map(item => {
+                    const rtdbLoc = gpsData[item.truck.id];
+                    if (rtdbLoc && rtdbLoc.lat) {
+                        return {
+                            ...item,
+                            truck: { ...item.truck, lastLocation: rtdbLoc },
+                            hasLocation: true,
+                            lastUpdate: rtdbLoc.timestamp
+                                ? new Date(rtdbLoc.timestamp).toLocaleString('fr-FR')
+                                : item.lastUpdate,
+                        };
+                    }
+                    return item;
+                }).sort((a, b) => {
+                    if (a.hasLocation && !b.hasLocation) return -1;
+                    if (!a.hasLocation && b.hasLocation) return 1;
+                    return a.truck.matricule.localeCompare(b.truck.matricule);
+                });
+            });
+
+            // Update header position if tracking my truck
+            if (myTruck?.id && gpsData[myTruck.id]) {
+                const myLoc = gpsData[myTruck.id];
+                setLastPos({ lat: myLoc.lat, lng: myLoc.lng });
+            }
+        });
+        return () => unsub();
+    }, [myTruck]);
+
+    // Fallback: reload truck metadata every 60s
     useEffect(() => {
         const interval = setInterval(() => {
             if (!loading) loadData();
-        }, 30000);
+        }, 60000);
         return () => clearInterval(interval);
     }, [loading, loadData]);
 
@@ -257,13 +295,17 @@ export default function TrackingScreen() {
                                         </Text>
                                         {item.hasLocation && loc && (
                                             <Text style={styles.truckPos}>
-                                                📍 {loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}
+                                                📍 {Number(loc.lat).toFixed(4)},  {Number(loc.lng).toFixed(4)}
+                                            </Text>
+                                        )}
+                                        {item.hasLocation && loc?.speed != null && Number(loc.speed) >= 0 && (
+                                            <Text style={styles.truckSpeed}>
+                                                🚀 {Math.round(Number(loc.speed) * 3.6)} km/h
                                             </Text>
                                         )}
                                         <Text style={styles.truckUpdate}>
                                             {item.hasLocation ? `⏱ ${item.lastUpdate}` : '❓ Position non définie'}
                                             {loc?.source === 'mobile_gps' && ' · 📱 GPS Mobile'}
-                                            {loc?.source === 'gps' && ' · 🌐 GPS Web'}
                                         </Text>
                                     </View>
                                 </View>
@@ -375,6 +417,7 @@ const styles = StyleSheet.create({
     truckMatricule: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
     truckMeta: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 1 },
     truckPos: { fontSize: FontSize.xs, color: '#10b981', marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+    truckSpeed: { fontSize: FontSize.xs, color: '#f59e0b', marginTop: 1, fontWeight: '700' },
     truckUpdate: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
     locBadge: {
         width: 36, height: 36, borderRadius: 18,

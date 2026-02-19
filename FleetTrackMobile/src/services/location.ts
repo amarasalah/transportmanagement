@@ -1,11 +1,12 @@
 /**
  * GPS Location Service
- * Sends driver's real-time GPS position to Firestore (truck.lastLocation)
+ * Sends driver's real-time GPS position to Firebase Realtime Database
+ * Path: /gps_positions/{camionId}
  * Uses expo-location for foreground + background tracking
  */
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import { db, doc, updateDoc } from './firebase';
+import { rtdb, dbRef, dbSet, db, doc, updateDoc } from './firebase';
 import { COLLECTIONS } from '../constants/collections';
 import { getDriverById } from './drivers';
 import { getTruckById } from './trucks';
@@ -68,7 +69,8 @@ export async function getCurrentPosition(): Promise<Location.LocationObject | nu
 }
 
 /**
- * Send GPS coordinates to Firestore → trucks/{camionId}.lastLocation
+ * Send GPS coordinates to Firebase Realtime Database → /gps_positions/{camionId}
+ * Also syncs to Firestore trucks/{camionId}.lastLocation as backup
  */
 export async function sendLocationToFirestore(
     camionId: string,
@@ -85,22 +87,25 @@ export async function sendLocationToFirestore(
         heading: heading ?? null,
         timestamp: ts,
         source: 'mobile_gps',
+        driverId: currentDriverId || null,
     };
 
-    // Retry up to 2 times on failure
-    for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-            await updateDoc(doc(db, COLLECTIONS.trucks, camionId), {
-                lastLocation: locationData,
-            });
-            console.log(`📍 [${ts}] Location sent (attempt ${attempt}): ${latitude.toFixed(5)}, ${longitude.toFixed(5)} → ${camionId}`);
-            return; // success
-        } catch (err: any) {
-            console.error(`📍 sendLocationToFirestore error (attempt ${attempt}):`, err?.message || err);
-            if (attempt < 2) {
-                await new Promise(r => setTimeout(r, 2000)); // wait 2s before retry
-            }
-        }
+    // PRIMARY: Write to Realtime Database (instant, <100ms)
+    try {
+        const gpsRef = dbRef(rtdb, `gps_positions/${camionId}`);
+        await dbSet(gpsRef, locationData);
+        console.log(`📍 [RTDB] ${latitude.toFixed(5)}, ${longitude.toFixed(5)} → ${camionId}`);
+    } catch (err: any) {
+        console.error('📍 RTDB write error:', err?.message || err);
+    }
+
+    // SECONDARY: Also update Firestore (backup, for truck list display)
+    try {
+        await updateDoc(doc(db, COLLECTIONS.trucks, camionId), {
+            lastLocation: locationData,
+        });
+    } catch (err: any) {
+        console.warn('📍 Firestore backup write error:', err?.message || err);
     }
 }
 
@@ -111,11 +116,13 @@ export async function startTracking(driverId: string, camionId: string): Promise
     const granted = await requestPermissions();
     if (!granted) return false;
 
+    // Stop any existing tracking FIRST (this nullifies IDs)
+    await stopTracking();
+
+    // Set IDs AFTER stopTracking so they don't get nullified
     currentDriverId = driverId;
     currentCamionId = camionId;
-
-    // Stop any existing tracking
-    await stopTracking();
+    console.log(`📍 startTracking: driverId=${driverId}, camionId=${camionId}`);
 
     // Send initial position
     const loc = await getCurrentPosition();

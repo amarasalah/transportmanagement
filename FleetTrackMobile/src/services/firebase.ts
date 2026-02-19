@@ -34,6 +34,7 @@ import {
 const firebaseConfig = {
   apiKey: "AIzaSyAKcCDbEDa-Pt-tpuM7MkXHiPb-Xarvuns",
   authDomain: "transportmanagement-9e6eb.firebaseapp.com",
+  databaseURL: "https://transportmanagement-9e6eb-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "transportmanagement-9e6eb",
   storageBucket: "transportmanagement-9e6eb.firebasestorage.app",
   messagingSenderId: "90479889953",
