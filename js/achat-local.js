@@ -58,6 +58,7 @@ function showPage(page) {
 
 async function refreshCurrentPage() {
     await SuppliersModule.reloadAll();
+    populateSupplierFilters();
     switch (currentPage) {
         case 'offres-prix': await renderDemandes(); break;
         case 'bon-commandes': await renderCommandes(); break;
@@ -70,9 +71,50 @@ async function refreshCurrentPage() {
     }
 }
 
+// ==================== FILTERS ====================
+async function populateSupplierFilters() {
+    const suppliers = await SuppliersModule.getSuppliers();
+    const opts = '<option value="">Tous</option>' + suppliers.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
+    ['achatDAFournisseur', 'achatBCFournisseur', 'achatFactFournisseur'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = opts;
+    });
+}
+
+function applyFilters(items, dateStartId, dateEndId, fournisseurId, statutId, statutField = 'statut') {
+    const ds = document.getElementById(dateStartId)?.value;
+    const de = document.getElementById(dateEndId)?.value;
+    const f = document.getElementById(fournisseurId)?.value;
+    const s = document.getElementById(statutId)?.value;
+    let filtered = [...items];
+    if (ds) filtered = filtered.filter(i => (i.date || '') >= ds);
+    if (de) filtered = filtered.filter(i => (i.date || '') <= de);
+    if (f) filtered = filtered.filter(i => i.fournisseurId === f);
+    if (s) {
+        if (statutField === 'etat_paiement') {
+            filtered = filtered.filter(i => {
+                const montant = parseFloat(i.montantTotal) || 0;
+                const paye = (i.echeances || []).filter(e => e.statut === 'Pay\u00e9').reduce((sum, e) => sum + (e.montant || 0), 0);
+                if (s === 'paye') return i.etat === 'Pay\u00e9e' || paye >= montant;
+                if (s === 'partiel') return paye > 0 && paye < montant;
+                if (s === 'non_paye') return paye === 0;
+                return true;
+            });
+        } else {
+            filtered = filtered.filter(i => (i[statutField] || '') === s);
+        }
+    }
+    return filtered;
+}
+
+async function filterDemandes() { await renderDemandes(); }
+async function filterCommandes() { await renderCommandes(); }
+async function filterFactures() { await renderFactures(); }
+
 // ==================== DEMANDES D'ACHAT ====================
 async function renderDemandes() {
-    const demandes = await SuppliersModule.getDemandes();
+    const allDemandes = await SuppliersModule.getDemandes();
+    const demandes = applyFilters(allDemandes, 'achatDADateStart', 'achatDADateEnd', 'achatDAFournisseur', 'achatDAStatut');
     const container = document.getElementById('offresContent') || document.querySelector('#page-offres-prix .page-content');
     const tbody = document.getElementById('offresBody');
     if (!tbody) return;
@@ -324,7 +366,8 @@ async function deleteDemande(id) {
 
 // ==================== BON COMMANDES ====================
 async function renderCommandes() {
-    const commandes = await SuppliersModule.getCommandes();
+    const allCommandes = await SuppliersModule.getCommandes();
+    const commandes = applyFilters(allCommandes, 'achatBCDateStart', 'achatBCDateEnd', 'achatBCFournisseur', 'achatBCStatut');
     const tbody = document.getElementById('commandesBody');
     if (!tbody) return;
 
@@ -749,7 +792,8 @@ async function deleteLivraison(id) {
 
 // ==================== FACTURES ====================
 async function renderFactures() {
-    const factures = await SuppliersModule.getFactures();
+    const allFactures = await SuppliersModule.getFactures();
+    const factures = applyFilters(allFactures, 'achatFactDateStart', 'achatFactDateEnd', 'achatFactFournisseur', 'achatFactStatut', 'etat_paiement');
     const tbody = document.getElementById('facturesBody');
     if (!tbody) return;
 
@@ -1708,7 +1752,9 @@ const AchatModule = {
     viewEcheances, addEcheance, removeEcheance, recalcEcheances,
     onBLChangeFacture,
     // Reglements
-    openReglementModal, onFactureChangeReglement
+    openReglementModal, onFactureChangeReglement,
+    // Filters
+    filterDemandes, filterCommandes, filterFactures
 };
 export { AchatModule };
 window.AchatModule = AchatModule;

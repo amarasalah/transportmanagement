@@ -49,6 +49,7 @@ function showPage(page) {
 }
 
 async function refreshCurrentPage() {
+    populateClientFilters();
     switch (currentPage) {
         case 'livraisons-clients': await renderBLs(); break;
         case 'factures-clients': await renderFactures(); break;
@@ -56,6 +57,45 @@ async function refreshCurrentPage() {
         case 'reglements-clients': await renderReglementsClients(); break;
     }
 }
+
+// ==================== FILTERS ====================
+async function populateClientFilters() {
+    const clients = await ClientsModule.getClients();
+    const opts = '<option value="">Tous</option>' + clients.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+    ['venteBLClient', 'venteFactClient'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = opts;
+    });
+}
+
+function applyVenteFilters(items, dateStartId, dateEndId, clientFilterId, statutId, statutField = 'statut') {
+    const ds = document.getElementById(dateStartId)?.value;
+    const de = document.getElementById(dateEndId)?.value;
+    const c = document.getElementById(clientFilterId)?.value;
+    const s = document.getElementById(statutId)?.value;
+    let filtered = [...items];
+    if (ds) filtered = filtered.filter(i => (i.date || '') >= ds);
+    if (de) filtered = filtered.filter(i => (i.date || '') <= de);
+    if (c) filtered = filtered.filter(i => i.clientId === c);
+    if (s) {
+        if (statutField === 'etat_paiement') {
+            filtered = filtered.filter(i => {
+                const montant = parseFloat(i.montantTotal) || 0;
+                const paye = (i.echeances || []).filter(e => e.statut === 'Pay\u00e9').reduce((sum, e) => sum + (e.montant || 0), 0);
+                if (s === 'paye') return i.etat === 'Pay\u00e9e' || paye >= montant;
+                if (s === 'partiel') return paye > 0 && paye < montant;
+                if (s === 'non_paye') return paye === 0;
+                return true;
+            });
+        } else {
+            filtered = filtered.filter(i => (i[statutField] || '') === s);
+        }
+    }
+    return filtered;
+}
+
+async function filterBLs() { await renderBLs(); }
+async function filterFacturesVente() { await renderFactures(); }
 
 // ========== DATA LAYER: BL VENTE ==========
 async function loadBLs() {
@@ -130,7 +170,7 @@ async function deleteFactureData(id) {
 // ==================== BL CLIENT RENDER ====================
 async function renderBLs() {
     await loadBLs();
-    const bls = blVenteCache;
+    const bls = applyVenteFilters(blVenteCache, 'venteBLDateStart', 'venteBLDateEnd', 'venteBLClient', 'venteBLStatut');
     const tbody = document.getElementById('blClientsBody');
     if (!tbody) return;
 
@@ -356,7 +396,7 @@ async function deleteBL(id) {
 async function renderFactures() {
     await loadFactures();
     await loadBLs();
-    const factures = factureVenteCache;
+    const factures = applyVenteFilters(factureVenteCache, 'venteFactDateStart', 'venteFactDateEnd', 'venteFactClient', 'venteFactStatut', 'etat_paiement');
     const tbody = document.getElementById('facturesClientsBody');
     if (!tbody) return;
 
@@ -1195,6 +1235,8 @@ export const VenteModule = {
     editDevis, deleteDevis, openDevisModal, transformDevisToBC,
     addDevisLigne, removeDevisLigne, recalcDevisTotal, onDevisArticleChange,
     // Reglements Client
-    openReglementClientModal, onFactureChangeReglementClient
+    openReglementClientModal, onFactureChangeReglementClient,
+    // Filters
+    filterBLs, filterFactures: filterFacturesVente
 };
 window.VenteModule = VenteModule;

@@ -1,6 +1,6 @@
 /**
  * PLANIFICATION MODULE - FIREBASE VERSION
- * Copie exacte de Saisie Journalière avec Client + Statut
+ * With time, auto-status, terminé→entry conversion, and process type filters
  */
 
 import { db, collection, doc, getDocs, setDoc, deleteDoc, query, orderBy, COLLECTIONS } from './firebase.js';
@@ -9,9 +9,11 @@ import { ClientsModule } from './clients-firebase.js';
 
 let cache = [];
 let _loaded = false;
+let _autoStatusInterval = null;
 
 function init() {
     document.getElementById('addPlanBtn')?.addEventListener('click', () => openModal());
+    document.getElementById('planFilterBtn')?.addEventListener('click', () => renderPlannings());
     console.log('📅 PlanificationModule initialized');
     // Hide add button for chauffeur (read-only)
     if (window.currentUser?.driverId) {
@@ -22,7 +24,56 @@ function init() {
 
 async function refresh(selectedDate) {
     await loadPlannings();
+    await autoUpdateStatuses();
+    await populateClientFilter();
     await renderPlannings(selectedDate);
+    // Auto-check statuses every 60s
+    if (_autoStatusInterval) clearInterval(_autoStatusInterval);
+    _autoStatusInterval = setInterval(async () => {
+        const changed = await autoUpdateStatuses();
+        if (changed) await renderPlannings();
+    }, 60000);
+}
+
+/** Populate client filter dropdown */
+async function populateClientFilter() {
+    const select = document.getElementById('planClientFilter');
+    if (!select) return;
+    const clients = await ClientsModule.getClients();
+    select.innerHTML = '<option value="">Tous les clients</option>' +
+        clients.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+}
+
+/** Auto-update: planifié → en_cours when datetime has passed */
+async function autoUpdateStatuses() {
+    const now = new Date();
+    let changed = false;
+    for (const plan of cache) {
+        if (plan.statut !== 'planifie') continue;
+        const planDatetime = buildDatetime(plan.date, plan.heure);
+        if (planDatetime && planDatetime <= now) {
+            plan.statut = 'en_cours';
+            plan.updatedAt = now.toISOString();
+            try {
+                await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
+                console.log(`📅 Auto-status: ${plan.id} planifié → en_cours`);
+                changed = true;
+            } catch (err) {
+                console.error('Auto-status update error:', err);
+            }
+        }
+    }
+    return changed;
+}
+
+function buildDatetime(dateStr, heureStr) {
+    if (!dateStr) return null;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    if (heureStr) {
+        const [h, min] = heureStr.split(':').map(Number);
+        return new Date(y, m - 1, d, h, min);
+    }
+    return new Date(y, m - 1, d, 0, 0);
 }
 
 async function loadPlannings() {
@@ -54,16 +105,43 @@ async function renderPlannings(selectedDate) {
     const tbody = document.getElementById('planningBody');
     if (!tbody) return;
 
-    // Show all planifications sorted by date (most recent first)
-    let plannings = [...cache].sort((a, b) => new Date(b.date) - new Date(a.date));
-    // Chauffeur data scope: show only their planifications
+    // Apply filters
+    const filterDateStart = document.getElementById('planDateStart')?.value;
+    const filterDateEnd = document.getElementById('planDateEnd')?.value;
+    const filterClient = document.getElementById('planClientFilter')?.value;
+    const filterStatus = document.getElementById('planStatusFilter')?.value;
+
+    let plannings = [...cache].sort((a, b) => {
+        // Sort by date+time desc
+        const dtA = (a.date || '') + (a.heure || '00:00');
+        const dtB = (b.date || '') + (b.heure || '00:00');
+        return dtB.localeCompare(dtA);
+    });
+
+    // Chauffeur data scope
     const cu = window.currentUser;
     if (cu?.driverId) {
         plannings = plannings.filter(p => p.chauffeurId === cu.driverId);
     }
 
+    // Apply filters
+    if (filterDateStart) plannings = plannings.filter(p => p.date >= filterDateStart);
+    if (filterDateEnd) plannings = plannings.filter(p => p.date <= filterDateEnd);
+    if (filterClient) plannings = plannings.filter(p => p.clientId === filterClient);
+    if (filterStatus) plannings = plannings.filter(p => p.statut === filterStatus);
+
+    // Stats
+    const statsEl = document.getElementById('planningStats');
+    if (statsEl) {
+        const total = plannings.length;
+        const planifie = plannings.filter(p => p.statut === 'planifie').length;
+        const enCours = plannings.filter(p => p.statut === 'en_cours').length;
+        const termine = plannings.filter(p => p.statut === 'termine').length;
+        statsEl.innerHTML = `<span>📊 ${total} total</span> <span style="color:#f59e0b">📅 ${planifie} planifié</span> <span style="color:#3b82f6">🚚 ${enCours} en cours</span> <span style="color:#10b981">✅ ${termine} terminé</span>`;
+    }
+
     if (plannings.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:40px;">Aucune planification enregistrée.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:40px;">Aucune planification trouvée.</td></tr>';
         return;
     }
 
@@ -98,8 +176,10 @@ async function renderPlannings(selectedDate) {
         const resultat = (plan.prixLivraison || 0) - coutTotal;
         const resultClass = resultat >= 0 ? 'result-positive' : 'result-negative';
 
+        const heureDisplay = plan.heure ? ` <span style="color:#8b5cf6;font-weight:600">${plan.heure}</span>` : '';
+
         return `<tr>
-            <td>${formatDate(plan.date)}</td>
+            <td>${formatDate(plan.date)}${heureDisplay}</td>
             <td><strong>${client?.nom || '-'}</strong></td>
             <td>${truck?.matricule || '-'}</td>
             <td>${driver?.nom || '-'}</td>
@@ -112,8 +192,8 @@ async function renderPlannings(selectedDate) {
             <td>
                 <span class="status-badge ${statusClass}">${statusLabel}</span>
                 ${!window.currentUser?.driverId ? `
-                <button class="btn btn-sm btn-outline" onclick="PlanificationModule.edit('${plan.id}')">✏️</button>
-                <button class="btn btn-sm btn-outline" onclick="PlanificationModule.remove('${plan.id}')">🗑️</button>
+                <button class="btn btn-sm btn-outline" onclick="PlanificationModule.edit('${plan.id}')" title="Modifier">✏️</button>
+                <button class="btn btn-sm btn-outline" onclick="PlanificationModule.remove('${plan.id}')" title="Supprimer">🗑️</button>
                 ` : ''}
             </td>
         </tr>`;
@@ -124,6 +204,10 @@ function formatDate(dateStr) {
     if (!dateStr) return '-';
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formatTime(heure) {
+    return heure || '';
 }
 
 // ==================== GOUVERNORATS & DELEGATIONS ====================
@@ -230,6 +314,10 @@ async function openModal(planId = null) {
                 <div class="form-group">
                     <label for="planDate">📅 Date</label>
                     <input type="date" id="planDate" value="${plan?.date || selectedDate}" required>
+                </div>
+                <div class="form-group">
+                    <label for="planHeure">🕐 Heure</label>
+                    <input type="time" id="planHeure" value="${plan?.heure || '08:00'}">
                 </div>
                 <div class="form-group">
                     <label for="planClient">👥 Client *</label>
@@ -514,11 +602,20 @@ async function savePlan() {
     const prixGasoil = parseFloat(document.getElementById('planPrixGasoil')?.value) || 0;
     const montantGasoil = gasoil * prixGasoil;
 
+    const planId = document.getElementById('planId').value;
+    const newStatut = document.getElementById('planStatut').value || 'planifie';
+
+    // Detect status transition: check previous status
+    const existingPlan = planId ? getPlanningById(planId) : null;
+    const previousStatut = existingPlan?.statut;
+    const isNewTermine = (newStatut === 'termine' && previousStatut !== 'termine');
+
     const plan = {
-        id: document.getElementById('planId').value || `plan_${Date.now()}`,
+        id: planId || `plan_${Date.now()}`,
         date: document.getElementById('planDate').value,
+        heure: document.getElementById('planHeure')?.value || '',
         clientId: document.getElementById('planClient').value,
-        statut: document.getElementById('planStatut').value || 'planifie',
+        statut: newStatut,
         camionId: document.getElementById('planCamion').value,
         chauffeurId: document.getElementById('planChauffeur').value,
         origineGouvernorat,
@@ -544,13 +641,62 @@ async function savePlan() {
     }
 
     try {
-        await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
+        if (isNewTermine) {
+            // Convert to saisie journalière then DELETE from planification
+            await convertToEntry(plan);
+            await deleteDoc(doc(db, COLLECTIONS.planifications, plan.id));
+            console.log(`🗑️ Planification ${plan.id} supprimée après conversion`);
+        } else {
+            await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
+        }
+
         App.hideModal();
         await loadPlannings();
         await renderPlannings();
     } catch (error) {
         console.error('Error saving plan:', error);
         alert('Erreur lors de l\'enregistrement: ' + error.message);
+    }
+}
+
+/** Convert a terminé planification into a saisie journalière (entry) */
+async function convertToEntry(plan) {
+    const entry = {
+        date: plan.date,
+        camionId: plan.camionId,
+        chauffeurId: plan.chauffeurId,
+        clientId: plan.clientId || null,
+        origineGouvernorat: plan.origineGouvernorat,
+        origineDelegation: plan.origineDelegation,
+        origine: plan.origine,
+        gouvernorat: plan.gouvernorat,
+        delegation: plan.delegation,
+        destination: plan.destination,
+        distanceAller: plan.distanceAller,
+        distanceRetour: plan.distanceAller,
+        kilometrage: plan.kilometrage || 0,
+        quantiteGasoil: plan.quantiteGasoil || 0,
+        prixGasoilLitre: plan.prixGasoilLitre || 0,
+        maintenance: plan.maintenance || 0,
+        prixLivraison: plan.prixLivraison || 0,
+        remarques: (plan.remarques || '') + ` [Plan ${plan.id}]`,
+        source: 'planification',
+        planificationId: plan.id
+    };
+
+    try {
+        await DataModule.saveEntry(entry);
+        console.log(`✅ Planification ${plan.id} → saisie journalière créée`);
+        // Notify user
+        const msg = `✅ La planification a été transformée en saisie journalière (${plan.date})`;
+        if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast(msg);
+        } else {
+            alert(msg);
+        }
+    } catch (err) {
+        console.error('Error converting planification to entry:', err);
+        alert('⚠️ Planification sauvegardée mais erreur lors de la conversion en saisie: ' + err.message);
     }
 }
 
@@ -583,7 +729,8 @@ export const PlanificationModule = {
     onGouvernoratChange,
     updateDistanceEstimate,
     onTruckChange,
-    updateCalculations
+    updateCalculations,
+    convertToEntry
 };
 
 window.PlanificationModule = PlanificationModule;

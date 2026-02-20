@@ -508,7 +508,7 @@
                     <table class="data-table" id="planningTable">
                         <thead>
                             <tr>
-                                <th>Date</th>
+                                <th>Date & Heure</th>
                                 <th>Client</th>
                                 <th>Camion</th>
                                 <th>Chauffeur</th>
@@ -710,6 +710,33 @@
                         <h2 style="font-size:1.25rem">📦 Bons de Livraison Clients</h2>
                         <button class="btn btn-primary" id="addBLClientBtn">➕ Nouveau BL Client</button>
                     </div>
+                    <!-- Filters -->
+                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date début</label>
+                            <input type="date" id="venteBLDateStart" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date fin</label>
+                            <input type="date" id="venteBLDateEnd" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:150px">
+                            <label style="font-size:12px;color:#94a3b8">Client</label>
+                            <select id="venteBLClient" class="form-control">
+                                <option value="">Tous</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Statut</label>
+                            <select id="venteBLStatut" class="form-control">
+                                <option value="">Tous</option>
+                                <option value="Livré">Livré</option>
+                                <option value="En cours">En cours</option>
+                                <option value="Annulé">Annulé</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-outline" onclick="VenteModule.filterBLs()">🔍</button>
+                    </div>
                     <div style="overflow-x:auto">
                         <table class="data-table">
                             <thead>
@@ -738,6 +765,33 @@
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
                         <h2 style="font-size:1.25rem">🧾 Factures Clients</h2>
                         <button class="btn btn-primary" id="addFactureClientBtn">➕ Nouvelle Facture</button>
+                    </div>
+                    <!-- Filters -->
+                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date début</label>
+                            <input type="date" id="venteFactDateStart" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date fin</label>
+                            <input type="date" id="venteFactDateEnd" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:150px">
+                            <label style="font-size:12px;color:#94a3b8">Client</label>
+                            <select id="venteFactClient" class="form-control">
+                                <option value="">Tous</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">État</label>
+                            <select id="venteFactStatut" class="form-control">
+                                <option value="">Tous</option>
+                                <option value="non_paye">Non Payé</option>
+                                <option value="partiel">Partiel</option>
+                                <option value="paye">Payé</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-outline" onclick="VenteModule.filterFactures()">🔍</button>
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
                         <div
@@ -956,6 +1010,34 @@
                         <button class="btn btn-primary" id="addDemandeBtn">➕ Nouvelle
                             Demande</button>
                     </div>
+                    <!-- Filters -->
+                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date début</label>
+                            <input type="date" id="achatDADateStart" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date fin</label>
+                            <input type="date" id="achatDADateEnd" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:150px">
+                            <label style="font-size:12px;color:#94a3b8">Fournisseur</label>
+                            <select id="achatDAFournisseur" class="form-control">
+                                <option value="">Tous</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Statut</label>
+                            <select id="achatDAStatut" class="form-control">
+                                <option value="">Tous</option>
+                                <option value="Brouillon">Brouillon</option>
+                                <option value="En cours">En cours</option>
+                                <option value="Validée">Validée</option>
+                                <option value="Rejetée">Rejetée</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-outline" onclick="AchatModule.filterDemandes()">🔍</button>
+                    </div>
                     <div style="overflow-x:auto">
                         <table class="data-table">
                             <thead>
@@ -984,6 +1066,34 @@
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
                         <h2 style="font-size:1.25rem">📄 Bons de Commande</h2>
                         <button class="btn btn-primary" id="addCommandeBtn">➕ Nouveau BC</button>
+                    </div>
+                    <!-- Filters -->
+                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date début</label>
+                            <input type="date" id="achatBCDateStart" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date fin</label>
+                            <input type="date" id="achatBCDateEnd" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:150px">
+                            <label style="font-size:12px;color:#94a3b8">Fournisseur</label>
+                            <select id="achatBCFournisseur" class="form-control">
+                                <option value="">Tous</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Statut</label>
+                            <select id="achatBCStatut" class="form-control">
+                                <option value="">Tous</option>
+                                <option value="Brouillon">Brouillon</option>
+                                <option value="Validé">Validé</option>
+                                <option value="Envoyé">Envoyé</option>
+                                <option value="Reçu">Reçu</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-outline" onclick="AchatModule.filterCommandes()">🔍</button>
                     </div>
                     <div style="overflow-x:auto">
                         <table class="data-table">
@@ -1115,6 +1225,33 @@
                         <h2 style="font-size:1.25rem">🧾 Factures Fournisseurs</h2>
                         <button class="btn btn-primary" id="addFactureBtn">➕ Nouvelle
                             Facture</button>
+                    </div>
+                    <!-- Filters -->
+                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date début</label>
+                            <input type="date" id="achatFactDateStart" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date fin</label>
+                            <input type="date" id="achatFactDateEnd" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:150px">
+                            <label style="font-size:12px;color:#94a3b8">Fournisseur</label>
+                            <select id="achatFactFournisseur" class="form-control">
+                                <option value="">Tous</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">État</label>
+                            <select id="achatFactStatut" class="form-control">
+                                <option value="">Tous</option>
+                                <option value="non_paye">Non Payé</option>
+                                <option value="partiel">Partiel</option>
+                                <option value="paye">Payé</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-outline" onclick="AchatModule.filterFactures()">🔍</button>
                     </div>
                     <div style="overflow-x:auto">
                         <table class="data-table">
