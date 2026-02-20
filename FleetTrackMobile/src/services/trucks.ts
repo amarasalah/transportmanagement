@@ -91,7 +91,8 @@ export function calculateEntryCosts(entry: Entry, truck?: Truck): EntryCosts {
     const montantAssurance = (entry.montantAssurance != null && entry.montantAssurance > 0) ? entry.montantAssurance : (truck.montantAssurance || 0);
     const montantTaxe = (entry.montantTaxe != null && entry.montantTaxe > 0) ? entry.montantTaxe : (truck.montantTaxe || 0);
     const chargePersonnel = (entry.chargePersonnel != null && entry.chargePersonnel > 0) ? entry.chargePersonnel : (truck.chargePersonnel || 0);
-    const coutTotal = montantGasoil + chargesFixes + montantAssurance + montantTaxe + (entry.maintenance || 0) + chargePersonnel;
+    const fraisLeasing = truck.fraisLeasing || 0;
+    const coutTotal = montantGasoil + chargesFixes + montantAssurance + montantTaxe + (entry.maintenance || 0) + chargePersonnel + fraisLeasing;
     const resultat = (entry.prixLivraison || 0) - coutTotal;
 
     return { montantGasoil, coutTotal, resultat };

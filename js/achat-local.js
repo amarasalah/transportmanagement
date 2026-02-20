@@ -75,7 +75,7 @@ async function refreshCurrentPage() {
 async function populateSupplierFilters() {
     const suppliers = await SuppliersModule.getSuppliers();
     const opts = '<option value="">Tous</option>' + suppliers.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
-    ['achatDAFournisseur', 'achatBCFournisseur', 'achatFactFournisseur'].forEach(id => {
+    ['achatDAFournisseur', 'achatBCFournisseur', 'achatBLFournisseur', 'achatBRFournisseur', 'achatFactFournisseur'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = opts;
     });
@@ -109,6 +109,9 @@ function applyFilters(items, dateStartId, dateEndId, fournisseurId, statutId, st
 
 async function filterDemandes() { await renderDemandes(); }
 async function filterCommandes() { await renderCommandes(); }
+async function filterLivraisons() { await renderLivraisons(); }
+async function filterSorties() { await renderSorties(); }
+async function filterRetours() { await renderRetours(); }
 async function filterFactures() { await renderFactures(); }
 
 // ==================== DEMANDES D'ACHAT ====================
@@ -578,7 +581,8 @@ async function deleteCommande(id) {
 
 // ==================== BON LIVRAISONS ====================
 async function renderLivraisons() {
-    const livraisons = await SuppliersModule.getLivraisons();
+    const allLivraisons = await SuppliersModule.getLivraisons();
+    const livraisons = applyFilters(allLivraisons, 'achatBLDateStart', 'achatBLDateEnd', 'achatBLFournisseur', 'achatBLStatut');
     const tbody = document.getElementById('livraisonsBody');
     if (!tbody) return;
 
@@ -841,18 +845,25 @@ async function renderFactures() {
 async function openFactureModal(factureId = null) {
     const facture = factureId ? SuppliersModule.getFactureById(factureId) : null;
     const livraisons = await SuppliersModule.getLivraisons();
-    const activeBLs = livraisons.filter(l => l.statut === 'Reçu' || l.id === facture?.livraisonId);
+    // For existing facture, support both old single livraisonId and new array livraisonIds
+    const existingBLIds = facture?.livraisonIds || (facture?.livraisonId ? [facture.livraisonId] : []);
+    const activeBLs = livraisons.filter(l => l.statut === 'Re\u00e7u' || existingBLIds.includes(l.id));
 
-    const blOpts = activeBLs.map(l => {
+    const blCheckboxes = activeBLs.map(l => {
         const f = SuppliersModule.getSupplierById(l.fournisseurId);
-        // Calculate BL montant from commande prices
         const cmd = SuppliersModule.getCommandeById(l.commandeId);
         let blTotal = 0;
         (l.lignes || []).forEach(ll => {
             const cmdLine = (cmd?.lignes || []).find(cl => cl.nom === ll.nom);
             blTotal += (ll.quantiteRecue || 0) * (cmdLine?.prixUnitaire || 0);
         });
-        return `<option value="${l.id}" data-montant="${blTotal}" ${facture?.livraisonId === l.id ? 'selected' : ''}>${l.numero || l.id} - ${f?.nom || ''} (${blTotal.toFixed(3)} TND)</option>`;
+        const checked = existingBLIds.includes(l.id) ? 'checked' : '';
+        return `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(15,23,42,0.2);border-radius:6px;cursor:pointer;font-size:13px">
+            <input type="checkbox" class="facture-bl-check" value="${l.id}" data-montant="${blTotal}" data-fournisseur="${l.fournisseurId}" ${checked} onchange="AchatModule.onBLChangeFacture()" ${facture ? 'disabled' : ''}>
+            <span style="color:#f1f5f9">${l.numero || l.id}</span>
+            <span style="color:#94a3b8;font-size:11px">- ${f?.nom || ''}</span>
+            <span style="color:#10b981;font-weight:600;margin-left:auto">${blTotal.toFixed(3)} TND</span>
+        </label>`;
     }).join('');
 
     const echeances = facture?.echeances || [{ date: new Date().toISOString().split('T')[0], montant: 0, typePaiement: 'Virement', statut: 'En attente' }];
@@ -861,28 +872,25 @@ async function openFactureModal(factureId = null) {
     document.getElementById('modalBody').innerHTML = `
         <form id="factureForm">
             <input type="hidden" id="factureId" value="${facture?.id || ''}">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Bon Livraison</label>
-                    <select id="factureBLId" onchange="AchatModule.onBLChangeFacture()" ${facture ? 'disabled' : ''} required>
-                        <option value="">-- Sélectionner un BL --</option>
-                        ${blOpts}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Date Facture</label>
-                    <input type="date" id="factureDate" value="${facture?.date || new Date().toISOString().split('T')[0]}" required>
+            <div class="form-group">
+                <label style="font-weight:600;margin-bottom:8px;display:block">📦 Bons de Livraison (s\u00e9lection multiple)</label>
+                <div id="factureBLList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;padding:8px;background:rgba(15,23,42,0.3);border-radius:8px;border:1px solid rgba(148,163,184,0.15)">
+                    ${blCheckboxes || '<div style="color:#64748b;padding:12px;text-align:center;font-size:13px">Aucun BL disponible</div>'}
                 </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>N° Facture</label>
-                    <input type="text" id="factureNumero" value="${facture?.numeroFournisseur || ''}" placeholder="Ex: FACT-2026-001">
+                    <label>Date Facture</label>
+                    <input type="date" id="factureDate" value="${facture?.date || new Date().toISOString().split('T')[0]}" required>
                 </div>
                 <div class="form-group">
-                    <label>Montant Total (TND)</label>
-                    <input type="number" id="factureMontant" value="${facture?.montantTotal || ''}" step="0.001" required readonly style="background:rgba(15,23,42,0.2)">
+                    <label>N\u00b0 Facture</label>
+                    <input type="text" id="factureNumero" value="${facture?.numeroFournisseur || ''}" placeholder="Ex: FACT-2026-001">
                 </div>
+            </div>
+            <div class="form-group">
+                <label>Montant Total (TND)</label>
+                <input type="number" id="factureMontant" value="${facture?.montantTotal || ''}" step="0.001" required readonly style="background:rgba(15,23,42,0.2)">
             </div>
             <div style="margin-top:16px">
                 <label style="font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
@@ -961,11 +969,10 @@ function recalcEcheances() {
 }
 
 function onBLChangeFacture() {
-    const sel = document.getElementById('factureBLId');
-    if (!sel || !sel.value) return;
-    const opt = sel.options[sel.selectedIndex];
-    const blMontant = parseFloat(opt.dataset.montant) || 0;
-    document.getElementById('factureMontant').value = blMontant.toFixed(3);
+    const checks = document.querySelectorAll('.facture-bl-check:checked');
+    let total = 0;
+    checks.forEach(c => total += parseFloat(c.dataset.montant) || 0);
+    document.getElementById('factureMontant').value = total.toFixed(3);
 }
 
 function getEcheancesFromForm() {
@@ -980,20 +987,27 @@ function getEcheancesFromForm() {
 
 async function saveFacture() {
     const echeances = getEcheancesFromForm();
-    const blId = document.getElementById('factureBLId')?.value;
-    const livraison = blId ? SuppliersModule.getLivraisonById(blId) : null;
+    // Collect all checked BL IDs
+    const checks = document.querySelectorAll('.facture-bl-check:checked');
+    const blIds = Array.from(checks).map(c => c.value);
     const montant = parseFloat(document.getElementById('factureMontant').value) || 0;
 
-    // Validate: total échéances must not exceed montant total (BL)
+    if (blIds.length === 0) { alert('S\u00e9lectionnez au moins un BL'); return; }
+
+    // Determine fournisseur from first BL
+    const firstBL = SuppliersModule.getLivraisonById(blIds[0]);
+    const blNumeros = blIds.map(id => SuppliersModule.getLivraisonById(id)?.numero || id).join(', ');
+
+    // Validate: total \u00e9ch\u00e9ances must not exceed montant total
     const totalEcheances = echeances.reduce((s, e) => s + (e.montant || 0), 0);
     if (totalEcheances > montant && montant > 0) {
-        alert(`Le total des échéances (${totalEcheances.toFixed(3)} TND) dépasse le montant du BL (${montant.toFixed(3)} TND)`);
+        alert(`Le total des \u00e9ch\u00e9ances (${totalEcheances.toFixed(3)} TND) d\u00e9passe le montant (${montant.toFixed(3)} TND)`);
         return;
     }
 
-    const paye = echeances.filter(e => e.statut === 'Payé').reduce((s, e) => s + e.montant, 0);
-    let etat = 'Non Payée';
-    if (paye >= montant && montant > 0) etat = 'Payée';
+    const paye = echeances.filter(e => e.statut === 'Pay\u00e9').reduce((s, e) => s + e.montant, 0);
+    let etat = 'Non Pay\u00e9e';
+    if (paye >= montant && montant > 0) etat = 'Pay\u00e9e';
     else if (paye > 0) etat = 'Partiel';
 
     const facture = {
@@ -1001,9 +1015,10 @@ async function saveFacture() {
         numero: document.getElementById('factureId').value ? SuppliersModule.getFactureById(document.getElementById('factureId').value)?.numero : `FA-${Date.now().toString().slice(-6)}`,
         date: document.getElementById('factureDate').value,
         numeroFournisseur: document.getElementById('factureNumero').value,
-        livraisonId: blId || null,
-        blNumero: livraison?.numero || '',
-        fournisseurId: livraison?.fournisseurId || '',
+        livraisonIds: blIds,
+        livraisonId: blIds[0] || null,
+        blNumero: blNumeros,
+        fournisseurId: firstBL?.fournisseurId || '',
         montantTotal: montant,
         echeances: echeances,
         etat: etat
@@ -1019,7 +1034,7 @@ async function saveFacture() {
             if (ech.statut === 'Payé' && !ech.caisseId) {
                 const wasAlreadyPaid = existingEcheances[i]?.statut === 'Payé' && existingEcheances[i]?.caisseId;
                 if (!wasAlreadyPaid) {
-                    const supplier = SuppliersModule.getSupplierById(livraison?.fournisseurId || facture.fournisseurId);
+                    const supplier = SuppliersModule.getSupplierById(firstBL?.fournisseurId || facture.fournisseurId);
                     const caisseId = await CaisseModule.addAutoTransaction({
                         type: 'decaissement',
                         tiers: supplier?.nom || 'Fournisseur',
@@ -1038,7 +1053,7 @@ async function saveFacture() {
         await SuppliersModule.saveFacture(facture);
 
         // Update supplier solde
-        const supplierId = livraison?.fournisseurId || facture.fournisseurId;
+        const supplierId = firstBL?.fournisseurId || facture.fournisseurId;
         if (supplierId) {
             await updateSupplierSolde(supplierId);
         }
@@ -1315,7 +1330,8 @@ async function saveReglement() {
 
 // ==================== BONS DE SORTIE ====================
 async function renderSorties() {
-    const sorties = await SuppliersModule.getSorties();
+    const allSorties = await SuppliersModule.getSorties();
+    const sorties = applyFilters(allSorties, 'achatBSDateStart', 'achatBSDateEnd', null, 'achatBSStatut');
     const tbody = document.getElementById('sortiesBody');
     if (!tbody) return;
 
@@ -1512,7 +1528,8 @@ async function deleteSortie(id) {
 
 // ==================== BONS DE RETOUR FOURNISSEUR ====================
 async function renderRetours() {
-    const retours = await SuppliersModule.getRetours();
+    const allRetours = await SuppliersModule.getRetours();
+    const retours = applyFilters(allRetours, 'achatBRDateStart', 'achatBRDateEnd', 'achatBRFournisseur', 'achatBRStatut');
     const tbody = document.getElementById('retoursBody');
     if (!tbody) return;
 
@@ -1754,7 +1771,7 @@ const AchatModule = {
     // Reglements
     openReglementModal, onFactureChangeReglement,
     // Filters
-    filterDemandes, filterCommandes, filterFactures
+    filterDemandes, filterCommandes, filterLivraisons, filterSorties, filterRetours, filterFactures
 };
 export { AchatModule };
 window.AchatModule = AchatModule;

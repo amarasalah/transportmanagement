@@ -206,11 +206,18 @@ async function openBLModal(blId = null) {
     const orders = await SalesOrdersModule.getOrders();
     const activeOrders = orders.filter(o => o.statut === 'En cours' || o.statut === 'Validé' || o.statut === 'Confirmé' || o.id === bl?.commandeId);
     const clients = await ClientsModule.getClients();
+    const { DataModule } = await import('./data-firebase.js');
+    const trucks = await DataModule.getTrucks();
+    const drivers = await DataModule.getDrivers();
 
     const cmdOpts = activeOrders.map(o => {
         const c = ClientsModule.getClientById(o.clientId);
         return `<option value="${o.id}" ${bl?.commandeId === o.id ? 'selected' : ''}>${o.numero || o.id} - ${c?.nom || ''} (${(o.montantTotal || o.totalTTC || 0).toFixed(3)} TND)</option>`;
     }).join('');
+
+    const clientOpts = clients.map(c => `<option value="${c.id}" ${bl?.clientId === c.id ? 'selected' : ''}>${c.nom}</option>`).join('');
+    const truckOpts = trucks.map(t => `<option value="${t.id}" ${bl?.camionId === t.id ? 'selected' : ''}>${t.matricule} (${t.type || ''})</option>`).join('');
+    const driverOpts = drivers.map(d => `<option value="${d.id}" ${bl?.chauffeurId === d.id ? 'selected' : ''}>${d.nom}</option>`).join('');
 
     const lignes = bl?.lignes || [];
 
@@ -221,8 +228,8 @@ async function openBLModal(blId = null) {
             <div class="form-row">
                 <div class="form-group">
                     <label>BC Client source</label>
-                    <select id="blClientCommandeId" onchange="VenteModule.onCommandeChangeBLClient()" ${bl ? 'disabled' : ''} required>
-                        <option value="">-- Sélectionner un BC --</option>
+                    <select id="blClientCommandeId" onchange="VenteModule.onCommandeChangeBLClient()" ${bl ? 'disabled' : ''}>
+                        <option value="">-- Aucun (saisie libre) --</option>
                         ${cmdOpts}
                     </select>
                 </div>
@@ -233,9 +240,27 @@ async function openBLModal(blId = null) {
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>Client</label>
-                    <input type="text" id="blClientNom" value="${bl?.clientId ? ClientsModule.getClientById(bl.clientId)?.nom || '' : ''}" readonly style="background:rgba(15,23,42,0.2)">
-                    <input type="hidden" id="blClientClientId" value="${bl?.clientId || ''}">
+                    <label>👥 Client *</label>
+                    <select id="blClientClientId" required>
+                        <option value="">-- Sélectionner --</option>
+                        ${clientOpts}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>🚛 Camion</label>
+                    <select id="blClientCamion" onchange="VenteModule.onTruckChangeBL()">
+                        <option value="">-- Sélectionner --</option>
+                        ${truckOpts}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>👤 Chauffeur</label>
+                    <select id="blClientChauffeur">
+                        <option value="">-- Sélectionner --</option>
+                        ${driverOpts}
+                    </select>
                 </div>
             </div>
             <div style="margin-top:16px">
@@ -282,10 +307,10 @@ async function onCommandeChangeBLClient() {
     const order = SalesOrdersModule.getOrderById(bcId);
     if (!order) return;
 
-    // Fill client
-    const client = ClientsModule.getClientById(order.clientId);
-    document.getElementById('blClientNom').value = client?.nom || '';
-    document.getElementById('blClientClientId').value = order.clientId || '';
+    // Fill client dropdown
+    if (order.clientId) {
+        document.getElementById('blClientClientId').value = order.clientId;
+    }
 
     // Fill lignes from BC
     const lignes = order.lignes || [];
@@ -302,6 +327,18 @@ async function onCommandeChangeBLClient() {
         `;
     }).join('');
     recalcBLTotal();
+}
+
+async function onTruckChangeBL() {
+    const truckId = document.getElementById('blClientCamion')?.value;
+    if (truckId) {
+        const { DataModule } = await import('./data-firebase.js');
+        const drivers = await DataModule.getDrivers();
+        const driver = drivers.find(d => d.camionId === truckId);
+        if (driver) {
+            document.getElementById('blClientChauffeur').value = driver.id;
+        }
+    }
 }
 
 function recalcBLLigne(input) {
@@ -344,16 +381,21 @@ async function saveBLForm() {
 
     if (lignes.length === 0) { alert('Aucune quantité livrée'); return; }
 
+    const clientId = document.getElementById('blClientClientId')?.value;
+    if (!clientId) { alert('S\u00e9lectionnez un client'); return; }
+
     const bl = {
         id: document.getElementById('blClientId').value || null,
         numero: document.getElementById('blClientId').value ? getBLById(document.getElementById('blClientId').value)?.numero : `BLC-${Date.now().toString().slice(-6)}`,
         date: document.getElementById('blClientDate').value,
         commandeId: bcId || null,
         commandeNumero: order?.numero || '',
-        clientId: document.getElementById('blClientClientId').value,
+        clientId: clientId,
+        camionId: document.getElementById('blClientCamion')?.value || null,
+        chauffeurId: document.getElementById('blClientChauffeur')?.value || null,
         lignes: lignes,
         montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
-        statut: 'Livré'
+        statut: 'Livr\u00e9'
     };
 
     try {
@@ -1226,7 +1268,7 @@ export const VenteModule = {
     init, showPage, refreshCurrentPage,
     // BL Client
     editBL, deleteBL, openBLModal,
-    onCommandeChangeBLClient, recalcBLLigne,
+    onCommandeChangeBLClient, onTruckChangeBL, recalcBLLigne,
     // Factures Client
     editFacture, deleteFacture, openFactureModal,
     onBLChangeFactureClient,

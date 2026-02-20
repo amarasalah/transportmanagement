@@ -579,8 +579,9 @@ function calculateEntryCosts(entry, truck) {
     const montantTaxe = entry.montantTaxe != null ? entry.montantTaxe : (truck?.montantTaxe || 0);
     const chargePersonnel = entry.chargePersonnel != null ? entry.chargePersonnel : (truck?.chargePersonnel || 0);
     const maintenance = entry.maintenance || 0;
+    const fraisLeasing = entry.fraisLeasing != null ? entry.fraisLeasing : (truck?.fraisLeasing || 0);
 
-    const coutTotal = montantGasoil + chargesFixes + montantAssurance + montantTaxe + maintenance + chargePersonnel;
+    const coutTotal = montantGasoil + chargesFixes + montantAssurance + montantTaxe + maintenance + chargePersonnel + fraisLeasing;
     const resultat = (entry.prixLivraison || 0) - coutTotal;
 
     return { montantGasoil, coutTotal, resultat };

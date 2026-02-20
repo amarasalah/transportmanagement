@@ -107,6 +107,7 @@ async function renderTrucks() {
                 <span class="cost-tag">Assurance: ${truck.montantAssurance} TND</span>
                 <span class="cost-tag">Taxe: ${truck.montantTaxe} TND</span>
                 <span class="cost-tag">Personnel: ${truck.chargePersonnel} TND</span>
+                ${truck.fraisLeasing ? `<span class="cost-tag">💳 Leasing: ${truck.fraisLeasing} TND/j</span>` : ''}
             </div>
             <div class="entity-footer"><span class="trajet-count">📍 ${stats.nbTrajets} trajet(s)</span></div>
         </div>`;
@@ -135,6 +136,9 @@ async function openModal(truckId = null) {
                 <div class="form-group"><label>Taxe (TND)</label><input type="number" id="truckTaxe" value="${truck?.montantTaxe || 20}"></div>
                 <div class="form-group"><label>Personnel (TND)</label><input type="number" id="truckPersonnel" value="${truck?.chargePersonnel || 80}"></div>
             </div>
+            <div class="form-row">
+                <div class="form-group"><label>💳 Leasing (TND/jour)</label><input type="number" id="truckLeasing" value="${truck?.fraisLeasing || 0}" min="0" step="0.1"></div>
+            </div>
         </form>`;
     document.getElementById('modalSave').onclick = saveTruck;
     App.showModal();
@@ -148,7 +152,8 @@ async function saveTruck() {
         chargesFixes: parseFloat(document.getElementById('truckChargesFixes').value) || 0,
         montantAssurance: parseFloat(document.getElementById('truckAssurance').value) || 0,
         montantTaxe: parseFloat(document.getElementById('truckTaxe').value) || 0,
-        chargePersonnel: parseFloat(document.getElementById('truckPersonnel').value) || 0
+        chargePersonnel: parseFloat(document.getElementById('truckPersonnel').value) || 0,
+        fraisLeasing: parseFloat(document.getElementById('truckLeasing').value) || 0
     };
     if (!truck.matricule) { alert('Matricule requis'); return; }
     await DataModule.saveTruck(truck);

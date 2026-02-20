@@ -384,7 +384,7 @@ function updateCalculations() {
     let coutTotal = montantGasoil + maintenance;
 
     if (truck) {
-        coutTotal += truck.chargesFixes + truck.montantAssurance + truck.montantTaxe + truck.chargePersonnel;
+        coutTotal += truck.chargesFixes + truck.montantAssurance + truck.montantTaxe + truck.chargePersonnel + (truck.fraisLeasing || 0);
     }
 
     const resultat = prixLivraison - coutTotal;

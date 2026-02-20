@@ -21,6 +21,7 @@ export interface Truck {
     montantAssurance: number;
     montantTaxe: number;
     chargePersonnel: number;
+    fraisLeasing?: number;
     lastLocation?: TruckLocation | null;
     updatedAt?: string;
 }

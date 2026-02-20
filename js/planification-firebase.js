@@ -141,7 +141,7 @@ async function renderPlannings(selectedDate) {
     }
 
     if (plannings.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:40px;">Aucune planification trouvée.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:#64748b;padding:40px;">Aucune planification trouvée.</td></tr>';
         return;
     }
 
@@ -172,7 +172,8 @@ async function renderPlannings(selectedDate) {
             'annule': 'Annulé'
         }[plan.statut] || plan.statut || 'Planifié';
 
-        const coutTotal = (plan.montantGasoil || 0) + (plan.maintenance || 0);
+        const truckCharges = truck ? ((truck.chargesFixes || 0) + (truck.montantAssurance || 0) + (truck.montantTaxe || 0) + (truck.chargePersonnel || 0) + (truck.fraisLeasing || 0)) : 0;
+        const coutTotal = (plan.montantGasoil || 0) + (plan.maintenance || 0) + truckCharges;
         const resultat = (plan.prixLivraison || 0) - coutTotal;
         const resultClass = resultat >= 0 ? 'result-positive' : 'result-negative';
 
@@ -189,8 +190,8 @@ async function renderPlannings(selectedDate) {
             <td>${coutTotal.toLocaleString('fr-FR')} TND</td>
             <td>${(plan.prixLivraison || 0).toLocaleString('fr-FR')} TND</td>
             <td class="${resultClass}">${resultat.toLocaleString('fr-FR')} TND</td>
+            <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             <td>
-                <span class="status-badge ${statusClass}">${statusLabel}</span>
                 ${!window.currentUser?.driverId ? `
                 <button class="btn btn-sm btn-outline" onclick="PlanificationModule.edit('${plan.id}')" title="Modifier">✏️</button>
                 <button class="btn btn-sm btn-outline" onclick="PlanificationModule.remove('${plan.id}')" title="Supprimer">🗑️</button>
@@ -556,7 +557,15 @@ function updateDistanceEstimate() {
     }
 }
 
-function onTruckChange() {
+async function onTruckChange() {
+    const truckId = document.getElementById('planCamion').value;
+    if (truckId) {
+        const drivers = await DataModule.getDrivers();
+        const driver = drivers.find(d => d.camionId === truckId);
+        if (driver) {
+            document.getElementById('planChauffeur').value = driver.id;
+        }
+    }
     updateCalculations();
 }
 
@@ -573,7 +582,7 @@ function updateCalculations() {
     let coutTotal = montantGasoil + maintenance;
 
     if (truck) {
-        coutTotal += (truck.chargesFixes || 0) + (truck.montantAssurance || 0) + (truck.montantTaxe || 0) + (truck.chargePersonnel || 0);
+        coutTotal += (truck.chargesFixes || 0) + (truck.montantAssurance || 0) + (truck.montantTaxe || 0) + (truck.chargePersonnel || 0) + (truck.fraisLeasing || 0);
     }
 
     const resultat = prixLivraison - coutTotal;

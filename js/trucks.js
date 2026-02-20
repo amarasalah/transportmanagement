@@ -193,6 +193,12 @@ const TrucksModule = (() => {
                         <input type="number" id="truckPersonnel" value="${truck?.chargePersonnel || 80}" min="0">
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="truckLeasing">💳 Leasing (TND/jour)</label>
+                        <input type="number" id="truckLeasing" value="${truck?.fraisLeasing || 0}" min="0" step="0.1">
+                    </div>
+                </div>
             </form>
         `;
 
@@ -208,7 +214,8 @@ const TrucksModule = (() => {
             chargesFixes: parseFloat(document.getElementById('truckChargesFixes').value) || 0,
             montantAssurance: parseFloat(document.getElementById('truckAssurance').value) || 0,
             montantTaxe: parseFloat(document.getElementById('truckTaxe').value) || 0,
-            chargePersonnel: parseFloat(document.getElementById('truckPersonnel').value) || 0
+            chargePersonnel: parseFloat(document.getElementById('truckPersonnel').value) || 0,
+            fraisLeasing: parseFloat(document.getElementById('truckLeasing').value) || 0
         };
 
         if (!truck.matricule) {

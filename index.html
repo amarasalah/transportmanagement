@@ -518,7 +518,8 @@
                                 <th>Coût</th>
                                 <th>Livraison</th>
                                 <th>Résultat</th>
-                                <th>Statut / Actions</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="planningBody"></tbody>
@@ -1124,6 +1125,31 @@
                         <h2 style="font-size:1.25rem">📦 Bons de Livraison</h2>
                         <button class="btn btn-primary" id="addLivraisonBtn">➕ Nouveau BL</button>
                     </div>
+                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date début</label>
+                            <input type="date" id="achatBLDateStart" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date fin</label>
+                            <input type="date" id="achatBLDateEnd" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:150px">
+                            <label style="font-size:12px;color:#94a3b8">Fournisseur</label>
+                            <select id="achatBLFournisseur" class="form-control">
+                                <option value="">Tous</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Statut</label>
+                            <select id="achatBLStatut" class="form-control">
+                                <option value="">Tous</option>
+                                <option value="Reçu">Reçu</option>
+                                <option value="Partiel">Partiel</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-outline" onclick="AchatModule.filterLivraisons()">🔍</button>
+                    </div>
                     <div style="overflow-x:auto">
                         <table class="data-table">
                             <thead>
@@ -1152,6 +1178,25 @@
                         <h2 style="font-size:1.25rem">🚚 Bons de Sortie</h2>
                         <button class="btn btn-primary" id="addSortieBtn">➕ Nouveau BS</button>
                     </div>
+                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date début</label>
+                            <input type="date" id="achatBSDateStart" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date fin</label>
+                            <input type="date" id="achatBSDateEnd" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Statut</label>
+                            <select id="achatBSStatut" class="form-control">
+                                <option value="">Tous</option>
+                                <option value="Sorti">Sorti</option>
+                                <option value="En attente">En attente</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-outline" onclick="AchatModule.filterSorties()">🔍</button>
+                    </div>
                     <div style="overflow-x:auto">
                         <table class="data-table">
                             <thead>
@@ -1172,6 +1217,7 @@
             </div>
         </section>
 
+        <!-- Bon de Retour Achat Page -->
         <!-- Bon de Retour Fournisseur Page -->
         <section class="page" id="page-retours-fournisseurs">
             <div class="page-content">
@@ -1180,11 +1226,37 @@
                         <h2 style="font-size:1.25rem">&#x21A9;&#xFE0F; Bons de Retour Fournisseur</h2>
                         <button class="btn btn-primary" id="addRetourBtn">&#x2795; Nouveau Retour</button>
                     </div>
+                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date début</label>
+                            <input type="date" id="achatBRDateStart" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Date fin</label>
+                            <input type="date" id="achatBRDateEnd" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:150px">
+                            <label style="font-size:12px;color:#94a3b8">Fournisseur</label>
+                            <select id="achatBRFournisseur" class="form-control">
+                                <option value="">Tous</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;min-width:130px">
+                            <label style="font-size:12px;color:#94a3b8">Statut</label>
+                            <select id="achatBRStatut" class="form-control">
+                                <option value="">Tous</option>
+                                <option value="En cours">En cours</option>
+                                <option value="Accepté">Accepté</option>
+                                <option value="Refusé">Refusé</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-outline" onclick="AchatModule.filterRetours()">&#x1F50D;</button>
+                    </div>
                     <div style="overflow-x:auto">
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>N&#xB0; BR</th>
+                                    <th>N° BR</th>
                                     <th>Date</th>
                                     <th>BL Source</th>
                                     <th>Fournisseur</th>

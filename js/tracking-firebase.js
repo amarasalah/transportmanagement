@@ -3,7 +3,7 @@
  * GPS Map Tracking using Leaflet.js + OpenStreetMap (Free)
  */
 
-import { db, rtdb, collection, getDocs, dbRef, dbSet, onValue, COLLECTIONS } from './firebase.js';
+import { db, rtdb, collection, getDocs, dbRef, dbSet, dbGet, onValue, COLLECTIONS } from './firebase.js';
 import { DataModule } from './data-firebase.js';
 
 console.log('[GPS] ✅ tracking-firebase.js loaded successfully');
@@ -14,6 +14,8 @@ let autoRefreshInterval = null;
 let firestoreUnsubscribe = null;
 let rtdbUnsubscribe = null;
 let cachedTrucks = []; // Cache truck metadata from Firestore
+let trajectoryLayers = {}; // Polyline layers for trajectory history
+let activeHistoryTruckId = null; // Currently displayed trajectory
 
 // Tunisia center coordinates
 const TUNISIA_CENTER = [36.8065, 10.1815];
@@ -188,7 +190,7 @@ async function loadTruckPositions(trucksOverride) {
 
             // Speed: loc.speed is in m/s from device GPS, convert to km/h
             const speedMs = parseFloat(loc?.speed);
-            const speedKmh = (!isNaN(speedMs) && speedMs >= 0) ? Math.round(speedMs * 3.6) : null;
+            const speedKmh = (!isNaN(speedMs) && speedMs > 0) ? Math.round(speedMs * 3.6) : (speedMs === 0 ? 0 : null);
 
             console.log(`[GPS] Marker: ${truck.matricule} → [${lat}, ${lng}] speed=${speedKmh !== null ? speedKmh + ' km/h' : 'N/A'} source=${loc.source}`);
 
@@ -207,8 +209,9 @@ async function loadTruckPositions(trucksOverride) {
             const sourceBadge = sourceLabel
                 ? `<div style="margin-top:4px"><span style="display:inline-block;padding:2px 8px;background:rgba(139,92,246,0.1);border-radius:4px;font-size:11px;color:#8b5cf6;font-weight:600">${sourceLabel}</span></div>`
                 : '';
+            const speedColor = speedKmh === null ? '#64748b' : speedKmh > 80 ? '#ef4444' : speedKmh > 40 ? '#f59e0b' : '#10b981';
             const speedInfo = (speedKmh !== null)
-                ? `<div><strong>Vitesse réelle:</strong> <span style="color:#10b981;font-weight:700">${speedKmh} km/h</span></div>` : '';
+                ? `<div><strong>Vitesse:</strong> <span style="color:${speedColor};font-weight:700">${speedKmh} km/h</span></div>` : '';
 
             marker.bindPopup(`
                 <div style="min-width:220px;font-family:Inter,sans-serif">
@@ -222,6 +225,7 @@ async function loadTruckPositions(trucksOverride) {
                         ${speedInfo}
                         <div><strong>Dernière MAJ:</strong> ${lastUpdate}</div>
                         ${sourceBadge}
+                        <div style="margin-top:6px"><button onclick="TrackingModule.showHistory('${truck.id}')" style="padding:4px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600">📍 Historique trajet</button></div>
                     </div>
                 </div>
             `);
@@ -306,7 +310,7 @@ function startAutoRefresh() {
         // Only reload Firestore truck metadata as fallback
         // Real-time GPS comes from RTDB listener
         loadTruckPositions();
-    }, 10000);
+    }, 5000);
 }
 
 function stopAutoRefresh() {
@@ -380,9 +384,88 @@ function destroy() {
     markers = {};
 }
 
+// ==================== TRAJECTORY HISTORY ====================
+async function showHistory(truckId) {
+    // Clear previous trajectory
+    clearHistory();
+    activeHistoryTruckId = truckId;
+
+    const truck = cachedTrucks.find(t => t.id === truckId);
+    console.log(`[GPS] Loading trajectory history for ${truck?.matricule || truckId}`);
+
+    try {
+        // Load from RTDB /gps_history/{truckId}
+        const histRef = dbRef(rtdb, `gps_history/${truckId}`);
+        const snap = await dbGet(histRef);
+        if (!snap.exists()) {
+            alert('Aucun historique de trajet disponible pour ce camion');
+            return;
+        }
+
+        const data = snap.val();
+        const points = Object.values(data)
+            .sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
+
+        if (points.length < 2) {
+            alert('Pas assez de points pour tracer le trajet');
+            return;
+        }
+
+        // Draw polyline
+        const latlngs = points.map(p => [parseFloat(p.lat), parseFloat(p.lng)]).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+        const polyline = L.polyline(latlngs, {
+            color: '#8b5cf6',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '8, 4'
+        }).addTo(map);
+        trajectoryLayers[truckId] = [polyline];
+
+        // Add speed markers at intervals
+        const step = Math.max(1, Math.floor(points.length / 20)); // max ~20 markers
+        for (let i = 0; i < points.length; i += step) {
+            const p = points[i];
+            const lat = parseFloat(p.lat);
+            const lng = parseFloat(p.lng);
+            if (isNaN(lat) || isNaN(lng)) continue;
+
+            const spd = (p.speed !== null && p.speed !== undefined && p.speed >= 0) ? Math.round(p.speed * 3.6) : null;
+            const spdColor = spd === null ? '#64748b' : spd > 80 ? '#ef4444' : spd > 40 ? '#f59e0b' : '#10b981';
+            const time = p.timestamp ? new Date(p.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+            const icon = L.divIcon({
+                className: 'history-dot',
+                html: `<div style="width:12px;height:12px;border-radius:50%;background:${spdColor};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>`,
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+            const m = L.marker([lat, lng], { icon }).addTo(map);
+            m.bindPopup(`<div style="font-size:12px"><strong>${time}</strong><br>${spd !== null ? spd + ' km/h' : '-'}</div>`);
+            trajectoryLayers[truckId].push(m);
+        }
+
+        // Fit map to trajectory
+        map.fitBounds(polyline.getBounds().pad(0.1));
+
+        console.log(`[GPS] Trajectory: ${points.length} points drawn for ${truck?.matricule}`);
+    } catch (err) {
+        console.error('[GPS] Error loading trajectory history:', err);
+        alert('Erreur lors du chargement de l\'historique: ' + (err.message || err));
+    }
+}
+
+function clearHistory() {
+    Object.values(trajectoryLayers).forEach(layers => {
+        layers.forEach(layer => map?.removeLayer(layer));
+    });
+    trajectoryLayers = {};
+    activeHistoryTruckId = null;
+}
+
 export const TrackingModule = {
     init, refresh, destroy,
     centerOnTruck, fitAllTrucks,
-    refreshPositions
+    refreshPositions,
+    showHistory, clearHistory
 };
 window.TrackingModule = TrackingModule;

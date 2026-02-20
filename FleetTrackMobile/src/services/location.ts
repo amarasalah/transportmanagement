@@ -12,7 +12,7 @@ import { getDriverById } from './drivers';
 import { getTruckById } from './trucks';
 
 const BACKGROUND_LOCATION_TASK = 'fleettrack-background-location';
-const UPDATE_INTERVAL_MS = 30_000; // 30 seconds
+const UPDATE_INTERVAL_MS = 10_000; // 10 seconds for real-time tracking
 
 let foregroundSubscription: Location.LocationSubscription | null = null;
 let fallbackInterval: ReturnType<typeof setInterval> | null = null;
@@ -90,6 +90,11 @@ export async function sendLocationToFirestore(
         driverId: currentDriverId || null,
     };
 
+    // Fix speed: ensure non-negative, null if invalid
+    if (locationData.speed !== null && (locationData.speed < 0 || isNaN(locationData.speed))) {
+        locationData.speed = null;
+    }
+
     // PRIMARY: Write to Realtime Database (instant, <100ms)
     try {
         const gpsRef = dbRef(rtdb, `gps_positions/${camionId}`);
@@ -97,6 +102,22 @@ export async function sendLocationToFirestore(
         console.log(`📍 [RTDB] ${latitude.toFixed(5)}, ${longitude.toFixed(5)} → ${camionId}`);
     } catch (err: any) {
         console.error('📍 RTDB write error:', err?.message || err);
+    }
+
+    // HISTORY: Store trajectory point in /gps_history/{camionId}/{key}
+    try {
+        const histKey = ts.replace(/[:.]/g, '-');
+        const histRef = dbRef(rtdb, `gps_history/${camionId}/${histKey}`);
+        await dbSet(histRef, {
+            lat: latitude,
+            lng: longitude,
+            speed: locationData.speed,
+            heading: heading ?? null,
+            timestamp: ts,
+        });
+    } catch (err: any) {
+        // Non-critical, don't block
+        console.warn('📍 History write error:', err?.message || err);
     }
 
     // SECONDARY: Also update Firestore (backup, for truck list display)
@@ -140,7 +161,7 @@ export async function startTracking(driverId: string, camionId: string): Promise
     foregroundSubscription = await Location.watchPositionAsync(
         {
             accuracy: Location.Accuracy.High,
-            distanceInterval: 10, // meters — low threshold so updates fire even when nearly stationary
+            distanceInterval: 5, // meters — very low for near real-time
             timeInterval: UPDATE_INTERVAL_MS,
         },
         async (location: Location.LocationObject) => {
