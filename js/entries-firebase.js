@@ -47,7 +47,9 @@ async function renderEntries(selectedDate) {
         const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
 
         const origineShort = entry.origineDelegation || entry.origineGouvernorat || '-';
-        const destShort = entry.delegation || entry.gouvernorat || entry.destination || '-';
+        const destShort = client
+            ? `${client.nom} (${entry.delegation || entry.gouvernorat || ''})`
+            : (entry.delegation || entry.gouvernorat || entry.destination || '-');
         const trajetDisplay = `${origineShort} ↔ ${destShort}`;
         const trajetFull = `Aller: ${origineShort} → ${destShort}\nRetour: ${destShort} → ${origineShort}`;
 
@@ -130,13 +132,6 @@ async function openModal(entryId = null) {
                     <label for="entryDate">📅 Date</label>
                     <input type="date" id="entryDate" value="${entry?.date || selectedDate}" required>
                 </div>
-                <div class="form-group">
-                    <label for="entryClient">👥 Client</label>
-                    <select id="entryClient">
-                        <option value="">-- Aucun client --</option>
-                        ${clientOptions}
-                    </select>
-                </div>
             </div>
 
             <!-- Origin Section -->
@@ -163,16 +158,24 @@ async function openModal(entryId = null) {
             <!-- Destination Section -->
             <div style="background: rgba(239, 68, 68, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; border-left: 4px solid #ef4444;">
                 <h4 style="margin-bottom: 12px; color: #ef4444;">📍 Destination</h4>
+                <div class="form-group" style="margin-bottom:12px">
+                    <label for="entryClient">👥 Client</label>
+                    <select id="entryClient" onchange="EntriesModule.onClientChangeDestination()">
+                        <option value="">-- Aucun client --</option>
+                        ${clientOptions}
+                    </select>
+                    <div id="entryClientLocInfo" style="font-size:12px;margin-top:6px"></div>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="entryGouvernorat">Gouvernorat</label>
+                        <label for="entryGouvernorat">Gouvernorat *</label>
                         <select id="entryGouvernorat" required onchange="EntriesModule.onGouvernoratChange()">
                             <option value="">-- Sélectionner --</option>
                             ${destGouvernoratOptions}
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="entryDelegation">Délégation</label>
+                        <label for="entryDelegation">Délégation *</label>
                         <select id="entryDelegation" required onchange="EntriesModule.updateDistanceEstimate()">
                             <option value="">-- Sélectionner gouvernorat --</option>
                             ${destDelegationOptions}
@@ -320,25 +323,69 @@ function onGouvernoratChange() {
     updateDistanceEstimate();
 }
 
+async function onClientChangeDestination() {
+    const clientId = document.getElementById('entryClient')?.value;
+    const infoDiv = document.getElementById('entryClientLocInfo');
+    if (!clientId) {
+        if (infoDiv) infoDiv.innerHTML = '';
+        return;
+    }
+    const client = ClientsModule.getClientById(clientId);
+    if (!client) return;
+
+    // Show client info + button to use client's default location
+    if (infoDiv) {
+        const hasLoc = client.gouvernorat;
+        const loc = client.delegation ? `${client.delegation}, ${client.gouvernorat}` : (client.gouvernorat || 'Non d\u00e9finie');
+        infoDiv.innerHTML = hasLoc
+            ? `<span style="color:#64748b">\ud83d\udccd Localisation: <strong>${loc}</strong></span>
+               <button type="button" onclick="EntriesModule.useClientLocation()" style="margin-left:8px;padding:3px 10px;border-radius:4px;border:1px solid #3b82f6;background:#3b82f6;color:#fff;font-size:12px;cursor:pointer">Utiliser cette localisation</button>`
+            : `<span style="color:#94a3b8">\ud83d\udccd Aucune localisation par d\u00e9faut pour ce client</span>`;
+    }
+}
+
+function useClientLocation() {
+    const clientId = document.getElementById('entryClient')?.value;
+    if (!clientId) return;
+    const client = ClientsModule.getClientById(clientId);
+    if (!client?.gouvernorat) return;
+
+    const gouvSel = document.getElementById('entryGouvernorat');
+    if (gouvSel) { gouvSel.value = client.gouvernorat; onGouvernoratChange(); }
+    setTimeout(() => {
+        if (client.delegation) {
+            const delSel = document.getElementById('entryDelegation');
+            if (delSel) delSel.value = client.delegation;
+        }
+        updateDistanceEstimate();
+        const infoDiv = document.getElementById('entryClientLocInfo');
+        if (infoDiv) {
+            const loc = client.delegation ? `${client.delegation}, ${client.gouvernorat}` : client.gouvernorat;
+            infoDiv.innerHTML = `<span style="color:#10b981">\u2705 Localisation appliqu\u00e9e: <strong>${loc}</strong></span>`;
+        }
+    }, 50);
+}
+
 function updateDistanceEstimate() {
     const origineGouv = document.getElementById('origineGouvernorat')?.value;
     const origineDel = document.getElementById('origineDelegation')?.value;
-    const destGouv = document.getElementById('entryGouvernorat')?.value;
-    const destDel = document.getElementById('entryDelegation')?.value;
+    const destGouv = document.getElementById('entryGouvernorat')?.value || '';
+    const destDel = document.getElementById('entryDelegation')?.value || '';
+
+    const destName = destDel || destGouv;
 
     if (origineGouv && destGouv) {
         const distanceAller = getDistanceEstimate(origineGouv, origineDel, destGouv, destDel);
         const distanceRetour = distanceAller;
         const distanceTotal = distanceAller * 2;
 
+        const origName = origineDel || origineGouv;
         const trajDisplay = document.getElementById('trajectoryDisplay');
         if (trajDisplay) {
-            const origName = origineDel || origineGouv;
-            const destName = destDel || destGouv;
             trajDisplay.innerHTML = `
-                <span style="color: #10b981;">🚀 ${origName}</span> → 
-                <span style="color: #ef4444;">📍 ${destName}</span> → 
-                <span style="color: #10b981;">🏠 ${origName}</span>
+                <span style="color: #10b981;">\ud83d\ude80 ${origName}</span> \u2192 
+                <span style="color: #ef4444;">\ud83d\udccd ${destName}</span> \u2192 
+                <span style="color: #10b981;">\ud83c\udfe0 ${origName}</span>
             `;
         }
 
@@ -406,20 +453,23 @@ async function saveEntry() {
     const origineDelegation = document.getElementById('origineDelegation').value;
     const gouvernorat = document.getElementById('entryGouvernorat').value;
     const delegation = document.getElementById('entryDelegation').value;
-    const distanceAller = getDistanceEstimate(origineGouvernorat, origineDelegation, gouvernorat, delegation);
+    const clientId = document.getElementById('entryClient')?.value || null;
 
+    // Calculate distance from gouvernorat/delegation
+    const distanceAller = getDistanceEstimate(origineGouvernorat, origineDelegation, gouvernorat, delegation);
+    const destLabel = delegation ? `${delegation}, ${gouvernorat}` : gouvernorat;
     const entry = {
         id: document.getElementById('entryId').value || null,
         date: document.getElementById('entryDate').value,
         camionId: document.getElementById('entryCamion').value,
         chauffeurId: document.getElementById('entryChauffeur').value,
-        clientId: document.getElementById('entryClient').value || null,
+        clientId: clientId,
         origineGouvernorat,
         origineDelegation,
         origine: origineDelegation ? `${origineDelegation}, ${origineGouvernorat}` : origineGouvernorat,
         gouvernorat,
         delegation,
-        destination: delegation ? `${delegation}, ${gouvernorat}` : gouvernorat,
+        destination: destLabel,
         distanceAller,
         distanceRetour: distanceAller,
         kilometrage: parseFloat(document.getElementById('entryKm').value) || 0,
@@ -430,8 +480,8 @@ async function saveEntry() {
         remarques: document.getElementById('entryRemarques').value
     };
 
-    if (!entry.date || !entry.camionId || !entry.chauffeurId || !entry.origineGouvernorat || !entry.gouvernorat) {
-        alert('Veuillez remplir tous les champs obligatoires');
+    if (!entry.date || !entry.camionId || !entry.chauffeurId || !entry.origineGouvernorat || !gouvernorat) {
+        alert('Veuillez remplir la date, l\'origine, la destination, le camion et le chauffeur');
         return;
     }
 
@@ -506,7 +556,9 @@ export const EntriesModule = {
     onGouvernoratChange,
     updateCalculations,
     updateDistanceEstimate,
-    updateTrajectoryStats
+    updateTrajectoryStats,
+    onClientChangeDestination,
+    useClientLocation
 };
 
 window.EntriesModule = EntriesModule;

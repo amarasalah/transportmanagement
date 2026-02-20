@@ -155,7 +155,9 @@ async function renderPlannings(selectedDate) {
         const driver = plan.chauffeurId ? drivers.find(d => d.id === plan.chauffeurId) : null;
 
         const origineShort = plan.origineDelegation || plan.origineGouvernorat || '-';
-        const destShort = plan.delegation || plan.gouvernorat || '-';
+        const destShort = client
+            ? `${client.nom} (${plan.delegation || plan.gouvernorat || ''})`
+            : (plan.delegation || plan.gouvernorat || '-');
         const trajetDisplay = `${origineShort} ↔ ${destShort}`;
 
         const statusClass = {
@@ -209,59 +211,6 @@ function formatDate(dateStr) {
 
 function formatTime(heure) {
     return heure || '';
-}
-
-// ==================== GOUVERNORATS & DELEGATIONS ====================
-function getGouvernorats() {
-    return [
-        'Ariana', 'Béja', 'Ben Arous', 'Bizerte', 'Gabès', 'Gafsa', 'Jendouba',
-        'Kairouan', 'Kasserine', 'Kébili', 'Le Kef', 'Mahdia', 'La Manouba',
-        'Médenine', 'Monastir', 'Nabeul', 'Sfax', 'Sidi Bouzid', 'Siliana',
-        'Sousse', 'Tataouine', 'Tozeur', 'Tunis', 'Zaghouan'
-    ];
-}
-
-function getDelegations(gouvernorat) {
-    const delegationsMap = {
-        'Gabès': ['Gabès Médina', 'Gabès Ouest', 'Gabès Sud', 'Ghanouch', 'Métouia', 'El Hamma', 'Matmata', 'Matmata Nouvelle', 'Mareth', 'Menzel El Habib'],
-        'Tunis': ['Tunis', 'Le Bardo', 'La Marsa', 'Carthage', 'Sidi Bou Said', 'La Goulette', 'Le Kram', 'Médina', 'Bab El Bhar', 'Bab Souika', 'Cité El Khadra', 'El Omrane', 'El Omrane Supérieur', 'Ettahrir', 'El Menzah', 'El Ouardia', 'Séjoumi', 'Ezzouhour', 'El Hrairia', 'Sidi El Béchir', 'Djebel Jelloud'],
-        'Sfax': ['Sfax Ville', 'Sfax Ouest', 'Sfax Sud', 'Sakiet Eddaïer', 'Sakiet Ezzit', 'El Aïn', 'Thyna', 'Agareb', 'Djebiniana', 'El Hencha', 'Menzel Chaker', 'Ghraïba', 'Bir Ali Ben Khélifa', 'Skhira', 'Mahares', 'Kerkennah'],
-        'Sousse': ['Sousse Ville', 'Sousse Jawhara', 'Sousse Riadh', 'Sousse Sidi Abdelhamid', 'Hammam Sousse', 'Akouda', 'Kalâa Kebira', 'Sidi Bou Ali', 'Hergla', 'Enfidha', 'Bouficha', 'Kondar', 'Sidi El Héni', 'M\'saken', 'Kalâa Seghira', 'Zaouia-Ksiba-Thrayet'],
-        'Médenine': ['Médenine Nord', 'Médenine Sud', 'Ben Guerdane', 'Zarzis', 'Djerba Houmt Souk', 'Djerba Midoun', 'Djerba Ajim', 'Béni Khedache', 'Sidi Makhlouf'],
-        'Kébili': ['Kébili Nord', 'Kébili Sud', 'Douz Nord', 'Douz Sud', 'Souk Lahad', 'Faouar'],
-        'Gafsa': ['Gafsa Nord', 'Gafsa Sud', 'Sidi Aïch', 'El Ksar', 'Oum El Araïes', 'Redeyef', 'Métlaoui', 'M\'dhilla', 'El Guettar', 'Belkhir', 'Sned'],
-        'Tataouine': ['Tataouine Nord', 'Tataouine Sud', 'Smâr', 'Bir Lahmar', 'Ghomrassen', 'Dhehiba', 'Remada'],
-        'Tozeur': ['Tozeur', 'Degache', 'Tameghza', 'Nefta', 'Hazoua'],
-        'Mahdia': ['Mahdia', 'Bou Merdes', 'Ouled Chamekh', 'Chorbane', 'Hebira', 'Ksour Essef', 'El Jem', 'Chebba', 'Souassi', 'Melloulèche', 'Sidi Alouane'],
-        'Monastir': ['Monastir', 'Ouerdanine', 'Sahline', 'Zéramdine', 'Béni Hassen', 'Jammel', 'Bembla', 'Moknine', 'Ksar Hellal', 'Ksibet el-Médiouni', 'Sayada-Lamta-Bou Hajar', 'Téboulba', 'Bekalta'],
-        'Nabeul': ['Nabeul', 'Dar Chaâbane El Fehri', 'Béni Khiar', 'El Mida', 'Korba', 'Menzel Temime', 'El Haouaria', 'Takelsa', 'Soliman', 'Menzel Bouzelfa', 'Béni Khalled', 'Grombalia', 'Bou Argoub', 'Hammam El Ghezaz', 'Hammamet', 'Kélibia'],
-        'Bizerte': ['Bizerte Nord', 'Bizerte Sud', 'Sejnane', 'Joumine', 'Mateur', 'Ghezala', 'Menzel Bourguiba', 'Tinja', 'Utique', 'Ghar El Melh', 'Menzel Jemil', 'El Alia', 'Ras Jebel', 'Rafraf'],
-        'Béja': ['Béja Nord', 'Béja Sud', 'Amdoun', 'Nefza', 'Téboursouk', 'Tibar', 'Testour', 'Goubellat', 'Medjez el-Bab'],
-        'Jendouba': ['Jendouba', 'Jendouba Nord', 'Bou Salem', 'Tabarka', 'Aïn Draham', 'Fernana', 'Ghardimaou', 'Oued Meliz', 'Balta-Bou Aouane'],
-        'Kairouan': ['Kairouan Nord', 'Kairouan Sud', 'Chebika', 'Sbikha', 'Haffouz', 'El Ala', 'Hajeb El Ayoun', 'Nasrallah', 'Cherarda', 'Bouhajla', 'El Oueslatia'],
-        'Kasserine': ['Kasserine Nord', 'Kasserine Sud', 'Ezzouhour', 'Hassi El Ferid', 'Sbeitla', 'Sbiba', 'Djedeliane', 'El Ayoun', 'Thala', 'Hidra', 'Foussana', 'Feriana', 'Majel Bel Abbès'],
-        'Le Kef': ['Le Kef Ouest', 'Le Kef Est', 'Nebeur', 'Sakiet Sidi Youssef', 'Tajerouine', 'Kalaat Senan', 'Kalaât Khasba', 'Djérissa', 'Ksour', 'Dahmani', 'Sers'],
-        'Siliana': ['Siliana Nord', 'Siliana Sud', 'Bou Arada', 'Gaâfour', 'El Krib', 'Sidi Bou Rouis', 'Maktar', 'Rouhia', 'Kesra', 'Bargou', 'El Aroussa'],
-        'Sidi Bouzid': ['Sidi Bouzid Ouest', 'Sidi Bouzid Est', 'Jilma', 'Cebbala Ouled Asker', 'Bir El Hafey', 'Sidi Ali Ben Aoun', 'Menzel Bouzaiane', 'Meknassy', 'Souk Jedid', 'Mezzouna', 'Regueb', 'Ouled Haffouz'],
-        'Zaghouan': ['Zaghouan', 'Zriba', 'Bir Mcherga', 'Djebel Oust', 'El Fahs', 'Nadhour', 'Saouaf'],
-        'Ariana': ['Ariana Ville', 'La Soukra', 'Raoued', 'Kalâat el-Andalous', 'Sidi Thabet', 'Ettadhamen', 'Mnihla'],
-        'Ben Arous': ['Ben Arous', 'Nouvelle Médina', 'El Mourouj', 'Hammam Lif', 'Hammam Chott', 'Bou Mhel el-Bassatine', 'Ezzahra', 'Radès', 'Mégrine', 'Mohamedia', 'Fouchana', 'Mornag'],
-        'La Manouba': ['La Manouba', 'Oued Ellil', 'Mornaguia', 'Borj El Amri', 'Douar Hicher', 'El Battan', 'Tebourba', 'Jedaïda']
-    };
-    return delegationsMap[gouvernorat] || [];
-}
-
-function getDistanceEstimate(origGouv, origDel, destGouv, destDel) {
-    // Simple estimation based on gouvernorats
-    const distanceMatrix = {
-        'Gabès': { 'Tunis': 400, 'Sfax': 150, 'Sousse': 280, 'Médenine': 80, 'Djerba': 150, 'default': 200 },
-        'Tunis': { 'Gabès': 400, 'Sfax': 270, 'Sousse': 140, 'Bizerte': 65, 'Nabeul': 65, 'default': 150 },
-        'Sfax': { 'Gabès': 150, 'Tunis': 270, 'Sousse': 130, 'Médenine': 220, 'default': 180 },
-        'default': { 'default': 150 }
-    };
-
-    const origMatrix = distanceMatrix[origGouv] || distanceMatrix['default'];
-    return origMatrix[destGouv] || origMatrix['default'] || 150;
 }
 
 // ==================== MODAL ====================
@@ -321,17 +270,6 @@ async function openModal(planId = null) {
                     <input type="time" id="planHeure" value="${plan?.heure || '08:00'}">
                 </div>
                 <div class="form-group">
-                    <label for="planClient">👥 Client *</label>
-                    <select id="planClient" required>
-                        <option value="">-- Sélectionner un client --</option>
-                        ${clientOptions}
-                    </select>
-                </div>
-            </div>
-
-            <!-- Statut -->
-            <div class="form-row">
-                <div class="form-group">
                     <label for="planStatut">📊 Statut</label>
                     <select id="planStatut">
                         <option value="planifie" ${plan?.statut === 'planifie' ? 'selected' : ''}>📅 Planifié</option>
@@ -366,16 +304,24 @@ async function openModal(planId = null) {
             <!-- Destination Section -->
             <div style="background: rgba(239, 68, 68, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; border-left: 4px solid #ef4444;">
                 <h4 style="margin-bottom: 12px; color: #ef4444;">📍 Destination</h4>
+                <div class="form-group" style="margin-bottom:12px">
+                    <label for="planClient">👥 Client</label>
+                    <select id="planClient" onchange="PlanificationModule.onClientChangeDestination()">
+                        <option value="">-- Aucun client --</option>
+                        ${clientOptions}
+                    </select>
+                    <div id="planClientLocInfo" style="font-size:12px;margin-top:6px"></div>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="planGouvernorat">Gouvernorat</label>
+                        <label for="planGouvernorat">Gouvernorat *</label>
                         <select id="planGouvernorat" required onchange="PlanificationModule.onGouvernoratChange()">
                             <option value="">-- Sélectionner --</option>
                             ${destGouvernoratOptions}
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="planDelegation">Délégation</label>
+                        <label for="planDelegation">Délégation *</label>
                         <select id="planDelegation" required onchange="PlanificationModule.updateDistanceEstimate()">
                             <option value="">-- Sélectionner gouvernorat --</option>
                             ${destDelegationOptions}
@@ -521,21 +467,66 @@ function onGouvernoratChange() {
     updateDistanceEstimate();
 }
 
+async function onClientChangeDestination() {
+    const clientId = document.getElementById('planClient')?.value;
+    const infoDiv = document.getElementById('planClientLocInfo');
+    if (!clientId) {
+        if (infoDiv) infoDiv.innerHTML = '';
+        return;
+    }
+    const client = ClientsModule.getClientById(clientId);
+    if (!client) return;
+
+    // Show client info + button to use client's default location
+    if (infoDiv) {
+        const hasLoc = client.gouvernorat;
+        const loc = client.delegation ? `${client.delegation}, ${client.gouvernorat}` : (client.gouvernorat || 'Non définie');
+        infoDiv.innerHTML = hasLoc
+            ? `<span style="color:#64748b">📍 Localisation: <strong>${loc}</strong></span>
+               <button type="button" onclick="PlanificationModule.useClientLocation()" style="margin-left:8px;padding:3px 10px;border-radius:4px;border:1px solid #3b82f6;background:#3b82f6;color:#fff;font-size:12px;cursor:pointer">Utiliser cette localisation</button>`
+            : `<span style="color:#94a3b8">📍 Aucune localisation par défaut pour ce client</span>`;
+    }
+}
+
+function useClientLocation() {
+    const clientId = document.getElementById('planClient')?.value;
+    if (!clientId) return;
+    const client = ClientsModule.getClientById(clientId);
+    if (!client?.gouvernorat) return;
+
+    const gouvSel = document.getElementById('planGouvernorat');
+    if (gouvSel) { gouvSel.value = client.gouvernorat; onGouvernoratChange(); }
+    setTimeout(() => {
+        if (client.delegation) {
+            const delSel = document.getElementById('planDelegation');
+            if (delSel) delSel.value = client.delegation;
+        }
+        updateDistanceEstimate();
+        // Update info to show it was applied
+        const infoDiv = document.getElementById('planClientLocInfo');
+        if (infoDiv) {
+            const loc = client.delegation ? `${client.delegation}, ${client.gouvernorat}` : client.gouvernorat;
+            infoDiv.innerHTML = `<span style="color:#10b981">✅ Localisation appliquée: <strong>${loc}</strong></span>`;
+        }
+    }, 50);
+}
+
 function updateDistanceEstimate() {
     const origineGouv = document.getElementById('planOrigineGouvernorat')?.value;
     const origineDel = document.getElementById('planOrigineDelegation')?.value;
-    const destGouv = document.getElementById('planGouvernorat')?.value;
-    const destDel = document.getElementById('planDelegation')?.value;
+    const destGouv = document.getElementById('planGouvernorat')?.value || '';
+    const destDel = document.getElementById('planDelegation')?.value || '';
+
+    const destName = destDel || destGouv;
 
     if (origineGouv && destGouv) {
         const distanceAller = getDistanceEstimate(origineGouv, origineDel, destGouv, destDel);
         const distanceRetour = distanceAller;
         const distanceTotal = distanceAller * 2;
 
+        const origName = origineDel || origineGouv;
         const trajDisplay = document.getElementById('planTrajectoryDisplay');
         if (trajDisplay) {
-            const origName = origineDel || origineGouv;
-            const destName = destDel || destGouv;
             trajDisplay.innerHTML = `
                 <span style="color: #10b981;">🚀 ${origName}</span> → 
                 <span style="color: #ef4444;">📍 ${destName}</span> → 
@@ -605,8 +596,11 @@ async function savePlan() {
     const origineDelegation = document.getElementById('planOrigineDelegation').value;
     const gouvernorat = document.getElementById('planGouvernorat').value;
     const delegation = document.getElementById('planDelegation').value;
-    const distanceAller = getDistanceEstimate(origineGouvernorat, origineDelegation, gouvernorat, delegation);
+    const clientId = document.getElementById('planClient')?.value || '';
 
+    // Calculate distance from gouvernorat/delegation
+    const distanceAller = getDistanceEstimate(origineGouvernorat, origineDelegation, gouvernorat, delegation);
+    const destLabel = delegation ? `${delegation}, ${gouvernorat}` : gouvernorat;
     const gasoil = parseFloat(document.getElementById('planGasoil')?.value) || 0;
     const prixGasoil = parseFloat(document.getElementById('planPrixGasoil')?.value) || 0;
     const montantGasoil = gasoil * prixGasoil;
@@ -623,7 +617,7 @@ async function savePlan() {
         id: planId || `plan_${Date.now()}`,
         date: document.getElementById('planDate').value,
         heure: document.getElementById('planHeure')?.value || '',
-        clientId: document.getElementById('planClient').value,
+        clientId: clientId,
         statut: newStatut,
         camionId: document.getElementById('planCamion').value,
         chauffeurId: document.getElementById('planChauffeur').value,
@@ -632,7 +626,7 @@ async function savePlan() {
         origine: origineDelegation ? `${origineDelegation}, ${origineGouvernorat}` : origineGouvernorat,
         gouvernorat,
         delegation,
-        destination: delegation ? `${delegation}, ${gouvernorat}` : gouvernorat,
+        destination: destLabel,
         kilometrage: parseInt(document.getElementById('planKm').value) || distanceAller * 2,
         distanceAller,
         quantiteGasoil: gasoil,
@@ -644,8 +638,8 @@ async function savePlan() {
         updatedAt: new Date().toISOString()
     };
 
-    if (!plan.date || !plan.clientId) {
-        alert('La date et le client sont obligatoires');
+    if (!plan.date || !gouvernorat) {
+        alert('La date et le gouvernorat de destination sont obligatoires');
         return;
     }
 
@@ -739,7 +733,9 @@ export const PlanificationModule = {
     updateDistanceEstimate,
     onTruckChange,
     updateCalculations,
-    convertToEntry
+    convertToEntry,
+    onClientChangeDestination,
+    useClientLocation
 };
 
 window.PlanificationModule = PlanificationModule;
