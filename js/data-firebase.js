@@ -592,6 +592,77 @@ function calculateEntryCosts(entry, truck, isFirstTripOfDay = true) {
     return { montantGasoil, coutTotal, resultat };
 }
 
+// ==================== IDLE DAY ENTRIES ====================
+/**
+ * Generate idle-day entries for trucks with no trips on given dates.
+ * These entries carry only fixed charges (assurance, taxe, etc.) with 0 km/gasoil/revenue.
+ * Idempotent: skips dates/trucks that already have entries or idle_day entries.
+ * @param {string} fromDate - Start date 'YYYY-MM-DD'
+ * @param {string} toDate   - End date 'YYYY-MM-DD' (inclusive)
+ */
+async function generateIdleDayEntries(fromDate, toDate) {
+    const trucks = await getTrucks();
+    const entries = await getEntries();
+    if (!trucks.length) return;
+
+    // Build a set of existing (camionId + date) combos for quick lookup
+    const existingSet = new Set();
+    entries.forEach(e => {
+        if (e.camionId && e.date) existingSet.add(`${e.camionId}_${e.date}`);
+    });
+
+    // Enumerate each date in range
+    const start = new Date(fromDate + 'T00:00:00');
+    const end = new Date(toDate + 'T00:00:00');
+    let created = 0;
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+
+        for (const truck of trucks) {
+            const key = `${truck.id}_${dateStr}`;
+            if (existingSet.has(key)) continue; // truck already has an entry (trip or idle)
+
+            // Create idle_day entry with fixed charges from truck
+            const idleEntry = {
+                date: dateStr,
+                camionId: truck.id,
+                chauffeurId: '',
+                clientId: '',
+                origineGouvernorat: '',
+                origineDelegation: '',
+                origine: '',
+                gouvernorat: '',
+                delegation: '',
+                destination: '',
+                distanceAller: 0,
+                distanceRetour: 0,
+                kilometrage: 0,
+                quantiteGasoil: 0,
+                prixGasoilLitre: 0,
+                montantGasoil: 0,
+                maintenance: 0,
+                prixLivraison: 0,
+                remarques: '🚫 Journée sans voyage - Charges fixes uniquement',
+                source: 'idle_day'
+            };
+
+            try {
+                await saveEntry(idleEntry);
+                existingSet.add(key); // Prevent duplicates within this run
+                created++;
+            } catch (err) {
+                console.error(`Error creating idle entry for ${truck.matricule} on ${dateStr}:`, err);
+            }
+        }
+    }
+
+    if (created > 0) {
+        console.log(`🚫 ${created} entrées idle_day créées (${fromDate} → ${toDate})`);
+    }
+    return created;
+}
+
 // ==================== EXPORT/IMPORT ====================
 async function exportData() {
     await logActivity('EXPORT', 'all', 'backup', { timestamp: new Date().toISOString() });
@@ -698,6 +769,8 @@ export const DataModule = {
     saveSettings,
     // Calculations
     calculateEntryCosts,
+    // Idle Day
+    generateIdleDayEntries,
     // Export/Import
     exportData,
     importData,

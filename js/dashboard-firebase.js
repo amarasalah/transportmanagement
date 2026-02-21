@@ -316,16 +316,22 @@ async function updateDailySummary(selectedDate) {
         truckDaySeen.add(key);
         const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
         const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
+        const isIdle = entry.source === 'idle_day';
 
         let destination = entry.destination || '-';
         if (entry.gouvernorat && entry.delegation) {
             destination = `${entry.delegation}`;
         }
+        if (isIdle) destination = '🚫 Sans voyage';
 
-        return `<tr>
+        const rowStyle = isIdle
+            ? 'style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(251, 191, 36, 0.08)); border-left: 4px solid #f59e0b;"'
+            : '';
+
+        return `<tr ${rowStyle}>
             <td>${truck?.matricule || '-'}</td>
-            <td>${driver?.nom || '-'}</td>
-            <td>${destination}</td>
+            <td>${driver?.nom || (isIdle ? '<span style="color:#f59e0b;font-size:0.8rem">-</span>' : '-')}</td>
+            <td ${isIdle ? 'style="color:#f59e0b;font-weight:600"' : ''}>${destination}</td>
             <td>${entry.kilometrage || 0}</td>
             <td>${entry.quantiteGasoil || 0}L</td>
             <td>${(entry.prixLivraison || 0).toLocaleString('fr-FR')}</td>

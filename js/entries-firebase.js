@@ -51,24 +51,29 @@ async function renderEntries(selectedDate) {
         truckDaySeen.add(key);
         const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
         const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
+        const isIdle = entry.source === 'idle_day';
 
         const origineShort = entry.origineDelegation || entry.origineGouvernorat || '-';
         const destShort = client
             ? `${client.nom} (${entry.delegation || entry.gouvernorat || ''})`
             : (entry.delegation || entry.gouvernorat || entry.destination || '-');
-        const trajetDisplay = `${origineShort} ↔ ${destShort}`;
-        const trajetFull = `Aller: ${origineShort} → ${destShort}\nRetour: ${destShort} → ${origineShort}`;
+        const trajetDisplay = isIdle ? '🚫 Journée sans voyage' : `${origineShort} ↔ ${destShort}`;
+        const trajetFull = isIdle ? (entry.remarques || 'Charges fixes uniquement') : `Aller: ${origineShort} → ${destShort}\nRetour: ${destShort} → ${origineShort}`;
 
-        return `<tr>
+        const rowStyle = isIdle
+            ? 'style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(251, 191, 36, 0.08)); border-left: 4px solid #f59e0b;"'
+            : '';
+
+        return `<tr ${rowStyle}>
             <td>${formatDate(entry.date)}</td>
-            <td><strong>${client?.nom || '-'}</strong></td>
+            <td><strong>${client?.nom || (isIdle ? '-' : '-')}</strong></td>
             <td>${truck?.matricule || '-'}</td>
-            <td>${driver?.nom || '-'}</td>
-            <td title="${trajetFull}">${trajetDisplay}</td>
+            <td>${driver?.nom || (isIdle ? '<span style="color:#f59e0b;font-size:0.8rem">Aucun</span>' : '-')}</td>
+            <td title="${trajetFull}" ${isIdle ? 'style="color:#f59e0b;font-weight:600"' : ''}>${trajetDisplay}</td>
             <td>${entry.kilometrage || 0} km</td>
             <td>${entry.quantiteGasoil || 0} L</td>
             <td>${costs.coutTotal.toLocaleString('fr-FR')} TND</td>
-            <td>${entry.prixLivraison.toLocaleString('fr-FR')} TND</td>
+            <td>${(entry.prixLivraison || 0).toLocaleString('fr-FR')} TND</td>
             <td class="${resultClass}">${costs.resultat.toLocaleString('fr-FR')} TND</td>
             <td>
                 ${!window.currentUser?.driverId ? `

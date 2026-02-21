@@ -93,6 +93,21 @@ async function init() {
             setTimeout(() => MessengerModule.openConversation(convId), 300);
         };
 
+        // ========== IDLE DAY CHARGES: Auto-generate for missing days ==========
+        // Generate from Feb 1st through tomorrow (inclusive)
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const fromDate = '2026-02-01';
+        const toDate = tomorrow.toISOString().split('T')[0];
+        // Run in background to avoid blocking the UI
+        DataModule.generateIdleDayEntries(fromDate, toDate).then(count => {
+            if (count > 0) {
+                console.log(`🚫 ${count} idle entries generated. Refreshing current page...`);
+                refreshCurrentPage();
+            }
+        }).catch(err => console.error('Idle day generation error:', err));
+
         // Navigate to dashboard
         await navigateTo('dashboard');
 
