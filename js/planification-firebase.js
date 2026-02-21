@@ -3,7 +3,7 @@
  * With time, auto-status, terminé→entry conversion, and process type filters
  */
 
-import { db, collection, doc, getDocs, setDoc, deleteDoc, query, orderBy, COLLECTIONS } from './firebase.js';
+import { db, collection, doc, getDocs, getDoc, setDoc, deleteDoc, query, orderBy, COLLECTIONS } from './firebase.js';
 import { DataModule } from './data-firebase.js';
 import { ClientsModule } from './clients-firebase.js';
 
@@ -55,6 +55,10 @@ async function autoUpdateStatuses() {
             plan.statut = 'en_cours';
             plan.updatedAt = now.toISOString();
             try {
+                // ERP: auto create BC from Devis when transitioning planifié → en_cours
+                if (plan.devisId && !plan.bcId) {
+                    await createBCFromPlan(plan);
+                }
                 await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
                 console.log(`📅 Auto-status: ${plan.id} planifié → en_cours`);
                 changed = true;
@@ -85,6 +89,158 @@ async function loadPlannings() {
     } catch (error) {
         console.error('Error loading planifications:', error);
         return [];
+    }
+}
+
+// ==================== ERP DOCUMENT CREATION ====================
+
+/**
+ * Create a Devis Client from a planification
+ * Called when a new plan is created with prixLivraison > 0 and a clientId
+ */
+async function createDevisFromPlan(plan) {
+    if (!plan.clientId || !plan.prixLivraison || plan.prixLivraison <= 0) return null;
+    const ts = Date.now();
+    const devis = {
+        id: `DV-PLAN-${ts}`,
+        numero: `DV-PLAN-${ts.toString().slice(-6)}`,
+        date: plan.date,
+        clientId: plan.clientId,
+        statut: 'Brouillon',
+        lignes: [{
+            articleId: null,
+            designation: `Transport → ${plan.destination || 'N/A'}`,
+            quantite: 1,
+            prixUnitaire: plan.prixLivraison
+        }],
+        montantTotal: plan.prixLivraison,
+        source: 'planification',
+        planificationId: plan.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+    try {
+        await setDoc(doc(db, COLLECTIONS.devisClients, devis.id), devis);
+        plan.devisId = devis.id;
+        plan.devisNumero = devis.numero;
+        console.log(`📋 Devis ${devis.numero} créé depuis planification ${plan.id}`);
+        return devis;
+    } catch (err) {
+        console.error('Erreur création devis depuis planification:', err);
+        return null;
+    }
+}
+
+/**
+ * Create a BC Client from the linked Devis when status becomes en_cours
+ */
+async function createBCFromPlan(plan) {
+    if (!plan.devisId || plan.bcId) return null; // Already has BC or no devis
+    try {
+        // Fetch the linked Devis
+        const devisSnap = await getDoc(doc(db, COLLECTIONS.devisClients, plan.devisId));
+        if (!devisSnap.exists()) { console.warn('Devis introuvable:', plan.devisId); return null; }
+        const devis = { id: devisSnap.id, ...devisSnap.data() };
+
+        const ts = Date.now();
+        const lignes = (devis.lignes || []).map(l => ({
+            designation: l.designation,
+            nom: l.designation,
+            quantite: l.quantite || 1,
+            prixUnitaire: l.prixUnitaire || 0,
+            articleId: l.articleId || null,
+            prixTotal: (l.quantite || 1) * (l.prixUnitaire || 0)
+        }));
+
+        const bcData = {
+            id: `bcv_plan_${ts}`,
+            numero: `BCV-PLAN-${ts.toString().slice(-6)}`,
+            date: plan.date || new Date().toISOString().split('T')[0],
+            clientId: plan.clientId,
+            devisId: devis.id,
+            devisNumero: devis.numero,
+            lignes: lignes,
+            montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
+            statut: 'En cours',
+            type: 'vente',
+            source: 'planification',
+            planificationId: plan.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        await setDoc(doc(db, COLLECTIONS.bonCommandesVente, bcData.id), bcData);
+
+        // Update Devis status to Accepté + add backlink
+        devis.statut = 'Accepté';
+        devis.bcId = bcData.id;
+        devis.bcNumero = bcData.numero;
+        await setDoc(doc(db, COLLECTIONS.devisClients, devis.id), devis);
+
+        // Store BC reference on plan
+        plan.bcId = bcData.id;
+        plan.bcNumero = bcData.numero;
+        console.log(`📦 BC ${bcData.numero} créé depuis planification ${plan.id}`);
+        return bcData;
+    } catch (err) {
+        console.error('Erreur création BC depuis planification:', err);
+        return null;
+    }
+}
+
+/**
+ * Create a BL Client from the linked BC when status becomes terminé
+ */
+async function createBLFromPlan(plan) {
+    if (!plan.bcId || plan.blId) return null; // Already has BL or no BC
+    try {
+        // Fetch the linked BC
+        const bcSnap = await getDoc(doc(db, COLLECTIONS.bonCommandesVente, plan.bcId));
+        if (!bcSnap.exists()) { console.warn('BC introuvable:', plan.bcId); return null; }
+        const bc = { id: bcSnap.id, ...bcSnap.data() };
+
+        const ts = Date.now();
+        const lignes = (bc.lignes || []).map(l => ({
+            nom: l.designation || l.nom || '',
+            articleId: l.articleId || null,
+            prixUnitaire: l.prixUnitaire || 0,
+            quantiteCommandee: l.quantite || 0,
+            quantiteLivree: l.quantite || 0,
+            prixTotal: (l.quantite || 0) * (l.prixUnitaire || 0)
+        }));
+
+        const blData = {
+            id: `blv_plan_${ts}`,
+            numero: `BLC-PLAN-${ts.toString().slice(-6)}`,
+            date: plan.date || new Date().toISOString().split('T')[0],
+            commandeId: bc.id,
+            commandeNumero: bc.numero,
+            clientId: plan.clientId,
+            camionId: plan.camionId || null,
+            chauffeurId: plan.chauffeurId || null,
+            lignes: lignes,
+            montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
+            statut: 'Livré',
+            source: 'planification',
+            planificationId: plan.id,
+            updatedAt: new Date().toISOString()
+        };
+
+        await setDoc(doc(db, COLLECTIONS.bonLivraisonsVente, blData.id), blData);
+
+        // Update BC status to Livré
+        bc.statut = 'Livré';
+        bc.updatedAt = new Date().toISOString();
+        await setDoc(doc(db, COLLECTIONS.bonCommandesVente, bc.id), bc);
+
+        // Store BL reference on plan
+        plan.blId = blData.id;
+        plan.blNumero = blData.numero;
+        console.log(`🚚 BL ${blData.numero} créé depuis planification ${plan.id}`);
+        return blData;
+    } catch (err) {
+        console.error('Erreur création BL depuis planification:', err);
+        return null;
     }
 }
 
@@ -611,7 +767,9 @@ async function savePlan() {
     // Detect status transition: check previous status
     const existingPlan = planId ? getPlanningById(planId) : null;
     const previousStatut = existingPlan?.statut;
+    const isNewPlan = !planId;
     const isNewTermine = (newStatut === 'termine' && previousStatut !== 'termine');
+    const isNewEnCours = (newStatut === 'en_cours' && previousStatut === 'planifie');
 
     const plan = {
         id: planId || `plan_${Date.now()}`,
@@ -638,13 +796,36 @@ async function savePlan() {
         updatedAt: new Date().toISOString()
     };
 
+    // Carry over ERP links from existing plan
+    if (existingPlan) {
+        if (existingPlan.devisId) { plan.devisId = existingPlan.devisId; plan.devisNumero = existingPlan.devisNumero; }
+        if (existingPlan.bcId) { plan.bcId = existingPlan.bcId; plan.bcNumero = existingPlan.bcNumero; }
+        if (existingPlan.blId) { plan.blId = existingPlan.blId; plan.blNumero = existingPlan.blNumero; }
+    }
+
     if (!plan.date || !gouvernorat) {
         alert('La date et le gouvernorat de destination sont obligatoires');
         return;
     }
 
     try {
+        // ========== ERP WORKFLOW: Auto-create sales documents ==========
+
+        // 1) New plan with prixLivraison → create Devis Client
+        if (isNewPlan && plan.prixLivraison > 0 && plan.clientId) {
+            await createDevisFromPlan(plan);
+        }
+
+        // 2) Status planifié → en_cours → create BC from Devis
+        if (isNewEnCours && plan.devisId && !plan.bcId) {
+            await createBCFromPlan(plan);
+        }
+
+        // 3) Status → terminé → create BL from BC, then convert to saisie
         if (isNewTermine) {
+            if (plan.bcId && !plan.blId) {
+                await createBLFromPlan(plan);
+            }
             // Convert to saisie journalière then DELETE from planification
             await convertToEntry(plan);
             await deleteDoc(doc(db, COLLECTIONS.planifications, plan.id));
