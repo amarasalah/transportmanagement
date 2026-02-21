@@ -78,11 +78,18 @@ async function renderMonthlyReport() {
         };
     });
 
+    // Track first trip per truck per day (fixed charges only once)
+    const truckDaySeen = new Set();
+
     entries.forEach(entry => {
         const truck = DataModule.getTruckById(entry.camionId);
         if (!truck || !truckData[truck.id]) return;
 
-        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const key = `${entry.camionId}_${entry.date}`;
+        const isFirstTrip = !truckDaySeen.has(key);
+        truckDaySeen.add(key);
+
+        const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
 
         truckData[truck.id].totalKm += entry.kilometrage || 0;
         truckData[truck.id].totalGasoil += entry.quantiteGasoil || 0;
@@ -153,10 +160,16 @@ async function renderCharts() {
         truckStats[t.id] = { matricule: t.matricule, revenue: 0, cost: 0, result: 0 };
     });
 
+    // Track first trip per truck per day (fixed charges only once)
+    const truckDaySeen = new Set();
+
     entries.forEach(entry => {
         const truck = DataModule.getTruckById(entry.camionId);
         if (!truck) return;
-        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const key = `${entry.camionId}_${entry.date}`;
+        const isFirstTrip = !truckDaySeen.has(key);
+        truckDaySeen.add(key);
+        const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
         truckStats[truck.id].revenue += entry.prixLivraison || 0;
         truckStats[truck.id].cost += costs.coutTotal;
         truckStats[truck.id].result += costs.resultat;

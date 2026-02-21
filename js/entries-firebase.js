@@ -39,11 +39,17 @@ async function renderEntries(selectedDate) {
     // Get clients for display
     const clients = await ClientsModule.getClients();
 
+    // Track first trip per truck per day (fixed charges only once)
+    const truckDaySeen = new Set();
+
     tbody.innerHTML = entries.map(entry => {
         const truck = DataModule.getTruckById(entry.camionId);
         const driver = DataModule.getDriverById(entry.chauffeurId);
         const client = entry.clientId ? clients.find(c => c.id === entry.clientId) : null;
-        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const key = `${entry.camionId}_${entry.date}`;
+        const isFirstTrip = !truckDaySeen.has(key);
+        truckDaySeen.add(key);
+        const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
         const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
 
         const origineShort = entry.origineDelegation || entry.origineGouvernorat || '-';

@@ -50,10 +50,14 @@ async function getDriverTrajectoryStats(driverId, fromGouv, fromDeleg, toGouv, t
     const tripCount = matchingEntries.length;
     const totalKm = matchingEntries.reduce((sum, e) => sum + (e.kilometrage || 0), 0);
     const totalFuel = matchingEntries.reduce((sum, e) => sum + (e.quantiteGasoil || 0), 0);
+    const truckDaySeen1 = new Set();
     const totalCost = matchingEntries.reduce((sum, e) => {
         const truck = DataModule.getTruckById(e.camionId);
         if (!truck) return sum;
-        const costs = DataModule.calculateEntryCosts(e, truck);
+        const key = `${e.camionId}_${e.date}`;
+        const isFirst = !truckDaySeen1.has(key);
+        truckDaySeen1.add(key);
+        const costs = DataModule.calculateEntryCosts(e, truck, isFirst);
         return sum + costs.coutTotal;
     }, 0);
     const totalRevenue = matchingEntries.reduce((sum, e) => sum + (e.prixLivraison || 0), 0);
@@ -65,9 +69,13 @@ async function getDriverTrajectoryStats(driverId, fromGouv, fromDeleg, toGouv, t
     const avgResult = avgRevenue - avgCost;
 
     // Find best and worst trips
+    const truckDaySeen2 = new Set();
     const results = matchingEntries.map(e => {
         const truck = DataModule.getTruckById(e.camionId);
-        const costs = truck ? DataModule.calculateEntryCosts(e, truck) : { coutTotal: 0 };
+        const key = `${e.camionId}_${e.date}`;
+        const isFirst = !truckDaySeen2.has(key);
+        truckDaySeen2.add(key);
+        const costs = truck ? DataModule.calculateEntryCosts(e, truck, isFirst) : { coutTotal: 0 };
         return {
             date: e.date,
             result: (e.prixLivraison || 0) - costs.coutTotal,
@@ -159,10 +167,14 @@ async function getDriverRankForRoute(driverId, fromGouv, fromDeleg, toGouv, toDe
 
     // Calculate average result per driver
     const driverResults = {};
+    const truckDaySeen3 = new Set();
     routeEntries.forEach(e => {
         const truck = DataModule.getTruckById(e.camionId);
         if (!truck) return;
-        const costs = DataModule.calculateEntryCosts(e, truck);
+        const key = `${e.camionId}_${e.date}`;
+        const isFirst = !truckDaySeen3.has(key);
+        truckDaySeen3.add(key);
+        const costs = DataModule.calculateEntryCosts(e, truck, isFirst);
         const result = (e.prixLivraison || 0) - costs.coutTotal;
 
         if (!driverResults[e.chauffeurId]) {
@@ -204,6 +216,7 @@ async function getRouteComparison(fromGouv, fromDeleg, toGouv, toDeleg) {
 
     // Aggregate by driver
     const driverStats = {};
+    const truckDaySeen4 = new Set();
     routeEntries.forEach(e => {
         if (!driverStats[e.chauffeurId]) {
             const driver = drivers.find(d => d.id === e.chauffeurId);
@@ -219,7 +232,10 @@ async function getRouteComparison(fromGouv, fromDeleg, toGouv, toDeleg) {
         }
 
         const truck = DataModule.getTruckById(e.camionId);
-        const costs = truck ? DataModule.calculateEntryCosts(e, truck) : { coutTotal: 0 };
+        const key = `${e.camionId}_${e.date}`;
+        const isFirst = !truckDaySeen4.has(key);
+        truckDaySeen4.add(key);
+        const costs = truck ? DataModule.calculateEntryCosts(e, truck, isFirst) : { coutTotal: 0 };
 
         driverStats[e.chauffeurId].tripCount++;
         driverStats[e.chauffeurId].totalKm += e.kilometrage || 0;

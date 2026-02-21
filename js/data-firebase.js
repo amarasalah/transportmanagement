@@ -569,17 +569,22 @@ async function repairEntryIds() {
 }
 
 // ==================== CALCULATIONS ====================
-function calculateEntryCosts(entry, truck) {
+function calculateEntryCosts(entry, truck, isFirstTripOfDay = true) {
     if (!truck) truck = getTruckById(entry.camionId);
 
-    // Use entry-level values when available (from Excel import), fallback to truck defaults
+    // Gasoil and maintenance are ALWAYS per-trip
     const montantGasoil = entry.montantGasoil || ((entry.quantiteGasoil || 0) * (entry.prixGasoilLitre || 2));
-    const chargesFixes = entry.chargesFixes != null ? entry.chargesFixes : (truck?.chargesFixes || 0);
-    const montantAssurance = entry.montantAssurance != null ? entry.montantAssurance : (truck?.montantAssurance || 0);
-    const montantTaxe = entry.montantTaxe != null ? entry.montantTaxe : (truck?.montantTaxe || 0);
-    const chargePersonnel = entry.chargePersonnel != null ? entry.chargePersonnel : (truck?.chargePersonnel || 0);
     const maintenance = entry.maintenance || 0;
-    const fraisLeasing = entry.fraisLeasing != null ? entry.fraisLeasing : (truck?.fraisLeasing || 0);
+
+    // Fixed charges apply ONLY for the first trip of the day per truck
+    let chargesFixes = 0, montantAssurance = 0, montantTaxe = 0, chargePersonnel = 0, fraisLeasing = 0;
+    if (isFirstTripOfDay) {
+        chargesFixes = entry.chargesFixes != null ? entry.chargesFixes : (truck?.chargesFixes || 0);
+        montantAssurance = entry.montantAssurance != null ? entry.montantAssurance : (truck?.montantAssurance || 0);
+        montantTaxe = entry.montantTaxe != null ? entry.montantTaxe : (truck?.montantTaxe || 0);
+        chargePersonnel = entry.chargePersonnel != null ? entry.chargePersonnel : (truck?.chargePersonnel || 0);
+        fraisLeasing = entry.fraisLeasing != null ? entry.fraisLeasing : (truck?.fraisLeasing || 0);
+    }
 
     const coutTotal = montantGasoil + chargesFixes + montantAssurance + montantTaxe + maintenance + chargePersonnel + fraisLeasing;
     const resultat = (entry.prixLivraison || 0) - coutTotal;

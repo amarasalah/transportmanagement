@@ -34,9 +34,16 @@ async function updateKPIs(selectedDate) {
     let totalCost = 0;
     let totalRevenue = 0;
 
+    // Track first trip per truck per day (fixed charges only once)
+    const truckDaySeen = new Set();
+
     entries.forEach(entry => {
         const truck = DataModule.getTruckById(entry.camionId);
-        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const key = `${entry.camionId}_${entry.date}`;
+        const isFirstTrip = !truckDaySeen.has(key);
+        truckDaySeen.add(key);
+
+        const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
 
         totalKm += entry.kilometrage || 0;
         totalGasoil += entry.quantiteGasoil || 0;
@@ -206,9 +213,12 @@ async function updateTrendChart(selectedDate) {
 
         const dayEntries = entries.filter(e => e.date === dateStr);
         let dayResult = 0;
+        const dayTruckSeen = new Set();
         dayEntries.forEach(entry => {
             const truck = DataModule.getTruckById(entry.camionId);
-            const costs = DataModule.calculateEntryCosts(entry, truck);
+            const isFirstTrip = !dayTruckSeen.has(entry.camionId);
+            dayTruckSeen.add(entry.camionId);
+            const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
             dayResult += costs.resultat;
         });
         results.push(dayResult);
@@ -256,11 +266,18 @@ async function updatePerformanceChart(selectedDate) {
     const truckResults = {};
     trucks.forEach(t => { truckResults[t.id] = { matricule: t.matricule, result: 0 }; });
 
+    // Track first trip per truck per day (fixed charges only once)
+    const truckDaySeen = new Set();
+
     entries.forEach(entry => {
         const truck = DataModule.getTruckById(entry.camionId);
         if (!truck) return;
 
-        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const key = `${entry.camionId}_${entry.date}`;
+        const isFirstTrip = !truckDaySeen.has(key);
+        truckDaySeen.add(key);
+
+        const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
         if (truckResults[truck.id]) {
             truckResults[truck.id].result += costs.resultat;
         }
@@ -288,10 +305,16 @@ async function updateDailySummary(selectedDate) {
         return;
     }
 
+    // Track first trip per truck per day (fixed charges only once)
+    const truckDaySeen = new Set();
+
     tbody.innerHTML = entries.map(entry => {
         const truck = DataModule.getTruckById(entry.camionId);
         const driver = DataModule.getDriverById(entry.chauffeurId);
-        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const key = `${entry.camionId}_${entry.date}`;
+        const isFirstTrip = !truckDaySeen.has(key);
+        truckDaySeen.add(key);
+        const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
         const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
 
         let destination = entry.destination || '-';

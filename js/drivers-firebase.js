@@ -32,12 +32,18 @@ function calculateDriverStats(driverId) {
 
     let totalKm = 0, totalGasoil = 0, totalCout = 0, totalRevenue = 0;
 
+    // Track first trip per truck per day (fixed charges only once)
+    const truckDaySeen = new Set();
+
     driverEntries.forEach(entry => {
         const truck = DataModule.getTruckById(entry.camionId);
         totalKm += entry.kilometrage || 0;
         totalGasoil += entry.quantiteGasoil || 0;
         totalRevenue += entry.prixLivraison || 0;
-        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const key = `${entry.camionId}_${entry.date}`;
+        const isFirstTrip = !truckDaySeen.has(key);
+        truckDaySeen.add(key);
+        const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
         totalCout += costs.coutTotal;
     });
 

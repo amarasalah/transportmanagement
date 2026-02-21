@@ -116,21 +116,30 @@ function calculateDetailedStats(entries, truck) {
     const monthlyMap = {}, weeklyMap = {}, dailyMap = {}, routesMap = {};
     const dates = new Set();
 
+    // Track first trip per truck per day (fixed charges only once)
+    const truckDaySeen = new Set();
+
     entries.forEach(entry => {
+        const key = `${entry.camionId}_${entry.date}`;
+        const isFirstTrip = !truckDaySeen.has(key);
+        truckDaySeen.add(key);
+
         totalKm += entry.kilometrage || 0;
         totalGasoil += entry.quantiteGasoil || 0;
         totalRevenue += entry.prixLivraison || 0;
         totalMaintenance += entry.maintenance || 0;
 
-        // Accumulate cost breakdown
+        // Accumulate cost breakdown (fixed charges only on first trip of day)
         const entryGasoilCost = entry.montantGasoil || ((entry.quantiteGasoil || 0) * (entry.prixGasoilLitre || 2));
         totalGasoilCost += entryGasoilCost;
-        totalChargesFixes += entry.chargesFixes != null ? entry.chargesFixes : (truck?.chargesFixes || 0);
-        totalAssurance += entry.montantAssurance != null ? entry.montantAssurance : (truck?.montantAssurance || 0);
-        totalTaxe += entry.montantTaxe != null ? entry.montantTaxe : (truck?.montantTaxe || 0);
-        totalPersonnel += entry.chargePersonnel != null ? entry.chargePersonnel : (truck?.chargePersonnel || 0);
+        if (isFirstTrip) {
+            totalChargesFixes += entry.chargesFixes != null ? entry.chargesFixes : (truck?.chargesFixes || 0);
+            totalAssurance += entry.montantAssurance != null ? entry.montantAssurance : (truck?.montantAssurance || 0);
+            totalTaxe += entry.montantTaxe != null ? entry.montantTaxe : (truck?.montantTaxe || 0);
+            totalPersonnel += entry.chargePersonnel != null ? entry.chargePersonnel : (truck?.chargePersonnel || 0);
+        }
 
-        const costs = DataModule.calculateEntryCosts(entry, truck);
+        const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
         totalCout += costs.coutTotal;
 
         if (entry.date) dates.add(entry.date);
@@ -418,9 +427,13 @@ function showProfileModal(type, entity, allEntries) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${filteredEntries.slice().reverse().slice(0, 20).map(e => {
-        const costs = DataModule.calculateEntryCosts(e, truck);
-        return `
+                            ${(() => {
+            const histDaySeen = new Set(); return filteredEntries.slice().reverse().slice(0, 20).map(e => {
+                const hKey = `${e.camionId}_${e.date}`;
+                const hFirst = !histDaySeen.has(hKey);
+                histDaySeen.add(hKey);
+                const costs = DataModule.calculateEntryCosts(e, truck, hFirst);
+                return `
                                     <tr>
                                         <td>${formatDate(e.date)}</td>
                                         <td>${e.origine || e.origineGouvernorat || '-'}</td>
@@ -432,7 +445,8 @@ function showProfileModal(type, entity, allEntries) {
                                         <td class="${costs.resultat >= 0 ? 'result-positive' : 'result-negative'}">${costs.resultat.toFixed(0)} TND</td>
                                     </tr>
                                 `;
-    }).join('') || '<tr><td colspan="8" class="no-data">Aucun trajet</td></tr>'}
+            }).join('');
+        })() || '<tr><td colspan="8" class="no-data">Aucun trajet</td></tr>'}
                         </tbody>
                     </table>
                 </div>

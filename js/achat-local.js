@@ -1483,10 +1483,12 @@ async function saveSortieForm() {
 
     if (lignes.length === 0) { alert('Aucune quantité à sortir'); return; }
 
+    const sortieDate = document.getElementById('sortieDate').value;
+
     const sortie = {
         id: document.getElementById('sortieId').value || null,
         numero: document.getElementById('sortieId').value ? SuppliersModule.getSortieById(document.getElementById('sortieId').value)?.numero : `BS-${Date.now().toString().slice(-6)}`,
-        date: document.getElementById('sortieDate').value,
+        date: sortieDate,
         livraisonId: blId || null,
         livraisonNumero: livraison?.numero || '',
         camionId: camionId,
@@ -1498,17 +1500,59 @@ async function saveSortieForm() {
         await SuppliersModule.saveSortie(sortie);
 
         // Reduce stock from Articles d'Achat
+        let totalCoutBS = 0;
         for (const ligne of lignes) {
             if (ligne.articleId) {
                 const article = ArticlesModule.getArticleById(ligne.articleId);
                 if (article) {
                     const newStock = Math.max(0, (article.stock || 0) - ligne.quantiteSortie);
                     await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
+                    // Accumulate cost for daily entry
+                    totalCoutBS += (article.prixAchat || 0) * ligne.quantiteSortie;
                 }
             }
         }
         // Refresh articles cache
         await ArticlesModule.refresh();
+
+        // ✅ Add BS cost to Saisie Journalière (truck charge for this date)
+        if (totalCoutBS > 0 && sortieDate && camionId) {
+            try {
+                const entries = await DataModule.getEntries();
+                // Find existing entry for same truck + same date
+                const existingEntry = entries.find(e => e.camionId === camionId && e.date === sortieDate);
+
+                if (existingEntry) {
+                    // Add BS cost to existing entry's maintenance field
+                    existingEntry.maintenance = (existingEntry.maintenance || 0) + totalCoutBS;
+                    existingEntry.remarques = ((existingEntry.remarques || '') + `\n[BS Auto] ${sortie.numero}: ${totalCoutBS.toFixed(3)} TND`).trim();
+                    await DataModule.saveEntry(existingEntry);
+                } else {
+                    // Create a new entry for this truck + date
+                    const drivers = await DataModule.getDrivers();
+                    const driver = drivers.find(d => d.camionId === camionId);
+                    const truck = await DataModule.getTruckById(camionId);
+
+                    const newEntry = {
+                        date: sortieDate,
+                        camionId: camionId,
+                        chauffeurId: driver?.id || '',
+                        origine: '',
+                        destination: '',
+                        kilometrage: 0,
+                        quantiteGasoil: 0,
+                        prixGasoilLitre: 2,
+                        maintenance: totalCoutBS,
+                        prixLivraison: 0,
+                        remarques: `[BS Auto] ${sortie.numero}: ${totalCoutBS.toFixed(3)} TND`
+                    };
+                    await DataModule.saveEntry(newEntry);
+                }
+                console.log(`✅ BS ${sortie.numero}: ${totalCoutBS.toFixed(3)} TND ajouté aux charges camion`);
+            } catch (entryErr) {
+                console.error('Erreur ajout charge BS à saisie journalière:', entryErr);
+            }
+        }
 
         App.hideModal();
         await renderSorties();
