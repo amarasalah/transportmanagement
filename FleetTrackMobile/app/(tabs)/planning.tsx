@@ -1,5 +1,6 @@
 /**
  * Planning Screen - Planification des livraisons
+ * Driver role: read-only view of their own planifications
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -12,6 +13,7 @@ import { getPlanifications, updateStatus, deletePlanification } from '../../src/
 import { getTrucks, getCachedTrucks } from '../../src/services/trucks';
 import { getDrivers, getCachedDrivers } from '../../src/services/drivers';
 import { getClients } from '../../src/services/clients';
+import { useAuth } from '../../src/context/AuthContext';
 import { Planification, Truck, Driver, Client } from '../../src/types';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
@@ -22,6 +24,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string
 };
 
 export default function PlanningScreen() {
+    const { user } = useAuth();
+    const isDriver = !!user?.driverId;
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [planifications, setPlanifications] = useState<Planification[]>([]);
@@ -32,9 +36,18 @@ export default function PlanningScreen() {
 
     const loadData = useCallback(async () => {
         try {
-            const [p, t, d, c] = await Promise.all([
+            console.log('[Planning] Loading... user.driverId=', user?.driverId, 'isDriver=', isDriver);
+            let [p, t, d, c] = await Promise.all([
                 getPlanifications(), getTrucks(), getDrivers(), getClients(),
             ]);
+            console.log('[Planning] Total plans loaded:', p.length);
+            // Chauffeur data scope: show only their planifications
+            if (user?.driverId) {
+                console.log('[Planning] Filtering plans for driverId:', user.driverId);
+                console.log('[Planning] Plan chauffeurIds:', p.map(plan => plan.chauffeurId));
+                p = p.filter(plan => plan.chauffeurId === user.driverId);
+                console.log('[Planning] Plans after filter:', p.length);
+            }
             setPlanifications(p);
             setTrucks(t);
             setDrivers(d);
@@ -45,7 +58,7 @@ export default function PlanningScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    }, [user]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
@@ -93,14 +106,16 @@ export default function PlanningScreen() {
                     <View style={styles.headerRight}>
                         <TouchableOpacity
                             style={[styles.statusBadge, { backgroundColor: status.color + '20' }]}
-                            onPress={() => handleStatusChange(plan)}
+                            onPress={() => !isDriver && handleStatusChange(plan)}
                         >
                             <MaterialCommunityIcons name={status.icon as any} size={14} color={status.color} />
                             <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleDelete(plan.id)}>
-                            <MaterialCommunityIcons name="delete-outline" size={18} color={Colors.textMuted} />
-                        </TouchableOpacity>
+                        {!isDriver && (
+                            <TouchableOpacity onPress={() => handleDelete(plan.id)}>
+                                <MaterialCommunityIcons name="delete-outline" size={18} color={Colors.textMuted} />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 

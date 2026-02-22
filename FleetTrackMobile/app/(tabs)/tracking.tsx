@@ -52,7 +52,7 @@ export default function TrackingScreen() {
             const [trucks, drivers] = await Promise.all([getTrucks(), getDrivers()]);
 
             // Build truck location list
-            const locations: TruckLocationItem[] = trucks.map(t => {
+            let locations: TruckLocationItem[] = trucks.map(t => {
                 const driver = drivers.find(d => d.camionId === t.id);
                 const loc = t.lastLocation;
                 return {
@@ -64,6 +64,11 @@ export default function TrackingScreen() {
                         : 'Jamais',
                 };
             });
+
+            // Chauffeur data scope: show only their assigned truck
+            if (user?.camionId) {
+                locations = locations.filter(item => item.truck.id === user.camionId);
+            }
 
             // Sort: located first, then by matricule
             locations.sort((a, b) => {

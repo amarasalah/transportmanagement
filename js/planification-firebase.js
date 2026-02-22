@@ -3,7 +3,7 @@
  * With time, auto-status, terminé→entry conversion, and process type filters
  */
 
-import { db, collection, doc, getDocs, getDoc, setDoc, deleteDoc, query, orderBy, COLLECTIONS } from './firebase.js';
+import { db, rtdb, collection, doc, getDocs, getDoc, setDoc, deleteDoc, query, orderBy, COLLECTIONS, dbRef, dbPush } from './firebase.js';
 import { DataModule } from './data-firebase.js';
 import { ClientsModule } from './clients-firebase.js';
 
@@ -62,6 +62,22 @@ async function autoUpdateStatuses() {
                 await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
                 console.log(`📅 Auto-status: ${plan.id} planifié → en_cours`);
                 changed = true;
+
+                // Push mobile notification
+                if (plan.chauffeurId) {
+                    try {
+                        const notifRef = dbRef(rtdb, `notifications/${plan.chauffeurId}`);
+                        await dbPush(notifRef, {
+                            type: 'en_cours',
+                            planId: plan.id,
+                            destination: plan.destination || '',
+                            date: plan.date || '',
+                            truck: plan.camionId || '',
+                            message: `Votre voyage vers ${plan.destination || 'destination'} est maintenant en cours`,
+                            timestamp: Date.now()
+                        });
+                    } catch (ne) { console.warn('Notif push error:', ne); }
+                }
             } catch (err) {
                 console.error('Auto-status update error:', err);
             }
@@ -832,6 +848,31 @@ async function savePlan() {
             console.log(`🗑️ Planification ${plan.id} supprimée après conversion`);
         } else {
             await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
+        }
+
+        // ========== PUSH MOBILE NOTIFICATIONS ==========
+        console.log('📱 Notification check: chauffeurId=', plan.chauffeurId, 'isNewPlan=', isNewPlan, 'isNewEnCours=', isNewEnCours);
+        if (plan.chauffeurId) {
+            try {
+                const notifRef = dbRef(rtdb, `notifications/${plan.chauffeurId}`);
+                const notifType = isNewPlan ? 'planifie' : (isNewEnCours ? 'en_cours' : 'update');
+                const notifMsg = isNewPlan
+                    ? `Nouveau voyage planifié vers ${plan.destination || 'destination'}`
+                    : isNewEnCours
+                        ? `Votre voyage vers ${plan.destination || 'destination'} est maintenant en cours`
+                        : `Mise à jour du voyage vers ${plan.destination || 'destination'}`;
+
+                await dbPush(notifRef, {
+                    type: notifType,
+                    planId: plan.id,
+                    destination: plan.destination || '',
+                    date: plan.date || '',
+                    truck: plan.camionId || '',
+                    message: notifMsg,
+                    timestamp: Date.now()
+                });
+                console.log('✅ Notification pushed to notifications/' + plan.chauffeurId);
+            } catch (ne) { console.warn('❌ Notif push error:', ne); }
         }
 
         App.hideModal();

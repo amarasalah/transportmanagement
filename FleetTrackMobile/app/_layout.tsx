@@ -5,6 +5,7 @@
 import React from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
+import { NotificationProvider } from '../src/context/NotificationContext';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
 function RootNavigator() {
@@ -49,7 +50,9 @@ function RootNavigator() {
 export default function RootLayout() {
     return (
         <AuthProvider>
-            <RootNavigator />
+            <NotificationProvider>
+                <RootNavigator />
+            </NotificationProvider>
         </AuthProvider>
     );
 }

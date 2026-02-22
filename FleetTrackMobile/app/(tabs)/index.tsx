@@ -1,6 +1,7 @@
 /**
  * Dashboard Screen
  * KPIs, mini chart, and recent entries
+ * Driver role: scoped to their own data
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -12,11 +13,13 @@ import { Colors, Spacing, FontSize, BorderRadius, Shadows } from '../../src/cons
 import { getTrucks, calculateEntryCosts, getCachedTrucks } from '../../src/services/trucks';
 import { getEntries, getCachedEntries } from '../../src/services/entries';
 import { getDrivers } from '../../src/services/drivers';
+import { useAuth } from '../../src/context/AuthContext';
 import { Entry, Truck, DashboardKPIs } from '../../src/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function DashboardScreen() {
+    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [kpis, setKpis] = useState<DashboardKPIs>({
@@ -28,12 +31,18 @@ export default function DashboardScreen() {
 
     const loadData = useCallback(async () => {
         try {
-            const [trucksData, entriesData] = await Promise.all([
+            const [trucksData, allEntries] = await Promise.all([
                 getTrucks(),
                 getEntries(),
             ]);
             await getDrivers();
             setTrucks(trucksData);
+
+            // Chauffeur data scope: filter entries by driverId
+            let entriesData = allEntries;
+            if (user?.driverId) {
+                entriesData = allEntries.filter(e => e.chauffeurId === user.driverId);
+            }
 
             // Calculate KPIs
             const today = new Date().toISOString().split('T')[0];
@@ -51,7 +60,7 @@ export default function DashboardScreen() {
             });
 
             setKpis({
-                activeTrucks: activeTrucks || trucksData.length,
+                activeTrucks: activeTrucks || (user?.driverId ? 1 : trucksData.length),
                 totalKm, totalGasoil,
                 totalResult: totalRevenue - totalCost,
                 totalRevenue, totalCost,
@@ -68,7 +77,7 @@ export default function DashboardScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    }, [user]);
 
     useEffect(() => { loadData(); }, [loadData]);
 

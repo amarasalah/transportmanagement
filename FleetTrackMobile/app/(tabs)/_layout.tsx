@@ -1,25 +1,47 @@
 /**
  * Tabs Layout - Permission-based navigation
  * Tabs shown/hidden based on user.permissions
+ * Drivers with driverId always see: dashboard, entries, planning, GPS, messenger, profile
  * Admin tab visible only to super_admin
+ * Notification bell shown in header for all users
  */
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { hasPermission } from '../../src/services/auth';
+import NotificationBell from '../../src/components/NotificationBell';
 
 export default function TabsLayout() {
     const { user } = useAuth();
     const isSuperAdmin = user?.role === 'super_admin' || user?.roleId === 'super_admin';
+    const isDriver = !!user?.driverId;
 
-    const canSee = (key: 'dashboard' | 'entries' | 'trucks' | 'planification') =>
-        hasPermission(user, key);
+    console.log('[Layout] user.driverId=', user?.driverId, 'isDriver=', isDriver, 'role=', user?.role);
+
+    // Drivers always see core tabs; others need permission
+    const canSee = (key: 'dashboard' | 'entries' | 'trucks' | 'planification') => {
+        if (isDriver) return true; // drivers see all core tabs
+        return hasPermission(user, key);
+    };
 
     return (
         <Tabs
             screenOptions={{
-                headerShown: false,
+                headerShown: true,
+                headerStyle: {
+                    backgroundColor: '#0f172a',
+                    elevation: 0,
+                    shadowOpacity: 0,
+                    borderBottomWidth: 1,
+                    borderBottomColor: 'rgba(148, 163, 184, 0.1)',
+                },
+                headerTintColor: '#f1f5f9',
+                headerTitleStyle: {
+                    fontWeight: '700',
+                    fontSize: 18,
+                },
+                headerRight: () => <NotificationBell />,
                 tabBarStyle: {
                     backgroundColor: '#1e293b',
                     borderTopColor: 'rgba(148, 163, 184, 0.1)',
@@ -80,6 +102,16 @@ export default function TabsLayout() {
                     title: 'GPS',
                     tabBarIcon: ({ color, size }) => (
                         <MaterialCommunityIcons name="crosshairs-gps" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="messenger"
+                options={{
+                    title: 'Chat',
+                    href: (isDriver || isSuperAdmin) ? undefined : null,
+                    tabBarIcon: ({ color, size }) => (
+                        <MaterialCommunityIcons name="chat" size={size} color={color} />
                     ),
                 }}
             />

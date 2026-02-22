@@ -1,6 +1,7 @@
 /**
  * Entries Screen - Saisies Journalières
  * List, create, edit daily entries
+ * Driver role: read-only view of their own entries only
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -12,9 +13,12 @@ import { Colors, Spacing, FontSize, BorderRadius, Shadows } from '../../src/cons
 import { getEntries, getEntriesByDate, saveEntry, deleteEntry, getCachedEntries } from '../../src/services/entries';
 import { getTrucks, calculateEntryCosts, getCachedTrucks } from '../../src/services/trucks';
 import { getDrivers, getCachedDrivers } from '../../src/services/drivers';
+import { useAuth } from '../../src/context/AuthContext';
 import { Entry, Truck, Driver } from '../../src/types';
 
 export default function EntriesScreen() {
+    const { user } = useAuth();
+    const isDriver = !!user?.driverId;
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [entries, setEntries] = useState<Entry[]>([]);
@@ -29,8 +33,12 @@ export default function EntriesScreen() {
             const [t, d, e] = await Promise.all([getTrucks(), getDrivers(), getEntries()]);
             setTrucks(t);
             setDrivers(d);
-            // Show all entries sorted by date
-            const sorted = [...e].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            // Chauffeur data scope: show only their entries
+            let filtered = e;
+            if (user?.driverId) {
+                filtered = e.filter(entry => entry.chauffeurId === user.driverId);
+            }
+            const sorted = [...filtered].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setEntries(sorted);
         } catch (error) {
             console.error('Error loading entries:', error);
@@ -38,7 +46,7 @@ export default function EntriesScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    }, [user]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
@@ -64,8 +72,8 @@ export default function EntriesScreen() {
         return (
             <TouchableOpacity
                 style={styles.entryCard}
-                onPress={() => { setEditingEntry(entry); setShowForm(true); }}
-                activeOpacity={0.7}
+                onPress={() => { if (!isDriver) { setEditingEntry(entry); setShowForm(true); } }}
+                activeOpacity={isDriver ? 1 : 0.7}
             >
                 <View style={styles.cardHeader}>
                     <View style={styles.cardHeaderLeft}>
@@ -80,9 +88,11 @@ export default function EntriesScreen() {
                         <Text style={[styles.resultText, { color: resultColor }]}>
                             {costs.resultat >= 0 ? '+' : ''}{costs.resultat.toFixed(0)} TND
                         </Text>
-                        <TouchableOpacity onPress={() => handleDelete(entry.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                            <MaterialCommunityIcons name="delete-outline" size={20} color={Colors.negative} />
-                        </TouchableOpacity>
+                        {!isDriver && (
+                            <TouchableOpacity onPress={() => handleDelete(entry.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                <MaterialCommunityIcons name="delete-outline" size={20} color={Colors.negative} />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
@@ -147,13 +157,15 @@ export default function EntriesScreen() {
                 }
             />
 
-            {/* FAB */}
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => { setEditingEntry(null); setShowForm(true); }}
-            >
-                <MaterialCommunityIcons name="plus" size={28} color={Colors.white} />
-            </TouchableOpacity>
+            {/* FAB - hidden for drivers (read-only) */}
+            {!isDriver && (
+                <TouchableOpacity
+                    style={styles.fab}
+                    onPress={() => { setEditingEntry(null); setShowForm(true); }}
+                >
+                    <MaterialCommunityIcons name="plus" size={28} color={Colors.white} />
+                </TouchableOpacity>
+            )}
 
             {/* Quick Add Form Modal */}
             {showForm && (

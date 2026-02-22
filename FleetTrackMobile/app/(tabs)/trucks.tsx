@@ -1,5 +1,6 @@
 /**
  * Trucks Screen - Fleet Management
+ * Driver role: only sees their assigned truck
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -10,9 +11,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius, Shadows } from '../../src/constants/theme';
 import { getTrucks, calculateTruckStats } from '../../src/services/trucks';
 import { getEntries, getCachedEntries } from '../../src/services/entries';
+import { useAuth } from '../../src/context/AuthContext';
 import { Truck, TruckStats, Entry } from '../../src/types';
 
 export default function TrucksScreen() {
+    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -20,7 +23,11 @@ export default function TrucksScreen() {
 
     const loadData = useCallback(async () => {
         try {
-            const [t, e] = await Promise.all([getTrucks(), getEntries()]);
+            let [t, e] = await Promise.all([getTrucks(), getEntries()]);
+            // Chauffeur data scope: show only their assigned truck
+            if (user?.camionId) {
+                t = t.filter(truck => truck.id === user.camionId);
+            }
             setTrucks(t);
             setEntries(e);
         } catch (error) {
@@ -29,7 +36,7 @@ export default function TrucksScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    }, [user]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
