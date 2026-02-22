@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "90479889953",
+        "project_id": "transportmanagement-9e6eb",
+        "storage_bucket": "transportmanagement-9e6eb.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:90479889953:android:78f475e7bf658021ccdd60",
+                "android_client_info": {
+                    "package_name": "com.sirep.fleettrack"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyAKcCDbEDa-Pt-tpuM7MkXHiPb-Xarvuns"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

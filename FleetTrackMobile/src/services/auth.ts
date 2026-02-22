@@ -3,9 +3,8 @@
  * Login only; Super Admin creates users via web admin panel
  * Roles & permissions matching the web app system
  */
-import { app, db, doc, getDoc, getDocs, setDoc, updateDoc, collection } from './firebase';
+import { app, auth, db, doc, getDoc, getDocs, setDoc, updateDoc, collection } from './firebase';
 import {
-    getAuth,
     signInWithEmailAndPassword,
     signOut as firebaseSignOut,
     onAuthStateChanged as firebaseOnAuthStateChanged,
@@ -13,7 +12,6 @@ import {
 } from 'firebase/auth';
 import { COLLECTIONS } from '@/constants/collections';
 
-const auth = getAuth(app);
 
 // ============================================================
 // PERMISSION KEYS — matching web app auth-firebase.js

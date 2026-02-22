@@ -19,7 +19,9 @@
         "NSLocationWhenInUseUsageDescription": "FleetTrack utilise votre position pour partager la localisation de votre camion en temps réel.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "FleetTrack utilise votre position en arrière-plan pour le suivi GPS continu de votre camion.",
         "NSLocationAlwaysUsageDescription": "FleetTrack utilise votre position en arrière-plan pour le suivi GPS continu de votre camion.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -33,7 +35,8 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS"
       ]
     },
     "web": {

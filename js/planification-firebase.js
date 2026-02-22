@@ -6,6 +6,8 @@
 import { db, rtdb, collection, doc, getDocs, getDoc, setDoc, deleteDoc, query, orderBy, COLLECTIONS, dbRef, dbPush } from './firebase.js';
 import { DataModule } from './data-firebase.js';
 import { ClientsModule } from './clients-firebase.js';
+import { notifyDriverTrip } from './push-notifications.js';
+
 
 let cache = [];
 let _loaded = false;
@@ -308,8 +310,9 @@ async function renderPlannings(selectedDate) {
         const total = plannings.length;
         const planifie = plannings.filter(p => p.statut === 'planifie').length;
         const enCours = plannings.filter(p => p.statut === 'en_cours').length;
+        const attente = plannings.filter(p => p.statut === 'attente_confirmation').length;
         const termine = plannings.filter(p => p.statut === 'termine').length;
-        statsEl.innerHTML = `<span>📊 ${total} total</span> <span style="color:#f59e0b">📅 ${planifie} planifié</span> <span style="color:#3b82f6">🚚 ${enCours} en cours</span> <span style="color:#10b981">✅ ${termine} terminé</span>`;
+        statsEl.innerHTML = `<span>📊 ${total} total</span> <span style="color:#f59e0b">📅 ${planifie} planifié</span> <span style="color:#3b82f6">🚚 ${enCours} en cours</span> ${attente ? `<span style="color:#f97316">⏳ ${attente} en attente</span>` : ''} <span style="color:#10b981">✅ ${termine} terminé</span>`;
     }
 
     if (plannings.length === 0) {
@@ -335,6 +338,7 @@ async function renderPlannings(selectedDate) {
         const statusClass = {
             'planifie': 'status-warning',
             'en_cours': 'status-info',
+            'attente_confirmation': 'status-orange',
             'termine': 'status-success',
             'annule': 'status-danger'
         }[plan.statut] || 'status-default';
@@ -342,6 +346,7 @@ async function renderPlannings(selectedDate) {
         const statusLabel = {
             'planifie': 'Planifié',
             'en_cours': 'En cours',
+            'attente_confirmation': '⏳ Attente confirmation',
             'termine': 'Terminé',
             'annule': 'Annulé'
         }[plan.statut] || plan.statut || 'Planifié';
@@ -366,6 +371,18 @@ async function renderPlannings(selectedDate) {
             <td class="${resultClass}">${resultat.toLocaleString('fr-FR')} TND</td>
             <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             <td>
+                ${plan.statut === 'attente_confirmation' ? `
+                <button class="btn btn-sm" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;font-weight:600;padding:4px 10px;border-radius:6px" 
+                    onclick="PlanificationModule.confirmTermine('${plan.id}')" title="Confirmer terminé">
+                    ✅ Confirmer
+                </button>
+                ` : ''}
+                ${(plan.startPhotos || plan.endPhotos) ? `
+                <button class="btn btn-sm btn-outline" onclick="TripPhotosModule.showTripPhotos('${plan.id}')" title="Voir photos"
+                    style="background:rgba(99,102,241,0.1);border-color:rgba(99,102,241,0.3)">
+                    📷 <span style="font-size:10px;color:#a78bfa">${plan.startPhotos && plan.endPhotos ? '2/2' : '1/2'}</span>
+                </button>
+                ` : ''}
                 ${!window.currentUser?.driverId ? `
                 <button class="btn btn-sm btn-outline" onclick="PlanificationModule.edit('${plan.id}')" title="Modifier">✏️</button>
                 <button class="btn btn-sm btn-outline" onclick="PlanificationModule.remove('${plan.id}')" title="Supprimer">🗑️</button>
@@ -446,6 +463,7 @@ async function openModal(planId = null) {
                     <select id="planStatut">
                         <option value="planifie" ${plan?.statut === 'planifie' ? 'selected' : ''}>📅 Planifié</option>
                         <option value="en_cours" ${plan?.statut === 'en_cours' ? 'selected' : ''}>🚚 En cours</option>
+                        <option value="attente_confirmation" ${plan?.statut === 'attente_confirmation' ? 'selected' : ''}>⏳ Attente confirmation</option>
                         <option value="termine" ${plan?.statut === 'termine' ? 'selected' : ''}>✅ Terminé</option>
                         <option value="annule" ${plan?.statut === 'annule' ? 'selected' : ''}>❌ Annulé</option>
                     </select>
@@ -871,7 +889,12 @@ async function savePlan() {
                     message: notifMsg,
                     timestamp: Date.now()
                 });
-                console.log('✅ Notification pushed to notifications/' + plan.chauffeurId);
+                console.log('✅ RTDB notification pushed to notifications/' + plan.chauffeurId);
+
+                // Also send Expo push (works even when app is closed)
+                notifyDriverTrip(plan.chauffeurId, notifType, plan)
+                    .catch(e => console.warn('Expo push failed:', e));
+
             } catch (ne) { console.warn('❌ Notif push error:', ne); }
         }
 
@@ -886,6 +909,36 @@ async function savePlan() {
 
 /** Convert a terminé planification into a saisie journalière (entry) */
 async function convertToEntry(plan) {
+    // ===== DUPLICATE TRIP DETECTION =====
+    const existingEntries = DataModule.getEntriesByDate(plan.date);
+    const duplicate = existingEntries.find(e =>
+        e.camionId === plan.camionId && e.chauffeurId === plan.chauffeurId
+    );
+
+    if (duplicate) {
+        const truck = DataModule.getTruckById(plan.camionId);
+        const driver = DataModule.getDriverById(plan.chauffeurId);
+        const truckLabel = truck?.matricule || plan.camionId;
+        const driverLabel = driver?.nom || plan.chauffeurId;
+
+        const addAnyway = confirm(
+            `⚠️ Voyage doublon détecté !\n\n` +
+            `Le chauffeur ${driverLabel} avec le camion ${truckLabel} a déjà un voyage\n` +
+            `le ${plan.date} (${duplicate.destination || duplicate.gouvernorat || '-'}).\n\n` +
+            `Voulez-vous quand même ajouter ce nouveau voyage ?`
+        );
+
+        if (!addAnyway) {
+            console.log(`⏭️ Conversion annulée (doublon): ${plan.id}`);
+            const msg = `⏭️ Conversion annulée — voyage doublon détecté pour ${truckLabel} le ${plan.date}`;
+            if (typeof App !== 'undefined' && App.showToast) {
+                App.showToast(msg);
+            }
+            return;
+        }
+    }
+
+    // ===== BUILD ENTRY WITH PHOTOS =====
     const entry = {
         date: plan.date,
         camionId: plan.camionId,
@@ -906,12 +959,15 @@ async function convertToEntry(plan) {
         prixLivraison: plan.prixLivraison || 0,
         remarques: (plan.remarques || '') + ` [Plan ${plan.id}]`,
         source: 'planification',
-        planificationId: plan.id
+        planificationId: plan.id,
+        // ===== CARRY TRIP PHOTOS =====
+        startPhotos: plan.startPhotos || null,
+        endPhotos: plan.endPhotos || null
     };
 
     try {
         await DataModule.saveEntry(entry);
-        console.log(`✅ Planification ${plan.id} → saisie journalière créée`);
+        console.log(`✅ Planification ${plan.id} → saisie journalière créée (avec photos)`);
         // Notify user
         const msg = `✅ La planification a été transformée en saisie journalière (${plan.date})`;
         if (typeof App !== 'undefined' && App.showToast) {
@@ -942,6 +998,66 @@ async function remove(id) {
     }
 }
 
+/**
+ * Admin confirms a trip as terminé
+ * Shows photos first, then triggers BL creation + entry conversion
+ */
+async function confirmTermine(planId) {
+    const plan = getPlanningById(planId);
+    if (!plan || plan.statut !== 'attente_confirmation') {
+        alert('Cette planification n\'est pas en attente de confirmation.');
+        return;
+    }
+
+    // Show photos for review first
+    if (plan.startPhotos || plan.endPhotos) {
+        TripPhotosModule.showTripPhotos(planId);
+    }
+
+    // Delay slightly so photo gallery opens first
+    setTimeout(async () => {
+        if (!confirm(`✅ Confirmer la fin du voyage vers ${plan.destination || '-'} ?\n\nCela créera automatiquement le BL et la saisie journalière.`)) {
+            return;
+        }
+
+        try {
+            plan.statut = 'termine';
+            plan.updatedAt = new Date().toISOString();
+
+            // Create BL from BC if linked
+            if (plan.bcId && !plan.blId) {
+                await createBLFromPlan(plan);
+            }
+
+            // Convert to saisie journalière then DELETE from planification
+            await convertToEntry(plan);
+            await deleteDoc(doc(db, COLLECTIONS.planifications, plan.id));
+            console.log(`✅ Planification ${plan.id} confirmée terminée par admin`);
+
+            // Push notification to driver
+            if (plan.chauffeurId) {
+                try {
+                    const notifRef = dbRef(rtdb, `notifications/${plan.chauffeurId}`);
+                    await dbPush(notifRef, {
+                        type: 'termine',
+                        planId: plan.id,
+                        destination: plan.destination || '',
+                        date: plan.date || '',
+                        message: `✅ Votre voyage vers ${plan.destination || 'destination'} a été confirmé terminé par l'admin`,
+                        timestamp: Date.now()
+                    });
+                } catch (ne) { console.warn('Notif push error:', ne); }
+            }
+
+            await loadPlannings();
+            await renderPlannings();
+        } catch (err) {
+            console.error('Error confirming terminé:', err);
+            alert('Erreur: ' + err.message);
+        }
+    }, 300);
+}
+
 // ==================== EXPORT ====================
 export const PlanificationModule = {
     init,
@@ -950,6 +1066,7 @@ export const PlanificationModule = {
     getPlanningById,
     edit,
     remove,
+    confirmTermine,
     onOrigineGouvernoratChange,
     onGouvernoratChange,
     updateDistanceEstimate,

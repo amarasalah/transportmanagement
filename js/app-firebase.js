@@ -23,6 +23,9 @@ import { PlanificationModule } from './planification-firebase.js';
 import { CaisseModule } from './caisse-firebase.js';
 import { MessengerModule } from './messenger-firebase.js';
 import { AuthModule } from './auth-firebase.js';
+// Photo modules
+import { TripPhotosModule } from './trip-photos.js';
+import './cloudinary-web.js';
 
 let currentPage = 'dashboard';
 let selectedDate = new Date().toISOString().split('T')[0];

@@ -17,6 +17,7 @@ export interface Truck {
     matricule: string;
     type: 'PLATEAU' | 'BENNE' | 'CITERNE';
     marque?: string;
+    photoUrl?: string;
     chargesFixes: number;
     montantAssurance: number;
     montantTaxe: number;
@@ -26,10 +27,19 @@ export interface Truck {
     updatedAt?: string;
 }
 
+export interface TripPhotos {
+    dashboard: string;
+    fullTruck: string;
+    document: string; // BC at start, BL at end
+    cargo: string;
+    timestamp: string;
+}
+
 export interface Driver {
     id: string;
     nom: string;
     telephone?: string;
+    photoUrl?: string;
     camionId?: string;
     createdAt?: string;
 }
@@ -85,8 +95,14 @@ export interface EntryCosts {
 
 export interface Planification extends Omit<Entry, 'id'> {
     id: string;
-    statut: 'planifie' | 'en_cours' | 'termine' | 'annule';
+    statut: 'planifie' | 'en_cours' | 'attente_confirmation' | 'termine' | 'annule';
     estimatedDistance?: number;
+    startPhotos?: TripPhotos;
+    endPhotos?: TripPhotos;
+    heure?: string;
+    devisId?: string;
+    bcId?: string;
+    blId?: string;
 }
 
 export interface Client {

@@ -75,7 +75,9 @@ async function renderTrucks() {
         return `
         <div class="entity-card truck-card">
             <div class="entity-header">
-                <div class="entity-icon">🚛</div>
+                <div class="entity-icon" style="${truck.photoUrl ? 'padding:0;overflow:hidden;border-radius:12px' : ''}">
+                    ${truck.photoUrl ? `<img src="${truck.photoUrl}" style="width:100%;height:100%;object-fit:cover" alt="${truck.matricule}">` : '🚛'}
+                </div>
                 <div class="entity-info">
                     <h3>${truck.matricule}</h3>
                     <span class="entity-badge">${truck.type}</span>
@@ -125,6 +127,14 @@ async function openModal(truckId = null) {
     document.getElementById('modalBody').innerHTML = `
         <form id="truckForm">
             <input type="hidden" id="truckId" value="${truck?.id || ''}">
+            <input type="hidden" id="truckPhotoUrl" value="${truck?.photoUrl || ''}">
+            <div class="form-group">
+                <label>📷 Photo du camion</label>
+                <div style="display:flex;align-items:center;gap:12px">
+                    ${truck?.photoUrl ? `<img id="truckPhotoPreview" src="${truck.photoUrl}" style="width:80px;height:60px;border-radius:8px;object-fit:cover;border:2px solid rgba(139,92,246,0.3)">` : `<div id="truckPhotoPreview" style="width:80px;height:60px;border-radius:8px;background:rgba(30,41,59,0.6);display:flex;align-items:center;justify-content:center;font-size:24px;border:2px dashed rgba(148,163,184,0.2)">🚛</div>`}
+                    <input type="file" id="truckPhotoFile" accept="image/*" style="flex:1">
+                </div>
+            </div>
             <div class="form-group"><label>Matricule</label><input type="text" id="truckMatricule" value="${truck?.matricule || ''}" required></div>
             <div class="form-group"><label>Type</label>
                 <select id="truckType">
@@ -158,9 +168,24 @@ async function saveTruck() {
         montantAssurance: parseFloat(document.getElementById('truckAssurance').value) || 0,
         montantTaxe: parseFloat(document.getElementById('truckTaxe').value) || 0,
         chargePersonnel: parseFloat(document.getElementById('truckPersonnel').value) || 0,
-        fraisLeasing: parseFloat(document.getElementById('truckLeasing').value) || 0
+        fraisLeasing: parseFloat(document.getElementById('truckLeasing').value) || 0,
+        photoUrl: document.getElementById('truckPhotoUrl').value || null
     };
     if (!truck.matricule) { alert('Matricule requis'); return; }
+
+    // Upload photo if a new file was selected
+    const photoFile = document.getElementById('truckPhotoFile')?.files[0];
+    if (photoFile) {
+        try {
+            const result = await CloudinaryHelper.uploadToCloudinary(photoFile, 'profiles/trucks');
+            truck.photoUrl = result.url;
+        } catch (err) {
+            console.error('Photo upload error:', err);
+            alert('Erreur upload photo: ' + err.message);
+            return;
+        }
+    }
+
     await DataModule.saveTruck(truck);
     App.hideModal();
     refresh();

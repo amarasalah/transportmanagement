@@ -77,7 +77,9 @@ async function renderDrivers() {
         return `
         <div class="entity-card driver-card">
             <div class="entity-header">
-                <div class="entity-icon">👤</div>
+                <div class="entity-icon" style="${driver.photoUrl ? 'padding:0;overflow:hidden;border-radius:50%' : ''}">
+                    ${driver.photoUrl ? `<img src="${driver.photoUrl}" style="width:100%;height:100%;object-fit:cover" alt="${driver.nom}">` : '👤'}
+                </div>
                 <div class="entity-info">
                     <h3>${driver.nom}</h3>
                     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -128,6 +130,14 @@ async function openModal(driverId = null) {
     document.getElementById('modalBody').innerHTML = `
         <form id="driverForm">
             <input type="hidden" id="driverId" value="${driver?.id || ''}">
+            <input type="hidden" id="driverPhotoUrl" value="${driver?.photoUrl || ''}">
+            <div class="form-group">
+                <label>📷 Photo du chauffeur</label>
+                <div style="display:flex;align-items:center;gap:12px">
+                    ${driver?.photoUrl ? `<img id="driverPhotoPreview" src="${driver.photoUrl}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid rgba(139,92,246,0.3)">` : `<div id="driverPhotoPreview" style="width:60px;height:60px;border-radius:50%;background:rgba(30,41,59,0.6);display:flex;align-items:center;justify-content:center;font-size:24px;border:2px dashed rgba(148,163,184,0.2)">👤</div>`}
+                    <input type="file" id="driverPhotoFile" accept="image/*" style="flex:1">
+                </div>
+            </div>
             <div class="form-group"><label>Nom</label><input type="text" id="driverNom" value="${driver?.nom || ''}" required></div>
             <div class="form-group"><label>Camion Assigné</label><select id="driverCamion"><option value="">-- Non assigné --</option>${truckOptions}</select></div>
         </form>`;
@@ -139,9 +149,24 @@ async function saveDriver() {
     const driver = {
         id: document.getElementById('driverId').value || null,
         nom: document.getElementById('driverNom').value,
-        camionId: document.getElementById('driverCamion').value || null
+        camionId: document.getElementById('driverCamion').value || null,
+        photoUrl: document.getElementById('driverPhotoUrl').value || null
     };
     if (!driver.nom) { alert('Nom requis'); return; }
+
+    // Upload photo if a new file was selected
+    const photoFile = document.getElementById('driverPhotoFile')?.files[0];
+    if (photoFile) {
+        try {
+            const result = await CloudinaryHelper.uploadToCloudinary(photoFile, 'profiles/drivers');
+            driver.photoUrl = result.url;
+        } catch (err) {
+            console.error('Photo upload error:', err);
+            alert('Erreur upload photo: ' + err.message);
+            return;
+        }
+    }
+
     await DataModule.saveDriver(driver);
     App.hideModal();
     refresh();

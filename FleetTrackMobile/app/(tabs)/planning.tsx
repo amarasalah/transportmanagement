@@ -1,24 +1,27 @@
 /**
  * Planning Screen - Planification des livraisons
- * Driver role: read-only view of their own planifications
+ * Driver role: view planifications + confirm trip begin/end with photos
+ * Admin role: full status control
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import {
     View, Text, StyleSheet, FlatList, RefreshControl,
-    TouchableOpacity, ActivityIndicator, Alert,
+    TouchableOpacity, ActivityIndicator, Alert, Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius, Shadows } from '../../src/constants/theme';
-import { getPlanifications, updateStatus, deletePlanification } from '../../src/services/planning';
-import { getTrucks, getCachedTrucks } from '../../src/services/trucks';
-import { getDrivers, getCachedDrivers } from '../../src/services/drivers';
+import { getPlanifications, updateStatus, deletePlanification, clearCache } from '../../src/services/planning';
+import { getTrucks } from '../../src/services/trucks';
+import { getDrivers } from '../../src/services/drivers';
 import { getClients } from '../../src/services/clients';
 import { useAuth } from '../../src/context/AuthContext';
 import { Planification, Truck, Driver, Client } from '../../src/types';
+import TripConfirmation from '../../src/components/TripConfirmation';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
     planifie: { label: 'Planifié', color: Colors.info, icon: 'calendar-clock' },
     en_cours: { label: 'En cours', color: Colors.warning, icon: 'truck-delivery' },
+    attente_confirmation: { label: 'En attente', color: '#f97316', icon: 'clock-check-outline' },
     termine: { label: 'Terminé', color: Colors.positive, icon: 'check-circle' },
     annule: { label: 'Annulé', color: Colors.negative, icon: 'close-circle' },
 };
@@ -34,19 +37,19 @@ export default function PlanningScreen() {
     const [clients, setClients] = useState<Client[]>([]);
     const [filter, setFilter] = useState<string>('all');
 
+    // Trip confirmation modal state
+    const [confirmVisible, setConfirmVisible] = useState(false);
+    const [confirmPlan, setConfirmPlan] = useState<Planification | null>(null);
+    const [confirmMode, setConfirmMode] = useState<'begin' | 'end'>('begin');
+
     const loadData = useCallback(async () => {
         try {
-            console.log('[Planning] Loading... user.driverId=', user?.driverId, 'isDriver=', isDriver);
+            clearCache();
             let [p, t, d, c] = await Promise.all([
                 getPlanifications(), getTrucks(), getDrivers(), getClients(),
             ]);
-            console.log('[Planning] Total plans loaded:', p.length);
-            // Chauffeur data scope: show only their planifications
             if (user?.driverId) {
-                console.log('[Planning] Filtering plans for driverId:', user.driverId);
-                console.log('[Planning] Plan chauffeurIds:', p.map(plan => plan.chauffeurId));
                 p = p.filter(plan => plan.chauffeurId === user.driverId);
-                console.log('[Planning] Plans after filter:', p.length);
             }
             setPlanifications(p);
             setTrucks(t);
@@ -66,6 +69,14 @@ export default function PlanningScreen() {
         ? planifications
         : planifications.filter(p => p.statut === filter);
 
+    // Driver: open photo confirmation modal
+    const openTripConfirm = (plan: Planification, mode: 'begin' | 'end') => {
+        setConfirmPlan(plan);
+        setConfirmMode(mode);
+        setConfirmVisible(true);
+    };
+
+    // Admin: direct status change via alert
     const handleStatusChange = (plan: Planification) => {
         const options = Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({
             text: cfg.label,
@@ -96,10 +107,17 @@ export default function PlanningScreen() {
         const client = plan.clientId ? clients.find(c => c.id === plan.clientId) : null;
         const status = STATUS_CONFIG[plan.statut] || STATUS_CONFIG.planifie;
 
+        // Driver action button logic
+        const canBegin = isDriver && plan.statut === 'planifie';
+        const canEnd = isDriver && plan.statut === 'en_cours';
+        const hasStartPhotos = !!plan.startPhotos;
+        const hasEndPhotos = !!plan.endPhotos;
+
         return (
             <View style={[styles.planCard, { borderLeftColor: status.color }]}>
+                {/* Header */}
                 <View style={styles.cardHeader}>
-                    <View>
+                    <View style={{ flex: 1 }}>
                         <Text style={styles.dateText}>{formatDate(plan.date)}</Text>
                         {client && <Text style={styles.clientText}>👤 {client.nom}</Text>}
                     </View>
@@ -119,6 +137,7 @@ export default function PlanningScreen() {
                     </View>
                 </View>
 
+                {/* Body */}
                 <View style={styles.planBody}>
                     <Text style={styles.truckText}>🚛 {truck?.matricule || '-'}</Text>
                     <Text style={styles.driverSmall}>👤 {driver?.nom || '-'}</Text>
@@ -127,11 +146,60 @@ export default function PlanningScreen() {
                     </Text>
                 </View>
 
+                {/* Stats */}
                 <View style={styles.statsRow}>
                     <Text style={styles.stat}>{plan.kilometrage || 0} km</Text>
                     <Text style={styles.stat}>⛽ {plan.quantiteGasoil || 0} L</Text>
                     <Text style={styles.stat}>💵 {(plan.prixLivraison || 0).toFixed(0)} TND</Text>
                 </View>
+
+                {/* Photo indicators */}
+                {(hasStartPhotos || hasEndPhotos || plan.statut === 'attente_confirmation') && (
+                    <View style={styles.photoIndicators}>
+                        {hasStartPhotos && (
+                            <View style={styles.photoTag}>
+                                <MaterialCommunityIcons name="camera" size={12} color={Colors.positive} />
+                                <Text style={styles.photoTagText}>Photos départ ✓</Text>
+                            </View>
+                        )}
+                        {hasEndPhotos && (
+                            <View style={styles.photoTag}>
+                                <MaterialCommunityIcons name="camera" size={12} color={Colors.positive} />
+                                <Text style={styles.photoTagText}>Photos arrivée ✓</Text>
+                            </View>
+                        )}
+                        {plan.statut === 'attente_confirmation' && (
+                            <View style={[styles.photoTag, { backgroundColor: 'rgba(249,115,22,0.15)' }]}>
+                                <MaterialCommunityIcons name="clock-check-outline" size={12} color="#f97316" />
+                                <Text style={[styles.photoTagText, { color: '#f97316' }]}>⏳ Attente confirmation admin</Text>
+                            </View>
+                        )}
+                    </View>
+                )}
+
+                {/* Driver Action Buttons */}
+                {isDriver && (canBegin || canEnd) && (
+                    <View style={styles.actionRow}>
+                        {canBegin && (
+                            <TouchableOpacity
+                                style={[styles.actionBtn, styles.actionBegin]}
+                                onPress={() => openTripConfirm(plan, 'begin')}
+                            >
+                                <MaterialCommunityIcons name="truck-fast" size={18} color="#fff" />
+                                <Text style={styles.actionBtnText}>🚛 Démarrer le voyage</Text>
+                            </TouchableOpacity>
+                        )}
+                        {canEnd && (
+                            <TouchableOpacity
+                                style={[styles.actionBtn, styles.actionEnd]}
+                                onPress={() => openTripConfirm(plan, 'end')}
+                            >
+                                <MaterialCommunityIcons name="flag-checkered" size={18} color="#fff" />
+                                <Text style={styles.actionBtnText}>🏁 Terminer le voyage</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
             </View>
         );
     };
@@ -187,6 +255,18 @@ export default function PlanningScreen() {
                     </View>
                 }
             />
+
+            {/* Trip Confirmation Modal */}
+            <TripConfirmation
+                visible={confirmVisible}
+                plan={confirmPlan}
+                mode={confirmMode}
+                onClose={() => setConfirmVisible(false)}
+                onConfirmed={() => {
+                    setConfirmVisible(false);
+                    loadData();
+                }}
+            />
         </View>
     );
 }
@@ -233,6 +313,37 @@ const styles = StyleSheet.create({
 
     statsRow: { flexDirection: 'row', gap: Spacing.md },
     stat: { fontSize: FontSize.xs, color: Colors.textMuted, backgroundColor: Colors.surfaceLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: BorderRadius.sm },
+
+    // Photo indicators
+    photoIndicators: {
+        flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm,
+    },
+    photoTag: {
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        backgroundColor: 'rgba(16,185,129,0.1)', paddingHorizontal: 8, paddingVertical: 3,
+        borderRadius: BorderRadius.full,
+    },
+    photoTagText: {
+        fontSize: 10, color: Colors.positive, fontWeight: '600',
+    },
+
+    // Driver action buttons
+    actionRow: {
+        marginTop: Spacing.sm, gap: Spacing.xs,
+    },
+    actionBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 8, paddingVertical: 12, borderRadius: BorderRadius.md,
+    },
+    actionBegin: {
+        backgroundColor: Colors.warning,
+    },
+    actionEnd: {
+        backgroundColor: Colors.positive,
+    },
+    actionBtnText: {
+        color: '#fff', fontWeight: '700', fontSize: FontSize.sm,
+    },
 
     emptyState: { alignItems: 'center', paddingVertical: Spacing.xxl * 2 },
     emptyText: { color: Colors.textMuted, marginTop: Spacing.md, fontSize: FontSize.md },

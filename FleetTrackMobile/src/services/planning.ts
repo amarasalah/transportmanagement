@@ -3,7 +3,7 @@
  */
 import { db, collection, doc, getDocs, setDoc, deleteDoc } from './firebase';
 import { COLLECTIONS } from '../constants/collections';
-import { Planification } from '../types';
+import { Planification, TripPhotos } from '../types';
 
 let cache: Planification[] | null = null;
 
@@ -49,6 +49,30 @@ export async function updateStatus(id: string, statut: Planification['statut']):
         plan.updatedAt = new Date().toISOString();
         await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan as any);
     }
+}
+
+/**
+ * Update plan status WITH confirmation photos
+ * Called when driver confirms trip begin (planifié → en_cours) or end (en_cours → attente_confirmation)
+ */
+export async function updateStatusWithPhotos(
+    id: string,
+    statut: Planification['statut'],
+    photos: TripPhotos
+): Promise<void> {
+    const plan = cache?.find(p => p.id === id);
+    if (!plan) throw new Error('Plan not found: ' + id);
+
+    plan.statut = statut;
+    plan.updatedAt = new Date().toISOString();
+
+    if (statut === 'en_cours') {
+        plan.startPhotos = photos;
+    } else if (statut === 'attente_confirmation' || statut === 'termine') {
+        plan.endPhotos = photos;
+    }
+
+    await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan as any);
 }
 
 export function clearCache() { cache = null; }

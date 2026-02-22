@@ -962,6 +962,60 @@ body {
     color: var(--warning);
 }
 
+/* Status Badges */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-warning {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.status-info {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-blue);
+}
+
+.status-orange {
+    background: rgba(249, 115, 22, 0.15);
+    color: #f97316;
+    animation: pulse-orange 2s infinite;
+}
+
+@keyframes pulse-orange {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.status-success {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.status-danger {
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
+.status-livré {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
 /* ============================================
    PERFORMANCE CARDS (Trucks & Drivers)
    ============================================ */

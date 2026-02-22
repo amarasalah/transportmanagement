@@ -52,6 +52,7 @@ async function renderEntries(selectedDate) {
         const costs = DataModule.calculateEntryCosts(entry, truck, isFirstTrip);
         const resultClass = costs.resultat >= 0 ? 'result-positive' : 'result-negative';
         const isIdle = entry.source === 'idle_day';
+        const hasPhotos = !!(entry.startPhotos || entry.endPhotos);
 
         const origineShort = entry.origineDelegation || entry.origineGouvernorat || '-';
         const destShort = client
@@ -76,6 +77,12 @@ async function renderEntries(selectedDate) {
             <td>${(entry.prixLivraison || 0).toLocaleString('fr-FR')} TND</td>
             <td class="${resultClass}">${costs.resultat.toLocaleString('fr-FR')} TND</td>
             <td>
+                ${hasPhotos ? `
+                <button class="btn btn-sm btn-outline" onclick="EntriesModule.showEntryPhotos('${entry.id}')" title="Voir photos du voyage"
+                    style="background:rgba(99,102,241,0.1);border-color:rgba(99,102,241,0.3)">
+                    📷
+                </button>
+                ` : ''}
                 ${!window.currentUser?.driverId ? `
                 <button class="btn btn-sm btn-outline" onclick="EntriesModule.edit('${entry.id}')">✏️</button>
                 <button class="btn btn-sm btn-outline" onclick="EntriesModule.remove('${entry.id}')">🗑️</button>
@@ -557,6 +564,82 @@ async function updateTrajectoryStats() {
     }
 }
 
+// ==================== ENTRY TRIP PHOTOS ====================
+function showEntryPhotos(entryId) {
+    const entries = DataModule.getCachedEntries() || [];
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry) { alert('Saisie introuvable'); return; }
+
+    const photoLabels = {
+        dashboard: '🎛️ Tableau de bord',
+        fullTruck: '🚛 Camion complet',
+        document: '📋 Document BC/BL',
+        cargo: '📦 Cargaison'
+    };
+
+    const sections = [];
+
+    if (entry.startPhotos) {
+        const items = Object.entries(entry.startPhotos)
+            .filter(([k, v]) => v && k !== 'timestamp' && typeof v === 'string' && v.startsWith('http'))
+            .map(([k, v]) => `
+                <div style="background:rgba(0,0,0,0.3);border-radius:10px;overflow:hidden;border:1px solid rgba(148,163,184,0.1)">
+                    <div style="padding:8px 12px;border-bottom:1px solid rgba(148,163,184,0.1);color:#10b981;font-size:0.8rem;font-weight:600">${photoLabels[k] || k}</div>
+                    <img src="${v}" style="width:100%;display:block;cursor:pointer" onclick="window.open('${v}','_blank')" title="Cliquer pour agrandir">
+                </div>
+            `).join('');
+        if (items) sections.push({ title: '🟢 Photos Départ', html: items });
+    }
+
+    if (entry.endPhotos) {
+        const items = Object.entries(entry.endPhotos)
+            .filter(([k, v]) => v && k !== 'timestamp' && typeof v === 'string' && v.startsWith('http'))
+            .map(([k, v]) => `
+                <div style="background:rgba(0,0,0,0.3);border-radius:10px;overflow:hidden;border:1px solid rgba(148,163,184,0.1)">
+                    <div style="padding:8px 12px;border-bottom:1px solid rgba(148,163,184,0.1);color:#f97316;font-size:0.8rem;font-weight:600">${photoLabels[k] || k}</div>
+                    <img src="${v}" style="width:100%;display:block;cursor:pointer" onclick="window.open('${v}','_blank')" title="Cliquer pour agrandir">
+                </div>
+            `).join('');
+        if (items) sections.push({ title: '🔴 Photos Arrivée', html: items });
+    }
+
+    if (sections.length === 0) {
+        alert('Aucune photo disponible pour cette saisie.');
+        return;
+    }
+
+    const truck = DataModule.getTruckById(entry.camionId);
+    const driver = DataModule.getDriverById(entry.chauffeurId);
+
+    const modal = document.createElement('div');
+    modal.id = 'entryPhotosModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;display:flex;justify-content:center;align-items:flex-start;padding:20px;overflow-y:auto';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    modal.innerHTML = `
+        <div style="background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:16px;max-width:900px;width:100%;border:1px solid rgba(148,163,184,0.1);overflow:hidden;margin:20px auto">
+            <div style="padding:20px;border-bottom:1px solid rgba(148,163,184,0.1);display:flex;justify-content:space-between;align-items:center">
+                <div>
+                    <h3 style="color:#f1f5f9;font-size:1.1rem;margin:0">📷 Photos du voyage</h3>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:4px">
+                        ${truck?.matricule || '-'} • ${driver?.nom || '-'} • ${entry.date} • ${entry.destination || entry.gouvernorat || '-'}
+                    </div>
+                </div>
+                <button onclick="document.getElementById('entryPhotosModal').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer">✕</button>
+            </div>
+            ${sections.map(s => `
+                <div style="padding:16px 20px;border-bottom:1px solid rgba(148,163,184,0.05)">
+                    <h4 style="color:#a78bfa;font-size:0.9rem;margin:0 0 12px 0">${s.title}</h4>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+                        ${s.html}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
 export const EntriesModule = {
     init,
     refresh,
@@ -569,7 +652,8 @@ export const EntriesModule = {
     updateDistanceEstimate,
     updateTrajectoryStats,
     onClientChangeDestination,
-    useClientLocation
+    useClientLocation,
+    showEntryPhotos
 };
 
 window.EntriesModule = EntriesModule;

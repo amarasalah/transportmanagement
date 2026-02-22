@@ -5,6 +5,7 @@
 
 import { rtdb, dbRef, dbPush, dbSet, onValue, onChildAdded, rtdbQuery, orderByChild, limitToLast } from './firebase.js';
 import { AuthModule } from './auth-firebase.js';
+import { notifyDriverMessage } from './push-notifications.js';
 
 let currentConversationId = null;
 let messagesListener = null;
@@ -302,6 +303,12 @@ async function sendMsg() {
             lastMessageAt: Date.now(),
             lastSenderName: user.name
         });
+
+        // Send push notification to driver if admin is sending
+        if (user.isAdmin && currentConversationId.startsWith('conv_')) {
+            const driverId = currentConversationId.replace('conv_', '');
+            notifyDriverMessage(driverId, user.name, text).catch(e => console.warn('[Messenger] Push failed:', e));
+        }
     } catch (err) {
         console.error('Error sending message:', err);
     }

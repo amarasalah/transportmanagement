@@ -179,9 +179,40 @@ async function renderBLs() {
         return;
     }
 
-    tbody.innerHTML = bls.map(bl => {
+    tbody.innerHTML = await Promise.all(bls.map(async (bl) => {
         const client = ClientsModule.getClientById(bl.clientId);
         const total = (bl.lignes || []).reduce((s, l) => s + (l.prixTotal || 0), 0);
+
+        // Check for trip photos linked via planification
+        let photoBtn = '';
+        if (bl.planificationId || bl.source === 'planification') {
+            try {
+                const planRef = bl.planificationId || bl.id;
+                let bcPhoto = null, blPhoto = null;
+
+                // First: look in entries (plan was converted to entry with photos)
+                const entriesSnap = await getDocs(collection(db, COLLECTIONS.entries));
+                const matchingEntry = entriesSnap.docs
+                    .map(d => ({ id: d.id, ...d.data() }))
+                    .find(e => e.planificationId === planRef);
+
+                if (matchingEntry) {
+                    bcPhoto = matchingEntry.startPhotos?.document;
+                    blPhoto = matchingEntry.endPhotos?.document;
+                } else {
+                    // Fallback: plan might still exist (not yet confirmed)
+                    const planSnap = await getDoc(doc(db, COLLECTIONS.planifications, planRef)).catch(() => null);
+                    const planData = planSnap?.exists?.() ? planSnap.data() : null;
+                    bcPhoto = planData?.startPhotos?.document;
+                    blPhoto = planData?.endPhotos?.document;
+                }
+
+                if (bcPhoto || blPhoto) {
+                    photoBtn = `<button class="btn-icon" title="Voir BC/BL documents" onclick="VenteModule.showDocPhotos('${bcPhoto || ''}', '${blPhoto || ''}', '${bl.numero || bl.id}')" style="color:#a78bfa">📷</button>`;
+                }
+            } catch (e) { console.warn('Photo lookup error:', e); }
+        }
+
         return `
             <tr>
                 <td><strong>${bl.numero || bl.id}</strong></td>
@@ -192,12 +223,13 @@ async function renderBLs() {
                 <td><strong>${total.toFixed(3)} TND</strong></td>
                 <td><span class="status-badge status-${(bl.statut || '').toLowerCase().replace(/\s/g, '-')}">${bl.statut || 'Livré'}</span></td>
                 <td>
+                    ${photoBtn}
                     <button class="btn-icon" onclick="VenteModule.editBL('${bl.id}')">✏️</button>
                     <button class="btn-icon" onclick="VenteModule.deleteBL('${bl.id}')">🗑️</button>
                 </td>
             </tr>
         `;
-    }).join('');
+    })).then(rows => rows.join(''));
 }
 
 // ==================== BL CLIENT MODAL ====================
@@ -1263,7 +1295,41 @@ async function updateClientSolde(clientId) {
     }
 }
 
-// ==================== EXPORT ====================
+
+// ==================== DOCUMENT PHOTOS ====================
+function showDocPhotos(bcPhotoUrl, blPhotoUrl, blNumero) {
+    const modal = document.createElement('div');
+    modal.id = 'docPhotosModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;display:flex;justify-content:center;align-items:center;padding:20px';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    const photos = [];
+    if (bcPhotoUrl) photos.push({ label: '📋 Bon de Commande (BC)', url: bcPhotoUrl });
+    if (blPhotoUrl) photos.push({ label: '📄 Bon de Livraison (BL)', url: blPhotoUrl });
+
+    modal.innerHTML = `
+        <div style="background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:16px;max-width:800px;width:100%;border:1px solid rgba(148,163,184,0.1);overflow:hidden">
+            <div style="padding:20px;border-bottom:1px solid rgba(148,163,184,0.1);display:flex;justify-content:space-between;align-items:center">
+                <h3 style="color:#f1f5f9;font-size:1.1rem">📷 Documents - ${blNumero}</h3>
+                <button onclick="document.getElementById('docPhotosModal').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer">✕</button>
+            </div>
+            <div style="padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+                ${photos.map(p => `
+                    <div style="background:rgba(0,0,0,0.3);border-radius:12px;overflow:hidden;border:1px solid rgba(148,163,184,0.1)">
+                        <div style="padding:10px 14px;border-bottom:1px solid rgba(148,163,184,0.1);color:#a78bfa;font-weight:600;font-size:0.85rem">${p.label}</div>
+                        <div style="padding:8px">
+                            <img src="${p.url}" style="width:100%;border-radius:8px;cursor:pointer" onclick="window.open('${p.url}','_blank')" title="Cliquer pour agrandir">
+                        </div>
+                    </div>
+                `).join('')}
+                ${photos.length === 0 ? '<p style="color:#64748b;text-align:center;padding:30px">Aucun document photo disponible</p>' : ''}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// ==================== EXPORT ======================================
 export const VenteModule = {
     init, showPage, refreshCurrentPage,
     // BL Client
@@ -1278,6 +1344,8 @@ export const VenteModule = {
     addDevisLigne, removeDevisLigne, recalcDevisTotal, onDevisArticleChange,
     // Reglements Client
     openReglementClientModal, onFactureChangeReglementClient,
+    // Document Photos
+    showDocPhotos,
     // Filters
     filterBLs, filterFactures: filterFacturesVente
 };
