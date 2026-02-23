@@ -110,6 +110,25 @@ async function loadPlannings() {
     }
 }
 
+/**
+ * Check if this is the first trip for a given truck on a given day.
+ * Non-gasoil charges (maintenance, truck fixed charges) should only be
+ * counted on the first trip. Subsequent trips only carry gasoil.
+ * @param {string} camionId - Truck ID
+ * @param {string} date - Date string YYYY-MM-DD
+ * @param {string} planId - Current plan ID (to identify self)
+ * @returns {boolean} true if first trip (charges apply), false if subsequent trip
+ */
+function isFirstTripForTruckOnDay(camionId, date, planId) {
+    if (!camionId || !date) return true;
+    // Find all plans for same truck on same day, sorted by creation time
+    const sameTruckSameDay = cache
+        .filter(p => p.camionId === camionId && p.date === date && p.statut !== 'annule')
+        .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    // If this plan is the first one (or the only one), charges apply
+    return sameTruckSameDay.length === 0 || sameTruckSameDay[0].id === planId;
+}
+
 // ==================== ERP DOCUMENT CREATION ====================
 
 /**
@@ -357,8 +376,11 @@ async function renderPlannings(selectedDate) {
             'annule': 'Annulé'
         }[plan.statut] || plan.statut || 'Planifié';
 
-        const truckCharges = truck ? ((truck.chargesFixes || 0) + (truck.montantAssurance || 0) + (truck.montantTaxe || 0) + (truck.chargePersonnel || 0) + (truck.fraisLeasing || 0)) : 0;
-        const coutTotal = (plan.montantGasoil || 0) + (plan.maintenance || 0) + truckCharges;
+        // Charges: truck fixed + maintenance only on FIRST trip of truck per day
+        const isFirst = isFirstTripForTruckOnDay(plan.camionId, plan.date, plan.id);
+        const truckCharges = (truck && isFirst) ? ((truck.chargesFixes || 0) + (truck.montantAssurance || 0) + (truck.montantTaxe || 0) + (truck.chargePersonnel || 0) + (truck.fraisLeasing || 0)) : 0;
+        const maintenanceCost = isFirst ? (plan.maintenance || 0) : 0;
+        const coutTotal = (plan.montantGasoil || 0) + maintenanceCost + truckCharges;
         const resultat = (plan.prixLivraison || 0) - coutTotal;
         const resultClass = resultat >= 0 ? 'result-positive' : 'result-negative';
 
@@ -759,6 +781,8 @@ async function onTruckChange() {
 function updateCalculations() {
     const truckId = document.getElementById('planCamion')?.value;
     const truck = truckId ? DataModule.getTruckById(truckId) : null;
+    const planId = document.getElementById('planId')?.value;
+    const planDate = document.getElementById('planDate')?.value;
 
     const gasoil = parseFloat(document.getElementById('planGasoil')?.value) || 0;
     const prixGasoil = parseFloat(document.getElementById('planPrixGasoil')?.value) || 0;
@@ -766,10 +790,16 @@ function updateCalculations() {
     const prixLivraison = parseFloat(document.getElementById('planPrixLivraison')?.value) || 0;
 
     const montantGasoil = gasoil * prixGasoil;
-    let coutTotal = montantGasoil + maintenance;
 
-    if (truck) {
+    // Check if this is the first trip for this truck on this day
+    const isFirst = isFirstTripForTruckOnDay(truckId, planDate, planId);
+    let coutTotal = montantGasoil + (isFirst ? maintenance : 0);
+    let chargesNote = '';
+
+    if (truck && isFirst) {
         coutTotal += (truck.chargesFixes || 0) + (truck.montantAssurance || 0) + (truck.montantTaxe || 0) + (truck.chargePersonnel || 0) + (truck.fraisLeasing || 0);
+    } else if (truck && !isFirst) {
+        chargesNote = ' (charges camion déjà comptées)';
     }
 
     const resultat = prixLivraison - coutTotal;
@@ -779,7 +809,7 @@ function updateCalculations() {
     const calcResultat = document.getElementById('planCalcResultat');
 
     if (calcGasoil) calcGasoil.value = `${montantGasoil.toLocaleString('fr-FR')} TND`;
-    if (calcCout) calcCout.value = `${coutTotal.toLocaleString('fr-FR')} TND`;
+    if (calcCout) calcCout.value = `${coutTotal.toLocaleString('fr-FR')} TND${chargesNote}`;
     if (calcResultat) {
         calcResultat.value = `${resultat.toLocaleString('fr-FR')} TND`;
         calcResultat.style.color = resultat >= 0 ? '#10b981' : '#ef4444';
@@ -961,6 +991,12 @@ async function convertToEntry(plan) {
         }
     }
 
+    // ===== CHECK IF CHARGES ALREADY COUNTED FOR THIS TRUCK TODAY =====
+    const isFirst = isFirstTripForTruckOnDay(plan.camionId, plan.date, plan.id);
+    // Reuse existingEntries from duplicate detection above
+    const truckAlreadyHasEntry = existingEntries.some(e => e.camionId === plan.camionId);
+    const applyCharges = isFirst && !truckAlreadyHasEntry;
+
     // ===== BUILD ENTRY WITH PHOTOS =====
     const entry = {
         date: plan.date,
@@ -978,11 +1014,12 @@ async function convertToEntry(plan) {
         kilometrage: plan.kilometrage || 0,
         quantiteGasoil: plan.quantiteGasoil || 0,
         prixGasoilLitre: plan.prixGasoilLitre || 0,
-        maintenance: plan.maintenance || 0,
+        maintenance: applyCharges ? (plan.maintenance || 0) : 0,
         prixLivraison: plan.prixLivraison || 0,
-        remarques: (plan.remarques || '') + ` [Plan ${plan.id}]`,
+        remarques: (plan.remarques || '') + ` [Plan ${plan.id}]` + (!applyCharges ? ' [Charges déjà comptées]' : ''),
         source: 'planification',
         planificationId: plan.id,
+        chargesApplied: applyCharges,
         // ===== CARRY TRIP PHOTOS =====
         startPhotos: plan.startPhotos || null,
         endPhotos: plan.endPhotos || null
