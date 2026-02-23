@@ -5,7 +5,7 @@
  * Mirrors Achat BC pattern: BC pulls articles from Devis source
  */
 
-import { db, collection, doc, getDocs, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
+import { db, collection, doc, getDocs, setDoc, deleteDoc, COLLECTIONS, getNextNumber } from './firebase.js';
 import { ClientsModule } from './clients-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
 
@@ -224,7 +224,7 @@ async function saveOrder() {
         id: document.getElementById('bcClientId').value || null,
         numero: document.getElementById('bcClientId').value
             ? getOrderById(document.getElementById('bcClientId').value)?.numero
-            : `BCV-${Date.now().toString().slice(-6)}`,
+            : await getNextNumber('BCV'),
         date: document.getElementById('bcClientDate').value,
         devisId: devisId || null,
         devisNumero: devis?.numero || '',
@@ -277,9 +277,10 @@ async function transformToBL(orderId) {
         prixTotal: (l.quantite || 0) * (l.prixUnitaire || 0)
     }));
 
+    const blNumero = await getNextNumber('BLV');
     const blData = {
         id: `blv_${Date.now()}`,
-        numero: `BLC-${Date.now().toString().slice(-6)}`,
+        numero: blNumero,
         date: new Date().toISOString().split('T')[0],
         commandeId: order.id,
         commandeNumero: order.numero,
@@ -293,19 +294,34 @@ async function transformToBL(orderId) {
     try {
         await setDoc(doc(db, COLLECTIONS.bonLivraisonsVente, blData.id), blData);
 
-        // Reduce stock for each delivered article
-        for (const ligne of lignes) {
-            let article = null;
-            if (ligne.articleId) {
-                article = ArticlesModule.getArticleById(ligne.articleId);
-            }
-            if (!article && ligne.nom) {
-                const allArticles = await ArticlesModule.getArticles();
-                article = allArticles.find(a => a.designation === ligne.nom);
-            }
-            if (article) {
-                const newStock = Math.max(0, (article.stock || 0) - (ligne.quantiteLivree || 0));
-                await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
+        // Record stock movements (sortie) via InventaireModule
+        try {
+            const { InventaireModule } = await import('./inventory-firebase.js');
+            const client = ClientsModule.getClientById(order.clientId);
+            await InventaireModule.recordBLMovements(lignes, 'sortie', {
+                documentType: 'BL Vente',
+                documentNumero: blData.numero,
+                documentId: blData.id,
+                tiersId: order.clientId,
+                tiersNom: client?.nom || '',
+                date: blData.date
+            });
+        } catch (invErr) {
+            // Fallback: manual stock reduction if inventory module fails
+            console.warn('Inventory tracking error, falling back to manual stock update:', invErr);
+            for (const ligne of lignes) {
+                let article = null;
+                if (ligne.articleId) {
+                    article = ArticlesModule.getArticleById(ligne.articleId);
+                }
+                if (!article && ligne.nom) {
+                    const allArticles = await ArticlesModule.getArticles();
+                    article = allArticles.find(a => a.designation === ligne.nom);
+                }
+                if (article) {
+                    const newStock = Math.max(0, (article.stock || 0) - (ligne.quantiteLivree || 0));
+                    await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
+                }
             }
         }
         await ArticlesModule.refresh();
@@ -314,7 +330,7 @@ async function transformToBL(orderId) {
         order.statut = 'Livré';
         await setDoc(doc(db, COLLECTIONS.bonCommandesVente, order.id), { ...order, updatedAt: new Date().toISOString() });
 
-        alert(`✅ BL Client ${blData.numero} créé avec succès !`);
+        alert(`✅ BL Vente ${blData.numero} créé avec succès !\nStock mis à jour.`);
         await refresh();
     } catch (err) {
         console.error('Erreur transformation BC → BL Vente:', err);

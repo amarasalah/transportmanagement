@@ -21,6 +21,7 @@ import { VenteModule } from './vente-local.js';
 import { ExcelImportModule } from './excel-import-firebase.js';
 import { PlanificationModule } from './planification-firebase.js';
 import { CaisseModule } from './caisse-firebase.js';
+import { InventaireModule } from './inventory-firebase.js';
 import { MessengerModule } from './messenger-firebase.js';
 import { AuthModule } from './auth-firebase.js';
 // Photo modules
@@ -652,6 +653,7 @@ async function navigateTo(page) {
         'reglements-clients': 'Règlements Clients',
         // Articles
         articles: 'Gestion des Articles',
+        inventaire: '📊 Inventaire Stock',
         admin: '👑 Administration',
         tracking: '📍 GPS Tracking',
         planification: 'Planification',
@@ -742,6 +744,9 @@ async function refreshCurrentPage() {
                 break;
             case 'messagerie':
                 await MessengerModule.refresh();
+                break;
+            case 'inventaire':
+                await InventaireModule.refresh();
                 break;
         }
     } catch (error) {

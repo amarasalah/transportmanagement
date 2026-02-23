@@ -3,7 +3,7 @@
  * Bon Commandes Achat (Fournisseurs)
  */
 
-import { db, collection, doc, getDocs, setDoc, deleteDoc, query, orderBy, COLLECTIONS } from './firebase.js';
+import { db, collection, doc, getDocs, setDoc, deleteDoc, query, orderBy, COLLECTIONS, getNextNumber } from './firebase.js';
 import { DataModule } from './data-firebase.js';
 import { SuppliersModule } from './suppliers-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
@@ -49,10 +49,8 @@ async function refresh() {
     await renderOrders();
 }
 
-function generateNumero() {
-    const year = new Date().getFullYear().toString().slice(-2);
-    const count = cache.filter(o => o.numero?.startsWith(`BC${year}`)).length + 1;
-    return `BC${year}${String(count).padStart(6, '0')}`;
+async function generateNumero() {
+    return await getNextNumber('BCA');
 }
 
 async function renderOrders() {
@@ -104,7 +102,7 @@ function formatDate(dateStr) {
 async function openModal(orderId = null) {
     const order = orderId ? getOrderById(orderId) : null;
     const title = order ? 'Modifier Bon Commande' : 'Nouveau Bon Commande Achat';
-    const numero = order?.numero || generateNumero();
+    const numero = order?.numero || await generateNumero();
     const today = new Date().toISOString().split('T')[0];
 
     const suppliers = await SuppliersModule.getSuppliers();
@@ -422,9 +420,10 @@ async function transformToBL(orderId) {
         quantiteRecue: l.quantite || 0
     }));
 
+    const blNumero = await getNextNumber('BLA');
     const blData = {
-        id: `bl_${Date.now()}`,
-        numero: `BL-${Date.now().toString().slice(-6)}`,
+        id: `bla_${Date.now()}`,
+        numero: blNumero,
         date: new Date().toISOString().split('T')[0],
         commandeId: order.id,
         commandeNumero: order.numero,
@@ -440,11 +439,28 @@ async function transformToBL(orderId) {
         const { SuppliersModule } = await import('./suppliers-firebase.js');
         await SuppliersModule.saveLivraison(blData);
 
+        // Record stock movements (entree)
+        try {
+            const { InventaireModule } = await import('./inventory-firebase.js');
+            const suppliers = await SuppliersModule.getSuppliers();
+            const supplier = suppliers.find(s => s.id === order.fournisseurId);
+            await InventaireModule.recordBLMovements(lignes, 'entree', {
+                documentType: 'BL Achat',
+                documentNumero: blData.numero,
+                documentId: blData.id,
+                tiersId: order.fournisseurId,
+                tiersNom: supplier?.nom || '',
+                date: blData.date
+            });
+        } catch (invErr) {
+            console.warn('Stock tracking error (non-blocking):', invErr);
+        }
+
         // Update BC status to Livré
         order.statut = 'Livré';
         await setDoc(doc(db, COLLECTIONS.bonCommandesAchat, order.id), { ...order, updatedAt: new Date().toISOString() });
 
-        alert(`✅ BL ${blData.numero} créé avec succès !`);
+        alert(`✅ BL Achat ${blData.numero} créé avec succès !\nArticles ajoutés au stock.`);
         await refresh();
     } catch (err) {
         console.error('Erreur transformation BC → BL:', err);

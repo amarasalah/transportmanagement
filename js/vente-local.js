@@ -4,7 +4,7 @@
  * Flow: BC Client → BL Client → Facture Client (with stock reduction)
  */
 
-import { db, collection, doc, getDocs, getDoc, setDoc, deleteDoc, COLLECTIONS } from './firebase.js';
+import { db, collection, doc, getDocs, getDoc, setDoc, deleteDoc, COLLECTIONS, getNextNumber } from './firebase.js';
 import { ClientsModule } from './clients-firebase.js';
 import { SalesOrdersModule } from './sales-orders-firebase.js';
 import { CaisseModule } from './caisse-firebase.js';
@@ -418,7 +418,7 @@ async function saveBLForm() {
 
     const bl = {
         id: document.getElementById('blClientId').value || null,
-        numero: document.getElementById('blClientId').value ? getBLById(document.getElementById('blClientId').value)?.numero : `BLC-${Date.now().toString().slice(-6)}`,
+        numero: document.getElementById('blClientId').value ? getBLById(document.getElementById('blClientId').value)?.numero : await getNextNumber('BLV'),
         date: document.getElementById('blClientDate').value,
         commandeId: bcId || null,
         commandeNumero: order?.numero || '',
@@ -433,19 +433,33 @@ async function saveBLForm() {
     try {
         await saveBL(bl);
 
-        // R3/D4: Reduce stock for each delivered article
-        for (const ligne of lignes) {
-            let article = null;
-            if (ligne.articleId) {
-                article = ArticlesModule.getArticleById(ligne.articleId);
-            }
-            if (!article && ligne.nom) {
-                const allArticles = await ArticlesModule.getArticles();
-                article = allArticles.find(a => a.designation === ligne.nom);
-            }
-            if (article) {
-                const newStock = Math.max(0, (article.stock || 0) - (ligne.quantiteLivree || 0));
-                await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
+        // R3/D4: Record stock movements (sortie) via InventaireModule
+        try {
+            const { InventaireModule } = await import('./inventory-firebase.js');
+            const client = ClientsModule.getClientById(bl.clientId);
+            await InventaireModule.recordBLMovements(lignes, 'sortie', {
+                documentType: 'BL Vente',
+                documentNumero: bl.numero,
+                documentId: bl.id,
+                tiersId: bl.clientId,
+                tiersNom: client?.nom || '',
+                date: bl.date
+            });
+        } catch (invErr) {
+            console.warn('Inventory tracking error, falling back to manual:', invErr);
+            for (const ligne of lignes) {
+                let article = null;
+                if (ligne.articleId) {
+                    article = ArticlesModule.getArticleById(ligne.articleId);
+                }
+                if (!article && ligne.nom) {
+                    const allArticles = await ArticlesModule.getArticles();
+                    article = allArticles.find(a => a.designation === ligne.nom);
+                }
+                if (article) {
+                    const newStock = Math.max(0, (article.stock || 0) - (ligne.quantiteLivree || 0));
+                    await setDoc(doc(db, COLLECTIONS.articles, article.id), { ...article, stock: newStock });
+                }
             }
         }
         await ArticlesModule.refresh();
@@ -671,7 +685,7 @@ async function saveFactureForm() {
 
     const facture = {
         id: document.getElementById('factureClientId').value || null,
-        numero: document.getElementById('factureClientId').value ? getFactureById(document.getElementById('factureClientId').value)?.numero : `FC-${Date.now().toString().slice(-6)}`,
+        numero: document.getElementById('factureClientId').value ? getFactureById(document.getElementById('factureClientId').value)?.numero : await getNextNumber('FV'),
         date: document.getElementById('factureClientDate').value,
         livraisonId: blId || null,
         livraisonNumero: bl?.numero || '',
@@ -998,8 +1012,8 @@ async function saveDevis() {
 
     const existingId = document.getElementById('devisId').value;
     const devis = {
-        id: existingId || `DV-${Date.now()}`,
-        numero: document.getElementById('devisNumero').value || `DV-${Date.now().toString().slice(-6)}`,
+        id: existingId || `dv_${Date.now()}`,
+        numero: document.getElementById('devisNumero').value || await getNextNumber('DV'),
         date: document.getElementById('devisDate').value,
         clientId: clientId,
         statut: document.getElementById('devisStatut').value || 'Brouillon',

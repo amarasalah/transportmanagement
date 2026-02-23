@@ -3,7 +3,7 @@
  * With time, auto-status, terminé→entry conversion, and process type filters
  */
 
-import { db, rtdb, collection, doc, getDocs, getDoc, setDoc, deleteDoc, query, orderBy, COLLECTIONS, dbRef, dbPush } from './firebase.js';
+import { db, rtdb, collection, doc, getDocs, getDoc, setDoc, deleteDoc, query, orderBy, COLLECTIONS, dbRef, dbPush, getNextNumber } from './firebase.js';
 import { DataModule } from './data-firebase.js';
 import { ClientsModule } from './clients-firebase.js';
 import { notifyDriverTrip } from './push-notifications.js';
@@ -114,17 +114,19 @@ async function loadPlannings() {
 
 /**
  * Create a Devis Client from a planification
- * Called when a new plan is created with prixLivraison > 0 and a clientId
+ * @param {Object} plan - The plan object
+ * @param {string} [finalStatut='Brouillon'] - Status to set ('Accepté' when called from terminé)
  */
-async function createDevisFromPlan(plan) {
+async function createDevisFromPlan(plan, finalStatut = 'Brouillon') {
     if (!plan.clientId || !plan.prixLivraison || plan.prixLivraison <= 0) return null;
     const ts = Date.now();
+    const dvNumero = await getNextNumber('DV');
     const devis = {
-        id: `DV-PLAN-${ts}`,
-        numero: `DV-PLAN-${ts.toString().slice(-6)}`,
+        id: `dv_plan_${ts}`,
+        numero: dvNumero,
         date: plan.date,
         clientId: plan.clientId,
-        statut: 'Brouillon',
+        statut: finalStatut,
         lignes: [{
             articleId: null,
             designation: `Transport → ${plan.destination || 'N/A'}`,
@@ -150,9 +152,11 @@ async function createDevisFromPlan(plan) {
 }
 
 /**
- * Create a BC Client from the linked Devis when status becomes en_cours
+ * Create a BC Client from the linked Devis
+ * @param {Object} plan - The plan object
+ * @param {string} [finalStatut='En cours'] - Status to set ('Livré' when called from terminé)
  */
-async function createBCFromPlan(plan) {
+async function createBCFromPlan(plan, finalStatut = 'En cours') {
     if (!plan.devisId || plan.bcId) return null; // Already has BC or no devis
     try {
         // Fetch the linked Devis
@@ -170,16 +174,17 @@ async function createBCFromPlan(plan) {
             prixTotal: (l.quantite || 1) * (l.prixUnitaire || 0)
         }));
 
+        const bcNumero = await getNextNumber('BCV');
         const bcData = {
             id: `bcv_plan_${ts}`,
-            numero: `BCV-PLAN-${ts.toString().slice(-6)}`,
+            numero: bcNumero,
             date: plan.date || new Date().toISOString().split('T')[0],
             clientId: plan.clientId,
             devisId: devis.id,
             devisNumero: devis.numero,
             lignes: lignes,
             montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
-            statut: 'En cours',
+            statut: finalStatut,
             type: 'vente',
             source: 'planification',
             planificationId: plan.id,
@@ -227,9 +232,10 @@ async function createBLFromPlan(plan) {
             prixTotal: (l.quantite || 0) * (l.prixUnitaire || 0)
         }));
 
+        const blNumero = await getNextNumber('BLV');
         const blData = {
             id: `blv_plan_${ts}`,
-            numero: `BLC-PLAN-${ts.toString().slice(-6)}`,
+            numero: blNumero,
             date: plan.date || new Date().toISOString().split('T')[0],
             commandeId: bc.id,
             commandeNumero: bc.numero,
@@ -855,11 +861,28 @@ async function savePlan() {
             await createBCFromPlan(plan);
         }
 
-        // 3) Status → terminé → create BL from BC, then convert to saisie
+        // 3) Status → terminé → ensure full chain: Devis → BC → BL, then convert to saisie
         if (isNewTermine) {
+            // Auto-create Devis if missing (and plan has client + prix)
+            // Set directly to 'Accepté' since plan is already terminé
+            if (!plan.devisId && plan.clientId && plan.prixLivraison > 0) {
+                console.log('📋 Terminé: Devis manquant, création automatique (Accepté)...');
+                await createDevisFromPlan(plan, 'Accepté');
+            }
+
+            // Auto-create BC from Devis if missing
+            // Set directly to 'Livré' since BL will be created immediately
+            if (plan.devisId && !plan.bcId) {
+                console.log('📦 Terminé: BC manquant, création automatique (Livré)...');
+                await createBCFromPlan(plan, 'Livré');
+            }
+
+            // Create BL from BC
             if (plan.bcId && !plan.blId) {
+                console.log('🚚 Terminé: Création BL...');
                 await createBLFromPlan(plan);
             }
+
             // Convert to saisie journalière then DELETE from planification
             await convertToEntry(plan);
             await deleteDoc(doc(db, COLLECTIONS.planifications, plan.id));
@@ -1024,8 +1047,17 @@ async function confirmTermine(planId) {
             plan.statut = 'termine';
             plan.updatedAt = new Date().toISOString();
 
-            // Create BL from BC if linked
+            // Auto-create full document chain if missing
+            if (!plan.devisId && plan.clientId && plan.prixLivraison > 0) {
+                console.log('📋 ConfirmTerminé: Devis manquant, création automatique (Accepté)...');
+                await createDevisFromPlan(plan, 'Accepté');
+            }
+            if (plan.devisId && !plan.bcId) {
+                console.log('📦 ConfirmTerminé: BC manquant, création automatique (Livré)...');
+                await createBCFromPlan(plan, 'Livré');
+            }
             if (plan.bcId && !plan.blId) {
+                console.log('🚚 ConfirmTerminé: Création BL...');
                 await createBLFromPlan(plan);
             }
 

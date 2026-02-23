@@ -43,14 +43,14 @@ import {
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyAKcCDbEDa-Pt-tpuM7MkXHiPb-Xarvuns",
-  authDomain: "transportmanagement-9e6eb.firebaseapp.com",
-  databaseURL: "https://transportmanagement-9e6eb-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "transportmanagement-9e6eb",
-  storageBucket: "transportmanagement-9e6eb.firebasestorage.app",
-  messagingSenderId: "90479889953",
-  appId: "1:90479889953:web:78f475e7bf658021ccdd60",
-  measurementId: "G-4888WV1R7J"
+    apiKey: "AIzaSyAKcCDbEDa-Pt-tpuM7MkXHiPb-Xarvuns",
+    authDomain: "transportmanagement-9e6eb.firebaseapp.com",
+    databaseURL: "https://transportmanagement-9e6eb-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "transportmanagement-9e6eb",
+    storageBucket: "transportmanagement-9e6eb.firebasestorage.app",
+    messagingSenderId: "90479889953",
+    appId: "1:90479889953:web:78f475e7bf658021ccdd60",
+    measurementId: "G-4888WV1R7J"
 };
 
 // Initialize Firebase
@@ -99,24 +99,30 @@ const COLLECTIONS = {
     planifications: 'planifications',
 
     // Caisse (Treasury)
-    caisse: 'caisse_transactions'
+    caisse: 'caisse_transactions',
+
+    // Inventory
+    stockMovements: 'stock_movements'
 };
 
-// R9: Sequential numbering utility
+// R9: Sequential numbering utility — format: PREFIX-MM-YYYY-NNN (resets monthly)
 async function getNextNumber(prefix) {
-    const counterDocRef = doc(db, 'counters', prefix);
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    const counterKey = `${prefix}-${mm}-${yyyy}`;
+    const counterDocRef = doc(db, 'counters', counterKey);
     try {
         const snap = await getDoc(counterDocRef);
         let next = 1;
         if (snap.exists()) {
             next = (snap.data().next || 0) + 1;
         }
-        await setDoc(counterDocRef, { next, updatedAt: new Date().toISOString() });
-        const year = new Date().getFullYear().toString().slice(-2);
-        return `${prefix}${year}-${String(next).padStart(4, '0')}`;
+        await setDoc(counterDocRef, { next, prefix, month: mm, year: yyyy, updatedAt: now.toISOString() });
+        return `${prefix}-${mm}-${yyyy}-${String(next).padStart(3, '0')}`;
     } catch (err) {
         console.error('Error getting next number for', prefix, err);
-        return `${prefix}-${Date.now().toString().slice(-6)}`;
+        return `${prefix}-${mm}-${yyyy}-${Date.now().toString().slice(-3)}`;
     }
 }
 

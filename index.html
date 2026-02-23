@@ -262,6 +262,10 @@
                     </a>
                 </div>
             </div>
+            <a href="#" class="nav-item" data-page="inventaire">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Inventaire Stock</span>
+            </a>
             <a href="#" class="nav-item" data-page="caisse">
                 <span class="nav-icon">💵</span>
                 <span class="nav-label">Caisse</span>
@@ -531,7 +535,8 @@
         <!-- GPS Tracking Page -->
         <section class="page" id="page-tracking">
             <div id="trackingInfoPanel" style="margin-bottom:12px"></div>
-            <div style="border-radius:12px;overflow:hidden;border:1px solid rgba(148,163,184,0.1);height:calc(100vh - 180px);min-height:500px">
+            <div
+                style="border-radius:12px;overflow:hidden;border:1px solid rgba(148,163,184,0.1);height:calc(100vh - 180px);min-height:500px">
                 <div id="trackingMap" style="width:100%;height:100%"></div>
             </div>
         </section>
@@ -712,7 +717,8 @@
                         <button class="btn btn-primary" id="addBLClientBtn">➕ Nouveau BL Client</button>
                     </div>
                     <!-- Filters -->
-                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                    <div class="filter-row"
+                        style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
                         <div class="form-group" style="flex:1;min-width:130px">
                             <label style="font-size:12px;color:#94a3b8">Date début</label>
                             <input type="date" id="venteBLDateStart" class="form-control">
@@ -768,7 +774,8 @@
                         <button class="btn btn-primary" id="addFactureClientBtn">➕ Nouvelle Facture</button>
                     </div>
                     <!-- Filters -->
-                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                    <div class="filter-row"
+                        style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
                         <div class="form-group" style="flex:1;min-width:130px">
                             <label style="font-size:12px;color:#94a3b8">Date début</label>
                             <input type="date" id="venteFactDateStart" class="form-control">
@@ -922,7 +929,8 @@
             <div class="kpi-grid" id="caisseKPIs"></div>
             <div style="margin:16px 0;font-size:13px" id="caisseTodaySummary"></div>
             <div class="card" style="padding:20px">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+                <div
+                    style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
                     <div style="display:flex;gap:8px;flex-wrap:wrap">
                         <button id="caisseFilterAll" class="btn btn-sm caisse-filter-btn active"
                             onclick="CaisseModule.setFilter('all')">Tout</button>
@@ -972,6 +980,98 @@
             </div>
         </section>
 
+        <!-- Inventaire Stock Page -->
+        <section class="page" id="page-inventaire">
+            <!-- Stock KPIs -->
+            <div class="kpi-grid" id="inventaireKPIs"></div>
+
+            <!-- Current Stock Table -->
+            <div class="card" style="padding:20px;margin-bottom:20px">
+                <div
+                    style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+                    <h3 style="margin:0;color:#f1f5f9;font-size:1.1rem">📦 Stock Actuel</h3>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <select id="inventaireTypeFilter" class="form-control"
+                            style="width:auto;padding:6px;font-size:0.8rem" onchange="InventaireModule.refresh()">
+                            <option value="">Tous les types</option>
+                            <option value="achat">Achat</option>
+                            <option value="vente">Vente</option>
+                        </select>
+                        <input type="text" id="inventaireSearch" class="form-control" placeholder="🔍 Rechercher..."
+                            style="width:200px;padding:6px;font-size:0.8rem" oninput="InventaireModule.refresh()">
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Référence</th>
+                                <th>Désignation</th>
+                                <th>Type</th>
+                                <th>Stock Actuel</th>
+                                <th>Prix Achat</th>
+                                <th>Valeur Stock</th>
+                                <th>Dernière Entrée</th>
+                                <th>Dernière Sortie</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventaireStockBody">
+                            <tr>
+                                <td colspan="9" style="text-align:center;color:#64748b;padding:40px">Chargement...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Movement History -->
+            <div class="card" style="padding:20px">
+                <div
+                    style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+                    <h3 style="margin:0;color:#f1f5f9;font-size:1.1rem">📋 Historique des Mouvements</h3>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <input type="date" id="mvtDateStart" class="form-control"
+                            style="width:auto;padding:6px;font-size:0.8rem"
+                            onchange="InventaireModule.refreshMovements()">
+                        <input type="date" id="mvtDateEnd" class="form-control"
+                            style="width:auto;padding:6px;font-size:0.8rem"
+                            onchange="InventaireModule.refreshMovements()">
+                        <select id="mvtTypeFilter" class="form-control" style="width:auto;padding:6px;font-size:0.8rem"
+                            onchange="InventaireModule.refreshMovements()">
+                            <option value="">Tous</option>
+                            <option value="entree">Entrées</option>
+                            <option value="sortie">Sorties</option>
+                            <option value="ajustement">Ajustements</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Article</th>
+                                <th>Type</th>
+                                <th>Quantité</th>
+                                <th>Prix Unit.</th>
+                                <th>Stock Avant</th>
+                                <th>Stock Après</th>
+                                <th>Document</th>
+                                <th>Tiers</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventaireMvtBody">
+                            <tr>
+                                <td colspan="9" style="text-align:center;color:#64748b;padding:40px">Sélectionnez une
+                                    période</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
         <!-- Profil Page -->
         <section class="page" id="page-profil">
             <div id="profilContent">
@@ -1012,7 +1112,8 @@
                             Demande</button>
                     </div>
                     <!-- Filters -->
-                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                    <div class="filter-row"
+                        style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
                         <div class="form-group" style="flex:1;min-width:130px">
                             <label style="font-size:12px;color:#94a3b8">Date début</label>
                             <input type="date" id="achatDADateStart" class="form-control">
@@ -1069,7 +1170,8 @@
                         <button class="btn btn-primary" id="addCommandeBtn">➕ Nouveau BC</button>
                     </div>
                     <!-- Filters -->
-                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                    <div class="filter-row"
+                        style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
                         <div class="form-group" style="flex:1;min-width:130px">
                             <label style="font-size:12px;color:#94a3b8">Date début</label>
                             <input type="date" id="achatBCDateStart" class="form-control">
@@ -1125,7 +1227,8 @@
                         <h2 style="font-size:1.25rem">📦 Bons de Livraison</h2>
                         <button class="btn btn-primary" id="addLivraisonBtn">➕ Nouveau BL</button>
                     </div>
-                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                    <div class="filter-row"
+                        style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
                         <div class="form-group" style="flex:1;min-width:130px">
                             <label style="font-size:12px;color:#94a3b8">Date début</label>
                             <input type="date" id="achatBLDateStart" class="form-control">
@@ -1178,7 +1281,8 @@
                         <h2 style="font-size:1.25rem">🚚 Bons de Sortie</h2>
                         <button class="btn btn-primary" id="addSortieBtn">➕ Nouveau BS</button>
                     </div>
-                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                    <div class="filter-row"
+                        style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
                         <div class="form-group" style="flex:1;min-width:130px">
                             <label style="font-size:12px;color:#94a3b8">Date début</label>
                             <input type="date" id="achatBSDateStart" class="form-control">
@@ -1226,7 +1330,8 @@
                         <h2 style="font-size:1.25rem">&#x21A9;&#xFE0F; Bons de Retour Fournisseur</h2>
                         <button class="btn btn-primary" id="addRetourBtn">&#x2795; Nouveau Retour</button>
                     </div>
-                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                    <div class="filter-row"
+                        style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
                         <div class="form-group" style="flex:1;min-width:130px">
                             <label style="font-size:12px;color:#94a3b8">Date début</label>
                             <input type="date" id="achatBRDateStart" class="form-control">
@@ -1299,7 +1404,8 @@
                             Facture</button>
                     </div>
                     <!-- Filters -->
-                    <div class="filter-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
+                    <div class="filter-row"
+                        style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px;padding:12px;background:rgba(15,23,42,0.3);border-radius:8px">
                         <div class="form-group" style="flex:1;min-width:130px">
                             <label style="font-size:12px;color:#94a3b8">Date début</label>
                             <input type="date" id="achatFactDateStart" class="form-control">
