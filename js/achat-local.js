@@ -4,7 +4,7 @@
  * Linked workflow: Demande d'Achat → BC → BL → Factures
  */
 
-import { db, doc, setDoc, COLLECTIONS } from './firebase.js';
+import { db, doc, setDoc, COLLECTIONS, getNextNumber } from './firebase.js';
 import { SuppliersModule } from './suppliers-firebase.js';
 import { DataModule } from './data-firebase.js';
 import { ArticlesModule } from './articles-firebase.js';
@@ -341,7 +341,7 @@ async function saveDemande() {
 
     const demande = {
         id: document.getElementById('demandeId').value || null,
-        numero: document.getElementById('demandeId').value ? SuppliersModule.getDemandeById(document.getElementById('demandeId').value)?.numero : `DA-${Date.now().toString().slice(-6)}`,
+        numero: document.getElementById('demandeId').value ? SuppliersModule.getDemandeById(document.getElementById('demandeId').value)?.numero : await getNextNumber('DA'),
         date: document.getElementById('demandeDate').value,
         fournisseurId: document.getElementById('demandeFournisseur').value,
         camionId: document.getElementById('demandeCamion').value || null,
@@ -566,7 +566,7 @@ async function saveCommande() {
 
     const commande = {
         id: document.getElementById('commandeId').value || null,
-        numero: document.getElementById('commandeId').value ? SuppliersModule.getCommandeById(document.getElementById('commandeId').value)?.numero : `BC-${Date.now().toString().slice(-6)}`,
+        numero: document.getElementById('commandeId').value ? SuppliersModule.getCommandeById(document.getElementById('commandeId').value)?.numero : await getNextNumber('BCA'),
         date: document.getElementById('commandeDate').value,
         demandeId: daId || null,
         demandeNumero: demande?.numero || '',
@@ -755,7 +755,7 @@ async function saveLivraison() {
 
     const livraison = {
         id: document.getElementById('livraisonId').value || null,
-        numero: document.getElementById('livraisonId').value ? SuppliersModule.getLivraisonById(document.getElementById('livraisonId').value)?.numero : `BL-${Date.now().toString().slice(-6)}`,
+        numero: document.getElementById('livraisonId').value ? SuppliersModule.getLivraisonById(document.getElementById('livraisonId').value)?.numero : await getNextNumber('BLA'),
         date: document.getElementById('livraisonDate').value,
         commandeId: bcId || null,
         commandeNumero: commande?.numero || '',
@@ -1037,7 +1037,7 @@ async function saveFacture() {
 
     const facture = {
         id: document.getElementById('factureId').value || null,
-        numero: document.getElementById('factureId').value ? SuppliersModule.getFactureById(document.getElementById('factureId').value)?.numero : `FA-${Date.now().toString().slice(-6)}`,
+        numero: document.getElementById('factureId').value ? SuppliersModule.getFactureById(document.getElementById('factureId').value)?.numero : await getNextNumber('FA'),
         date: document.getElementById('factureDate').value,
         numeroFournisseur: document.getElementById('factureNumero').value,
         livraisonIds: blIds,
@@ -1512,7 +1512,7 @@ async function saveSortieForm() {
 
     const sortie = {
         id: document.getElementById('sortieId').value || null,
-        numero: document.getElementById('sortieId').value ? SuppliersModule.getSortieById(document.getElementById('sortieId').value)?.numero : `BS-${Date.now().toString().slice(-6)}`,
+        numero: document.getElementById('sortieId').value ? SuppliersModule.getSortieById(document.getElementById('sortieId').value)?.numero : await getNextNumber('BSA'),
         date: sortieDate,
         livraisonId: blId || null,
         livraisonNumero: livraison?.numero || '',
@@ -1749,7 +1749,7 @@ async function saveRetourForm() {
         id: document.getElementById('retourId').value || null,
         numero: document.getElementById('retourId').value
             ? SuppliersModule.getRetourById(document.getElementById('retourId').value)?.numero
-            : `BR-${Date.now().toString().slice(-6)}`,
+            : await getNextNumber('BRA'),
         date: document.getElementById('retourDate').value,
         livraisonId: blId || null,
         livraisonNumero: livraison?.numero || '',
