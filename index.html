@@ -568,9 +568,13 @@
         <!-- Reports Page -->
         <section class="page" id="page-reports">
             <div class="page-header">
-                <h2>Rapports Mensuels</h2>
-                <div class="filter-group">
-                    <select id="reportMonth"></select>
+                <h2>📈 Rapports</h2>
+                <div class="filter-group" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                    <select id="reportMonth" style="min-width:160px"></select>
+                    <span style="color:#64748b;font-size:13px">ou</span>
+                    <input type="date" id="reportDateStart" style="min-width:140px" title="Date début">
+                    <input type="date" id="reportDateEnd" style="min-width:140px" title="Date fin">
+                    <button class="btn btn-primary" id="reportFilterBtn" style="padding:8px 16px">🔍 Filtrer</button>
                 </div>
             </div>
 

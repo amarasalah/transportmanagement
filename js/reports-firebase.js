@@ -1,6 +1,6 @@
 /**
  * REPORTS MODULE - ENHANCED VERSION
- * With charts and ERP integration
+ * With charts, ERP integration, and date range filtering
  */
 
 import { DataModule } from './data-firebase.js';
@@ -9,8 +9,56 @@ import { db, collection, getDocs, query, orderBy, where, COLLECTIONS } from './f
 let monthlyCharts = {};
 
 function init() {
-    document.getElementById('reportMonth')?.addEventListener('change', refresh);
+    document.getElementById('reportMonth')?.addEventListener('change', () => {
+        // Clear date range when month is selected
+        const ds = document.getElementById('reportDateStart');
+        const de = document.getElementById('reportDateEnd');
+        if (ds) ds.value = '';
+        if (de) de.value = '';
+        refresh();
+    });
+    document.getElementById('reportFilterBtn')?.addEventListener('click', () => {
+        // Clear month when date range is used
+        const ds = document.getElementById('reportDateStart')?.value;
+        const de = document.getElementById('reportDateEnd')?.value;
+        if (ds || de) {
+            const monthSel = document.getElementById('reportMonth');
+            if (monthSel) monthSel.value = '';
+        }
+        refresh();
+    });
     populateMonthSelector();
+}
+
+/**
+ * Get the active date range from either the month dropdown or the date inputs.
+ * Returns { startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD', label: string }
+ */
+function getDateRange() {
+    const dateStart = document.getElementById('reportDateStart')?.value;
+    const dateEnd = document.getElementById('reportDateEnd')?.value;
+    const selectedMonth = document.getElementById('reportMonth')?.value;
+
+    // Priority: date range inputs if filled
+    if (dateStart || dateEnd) {
+        const start = dateStart || '2000-01-01';
+        const end = dateEnd || '2099-12-31';
+        const startLabel = dateStart ? new Date(dateStart + 'T00:00').toLocaleDateString('fr-FR') : '...';
+        const endLabel = dateEnd ? new Date(dateEnd + 'T00:00').toLocaleDateString('fr-FR') : '...';
+        return { startDate: start, endDate: end, label: `${startLabel} → ${endLabel}` };
+    }
+
+    // Fallback: month dropdown
+    if (selectedMonth) {
+        const [year, month] = selectedMonth.split('-');
+        const startDate = `${year}-${month}-01`;
+        const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+        const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+        const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        return { startDate, endDate, label };
+    }
+
+    return null;
 }
 
 async function populateMonthSelector() {
@@ -22,7 +70,6 @@ async function populateMonthSelector() {
 
     entries.forEach(entry => {
         if (!entry.date) return;
-        // Parse as local date to avoid UTC timezone shift
         const parts = entry.date.split('-');
         if (parts.length === 3) {
             const key = `${parts[0]}-${parts[1]}`;
@@ -32,17 +79,15 @@ async function populateMonthSelector() {
 
     const sortedMonths = Array.from(months).sort().reverse();
 
-    select.innerHTML = sortedMonths.map(m => {
+    select.innerHTML = '<option value="">-- Mois --</option>' + sortedMonths.map(m => {
         const [year, month] = m.split('-');
         const monthName = new Date(year, month - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
         return `<option value="${m}">${monthName}</option>`;
     }).join('');
 
-    if (sortedMonths.length === 0) {
-        const now = new Date();
-        const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const monthName = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-        select.innerHTML = `<option value="${current}">${monthName}</option>`;
+    // Auto-select current month if available
+    if (sortedMonths.length > 0) {
+        select.value = sortedMonths[0];
     }
 }
 
@@ -53,16 +98,20 @@ async function refresh() {
 }
 
 async function renderMonthlyReport() {
-    const select = document.getElementById('reportMonth');
     const tbody = document.getElementById('monthlyBody');
     const tfoot = document.getElementById('monthlyFoot');
-    if (!select || !tbody) return;
+    if (!tbody) return;
 
-    const selectedMonth = select.value;
-    if (!selectedMonth) return;
+    const range = getDateRange();
+    if (!range) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:40px;">Sélectionnez un mois ou une plage de dates</td></tr>';
+        if (tfoot) tfoot.innerHTML = '';
+        return;
+    }
 
-    const [year, month] = selectedMonth.split('-');
-    const entries = DataModule.getEntriesByMonth(parseInt(year), parseInt(month));
+    const entries = (await DataModule.getEntries()).filter(e =>
+        e.date && e.date >= range.startDate && e.date <= range.endDate
+    );
     const trucks = await DataModule.getTrucks();
 
     const truckData = {};
@@ -126,13 +175,13 @@ async function renderMonthlyReport() {
     }).join('');
 
     if (activeTrucks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:40px;">Aucune donnée pour ce mois</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:40px;">Aucune donnée pour cette période</td></tr>';
     }
 
     const resultClass = grandTotalResult >= 0 ? 'result-positive' : 'result-negative';
     if (tfoot) {
         tfoot.innerHTML = `<tr>
-            <td><strong>TOTAL MENSUEL</strong></td>
+            <td><strong>TOTAL (${range.label})</strong></td>
             <td><strong>${grandTotalKm.toLocaleString('fr-FR')}</strong></td>
             <td><strong>${grandTotalGasoil.toLocaleString('fr-FR')} L</strong></td>
             <td><strong>${grandTotalGasoilCost.toLocaleString('fr-FR')} TND</strong></td>
@@ -147,11 +196,15 @@ async function renderCharts() {
     const chartsContainer = document.getElementById('chartsContainer');
     if (!chartsContainer) return;
 
-    const select = document.getElementById('reportMonth');
-    if (!select?.value) return;
+    const range = getDateRange();
+    if (!range) {
+        chartsContainer.innerHTML = '';
+        return;
+    }
 
-    const [year, month] = select.value.split('-');
-    const entries = DataModule.getEntriesByMonth(parseInt(year), parseInt(month));
+    const entries = (await DataModule.getEntries()).filter(e =>
+        e.date && e.date >= range.startDate && e.date <= range.endDate
+    );
     const trucks = await DataModule.getTrucks();
 
     // Aggregate data per truck
@@ -177,11 +230,10 @@ async function renderCharts() {
 
     const activeStats = Object.values(truckStats).filter(t => t.revenue > 0 || t.cost > 0);
 
-    // Build inline charts with SVG (no external library)
     if (activeStats.length === 0) {
         chartsContainer.innerHTML = `
             <div style="text-align: center; padding: 40px; color: #64748b;">
-                📊 Aucune donnée de graphique disponible pour ce mois
+                📊 Aucune donnée de graphique disponible pour cette période
             </div>
         `;
         return;
@@ -236,23 +288,24 @@ async function renderERPSummary() {
     const erpContainer = document.getElementById('erpSummaryContainer');
     if (!erpContainer) return;
 
-    const select = document.getElementById('reportMonth');
-    if (!select?.value) return;
-
-    const [year, month] = select.value.split('-');
+    const range = getDateRange();
+    if (!range) {
+        erpContainer.innerHTML = '';
+        return;
+    }
 
     try {
-        // Get purchase orders for the month
-        const purchaseOrders = await getOrdersByMonth(COLLECTIONS.bonCommandesAchat, year, month);
-        const salesOrders = await getOrdersByMonth(COLLECTIONS.bonCommandesVente, year, month);
+        // Get orders within the date range
+        const purchaseOrders = await getOrdersByDateRange(COLLECTIONS.bonCommandesAchat, range.startDate, range.endDate);
+        const salesOrders = await getOrdersByDateRange(COLLECTIONS.bonCommandesVente, range.startDate, range.endDate);
 
-        const purchaseTotal = purchaseOrders.reduce((sum, o) => sum + (o.totalTTC || 0), 0);
-        const salesTotal = salesOrders.reduce((sum, o) => sum + (o.totalTTC || 0), 0);
+        const purchaseTotal = purchaseOrders.reduce((sum, o) => sum + (o.totalTTC || o.montantTotal || 0), 0);
+        const salesTotal = salesOrders.reduce((sum, o) => sum + (o.totalTTC || o.montantTotal || 0), 0);
         const margin = salesTotal - purchaseTotal;
 
         erpContainer.innerHTML = `
             <div style="margin-bottom: 20px;">
-                <h4 style="margin: 0 0 16px 0; color: #f59e0b;">📦 Résumé ERP du Mois</h4>
+                <h4 style="margin: 0 0 16px 0; color: #f59e0b;">📦 Résumé ERP — ${range.label}</h4>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
                     <div class="kpi-card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1)); border-radius: 12px; padding: 16px; text-align: center;">
                         <div style="font-size: 0.75rem; color: #94a3b8;">📥 Achats (${purchaseOrders.length} BC)</div>
@@ -275,17 +328,14 @@ async function renderERPSummary() {
     }
 }
 
-async function getOrdersByMonth(collectionName, year, month) {
+async function getOrdersByDateRange(collectionName, startDate, endDate) {
     try {
-        const startDate = `${year}-${month.padStart(2, '0')}-01`;
-        const endDate = `${year}-${month.padStart(2, '0')}-31`;
-
         const snap = await getDocs(collection(db, collectionName));
         return snap.docs
             .map(d => ({ id: d.id, ...d.data() }))
-            .filter(o => o.date >= startDate && o.date <= endDate);
+            .filter(o => o.date && o.date >= startDate && o.date <= endDate);
     } catch (error) {
-        console.error('Error getting orders by month:', error);
+        console.error('Error getting orders by date range:', error);
         return [];
     }
 }

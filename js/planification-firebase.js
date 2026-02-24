@@ -8,6 +8,51 @@ import { DataModule } from './data-firebase.js';
 import { ClientsModule } from './clients-firebase.js';
 import { notifyDriverTrip } from './push-notifications.js';
 
+/**
+ * Generate tracking URL for a plan
+ */
+function getTrackingUrl(planId) {
+    const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
+    return `${baseUrl}/tracking.html?id=${planId}`;
+}
+
+/**
+ * Send tracking link to client via WhatsApp
+ */
+async function sendTrackingWhatsApp(plan) {
+    if (!plan.clientId) return;
+    const client = ClientsModule.getClientById(plan.clientId);
+    if (!client?.telephone) {
+        console.warn('⚠️ Client has no phone number for WhatsApp');
+        return;
+    }
+
+    const trackingUrl = getTrackingUrl(plan.id);
+    const destLabel = plan.destination || 'destination';
+    const dateLabel = plan.date ? plan.date.split('-').reverse().join('/') : '';
+
+    const message = `🚛 *FleetTrack - Suivi de Livraison*\n\n`
+        + `Bonjour *${client.nom}*,\n\n`
+        + `Votre livraison vers *${destLabel}* est planifiée pour le *${dateLabel}*.\n\n`
+        + `📍 Suivez votre livraison en temps réel :\n${trackingUrl}\n\n`
+        + `Merci de votre confiance !`;
+
+    // Clean phone number (remove spaces, dashes, etc.)
+    let phone = client.telephone.replace(/[\s\-\.\(\)]/g, '');
+    // Add country code if not present (Tunisia: +216)
+    if (!phone.startsWith('+') && !phone.startsWith('00')) {
+        phone = '216' + phone;
+    } else if (phone.startsWith('+')) {
+        phone = phone.substring(1);
+    } else if (phone.startsWith('00')) {
+        phone = phone.substring(2);
+    }
+
+    const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(waUrl, '_blank');
+    console.log('📱 WhatsApp tracking link sent to', client.nom, phone);
+}
+
 
 let cache = [];
 let _loaded = false;
@@ -412,6 +457,8 @@ async function renderPlannings(selectedDate) {
                 </button>
                 ` : ''}
                 ${!window.currentUser?.driverId ? `
+                ${plan.clientId ? `<button class="btn btn-sm btn-outline" onclick="navigator.clipboard.writeText(PlanificationModule.getTrackingUrl('${plan.id}')).then(()=>alert('Lien copié!'))" title="Copier lien suivi" style="color:#8b5cf6">📍</button>
+                <button class="btn btn-sm btn-outline" onclick="PlanificationModule.sendTrackingWhatsApp(PlanificationModule.getPlanningById('${plan.id}'))" title="Envoyer WhatsApp" style="color:#25d366">💬</button>` : ''}
                 <button class="btn btn-sm btn-outline" onclick="PlanificationModule.edit('${plan.id}')" title="Modifier">✏️</button>
                 <button class="btn btn-sm btn-outline" onclick="PlanificationModule.remove('${plan.id}')" title="Supprimer">🗑️</button>
                 ` : ''}
@@ -951,6 +998,13 @@ async function savePlan() {
             } catch (ne) { console.warn('❌ Notif push error:', ne); }
         }
 
+        // ========== WHATSAPP TRACKING LINK ==========
+        if (isNewPlan && plan.clientId) {
+            try {
+                await sendTrackingWhatsApp(plan);
+            } catch (we) { console.warn('❌ WhatsApp error:', we); }
+        }
+
         App.hideModal();
         await loadPlannings();
         await renderPlannings();
@@ -1143,7 +1197,9 @@ export const PlanificationModule = {
     updateCalculations,
     convertToEntry,
     onClientChangeDestination,
-    useClientLocation
+    useClientLocation,
+    sendTrackingWhatsApp,
+    getTrackingUrl
 };
 
 window.PlanificationModule = PlanificationModule;
