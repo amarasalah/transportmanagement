@@ -143,8 +143,11 @@ async function renderDemandes() {
                 <td>${truck?.matricule || '-'}</td>
                 <td>${nbLignes} article(s)</td>
                 <td><strong>${total.toFixed(3)} TND</strong></td>
-                <td><span class="status-badge status-${(d.statut || '').toLowerCase().replace(/\s/g, '-').replace(/é/g, 'e')}">${d.statut || 'Brouillon'}</span></td>
+                <td><span class="status-badge status-${(d.statut || '').toLowerCase().replace(/\s/g, '-').replace(/é/g, 'e')}">${d.statut || 'Brouillon'}</span>
+                    ${d.bcNumero ? `<br><small style="color:#818cf8">→ ${d.bcNumero}</small>` : ''}
+                </td>
                 <td>
+                    ${d.statut === 'Validée' && !d.bcId ? `<button class="btn-icon" onclick="AchatModule.createBCFromDA('${d.id}')" title="Créer Bon Commande" style="color:#10b981;font-weight:700">→BC</button>` : ''}
                     <button class="btn-icon" onclick="AchatModule.editDemande('${d.id}')">✏️</button>
                     <button class="btn-icon" onclick="AchatModule.deleteDemande('${d.id}')">🗑️</button>
                 </td>
@@ -367,6 +370,20 @@ async function deleteDemande(id) {
     }
 }
 
+/** Quick action: open BC modal pre-filled with a validated DA */
+async function createBCFromDA(daId) {
+    // Switch to Commandes page first
+    showPage('commandes');
+    // Open BC modal with no existing BC, the DA will be auto-selected
+    await openCommandeModal(null);
+    // Auto-select the DA in the dropdown
+    const select = document.getElementById('commandeDemandeId');
+    if (select) {
+        select.value = daId;
+        await onDemandeChange();
+    }
+}
+
 // ==================== BON COMMANDES ====================
 async function renderCommandes() {
     const allCommandes = await SuppliersModule.getCommandes();
@@ -403,7 +420,15 @@ async function renderCommandes() {
 async function openCommandeModal(commandeId = null) {
     const commande = commandeId ? SuppliersModule.getCommandeById(commandeId) : null;
     const demandes = await SuppliersModule.getDemandes();
-    const validDemandes = demandes.filter(d => d.statut === 'Validée' || d.id === commande?.demandeId);
+    // Show only validated DAs that haven't been converted to BC yet
+    const validDemandes = demandes.filter(d =>
+        (d.statut === 'Validée' && !d.bcId) || d.id === commande?.demandeId
+    );
+
+    if (!commande && validDemandes.length === 0) {
+        alert('⚠️ Aucune Demande d\'Achat validée disponible.\n\nVeuillez d\'abord créer une DA et la mettre au statut "Validée".');
+        return;
+    }
 
     const demandeOpts = validDemandes.map(d => {
         const f = SuppliersModule.getSupplierById(d.fournisseurId);
@@ -1794,7 +1819,7 @@ async function deleteRetour(id) {
 const AchatModule = {
     init, showPage, refreshCurrentPage,
     // Demandes
-    editDemande, deleteDemande, openDemandeModal,
+    editDemande, deleteDemande, openDemandeModal, createBCFromDA,
     addLigne, removeLigne, recalcLigne, onArticleChange,
     // Commandes
     editCommande, deleteCommande, openCommandeModal,

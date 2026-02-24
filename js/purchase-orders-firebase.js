@@ -14,7 +14,7 @@ let _orderArticles = [];
 let _orderLines = [];
 
 async function init() {
-    document.getElementById('addCommandeBtn')?.addEventListener('click', () => openModal());
+    // Note: addCommandeBtn is handled by AchatModule (achat-local.js) via event delegation
     document.getElementById('addPurchaseOrderBtn')?.addEventListener('click', () => openModal());
     await loadOrders();
 }
