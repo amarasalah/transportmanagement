@@ -927,7 +927,24 @@ async function openDevisModal(devisId = null) {
                     <tfoot>
                         <tr style="border-top:2px solid rgba(148,163,184,0.2)">
                             <td colspan="3" style="padding:8px;font-weight:700;text-align:right">Total HT:</td>
-                            <td style="padding:8px;text-align:right;font-weight:700" id="devisTotalDisplay">0.000 TND</td>
+                            <td style="padding:8px;text-align:right;font-weight:700" id="devisTotalHT">0.000 TND</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding:8px;text-align:right">TVA:</td>
+                            <td style="padding:8px;text-align:right">
+                                <select id="devisTVA" onchange="VenteModule.recalcDevisTotal()" style="width:70px;padding:2px 4px;border-radius:4px;border:1px solid rgba(148,163,184,0.3);background:rgba(30,41,59,0.8);color:#e2e8f0">
+                                    <option value="0" ${(!devis?.tauxTVA || devis?.tauxTVA === 0) ? 'selected' : ''}>0%</option>
+                                    <option value="7" ${devis?.tauxTVA === 7 ? 'selected' : ''}>7%</option>
+                                    <option value="19" ${devis?.tauxTVA === 19 ? 'selected' : ''}>19%</option>
+                                </select>
+                            </td>
+                            <td style="padding:8px;text-align:right;font-weight:600;color:#f59e0b" id="devisTotalTVA">0.000 TND</td>
+                            <td></td>
+                        </tr>
+                        <tr style="border-top:1px solid rgba(148,163,184,0.2)">
+                            <td colspan="3" style="padding:8px;font-weight:700;text-align:right;color:#8b5cf6">Total TTC:</td>
+                            <td style="padding:8px;text-align:right;font-weight:700;color:#8b5cf6;font-size:15px" id="devisTotalTTC">0.000 TND</td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -979,17 +996,25 @@ function removeDevisLigne(btn) { btn.closest('tr').remove(); recalcDevisTotal();
 
 function recalcDevisTotal() {
     const rows = document.querySelectorAll('#devisLignesBody tr');
-    let total = 0;
+    let totalHT = 0;
     rows.forEach(r => {
         const q = parseFloat(r.querySelector('.dl-quantite')?.value) || 0;
         const p = parseFloat(r.querySelector('.dl-prix')?.value) || 0;
         const t = q * p;
-        total += t;
+        totalHT += t;
         const td = r.querySelector('.dl-total');
         if (td) td.textContent = t.toFixed(3);
     });
-    const el = document.getElementById('devisTotalDisplay');
-    if (el) el.textContent = total.toFixed(3) + ' TND';
+    const tauxTVA = parseInt(document.getElementById('devisTVA')?.value) || 0;
+    const montantTVA = totalHT * tauxTVA / 100;
+    const totalTTC = totalHT + montantTVA;
+
+    const elHT = document.getElementById('devisTotalHT');
+    const elTVA = document.getElementById('devisTotalTVA');
+    const elTTC = document.getElementById('devisTotalTTC');
+    if (elHT) elHT.textContent = totalHT.toFixed(3) + ' TND';
+    if (elTVA) elTVA.textContent = montantTVA.toFixed(3) + ' TND';
+    if (elTTC) elTTC.textContent = totalTTC.toFixed(3) + ' TND';
 }
 
 async function saveDevis() {
@@ -1008,7 +1033,10 @@ async function saveDevis() {
             prixUnitaire: parseFloat(r.querySelector('.dl-prix')?.value) || 0
         };
     }).filter(l => l.articleId);
-    const montantTotal = lignes.reduce((s, l) => s + (l.quantite * l.prixUnitaire), 0);
+    const montantHT = lignes.reduce((s, l) => s + (l.quantite * l.prixUnitaire), 0);
+    const tauxTVA = parseInt(document.getElementById('devisTVA')?.value) || 0;
+    const montantTVA = montantHT * tauxTVA / 100;
+    const montantTTC = montantHT + montantTVA;
 
     const existingId = document.getElementById('devisId').value;
     const devis = {
@@ -1018,7 +1046,11 @@ async function saveDevis() {
         clientId: clientId,
         statut: document.getElementById('devisStatut').value || 'Brouillon',
         lignes: lignes,
-        montantTotal: montantTotal,
+        tauxTVA: tauxTVA,
+        montantHT: montantHT,
+        montantTVA: montantTVA,
+        montantTotal: montantTTC,
+        montantTTC: montantTTC,
         updatedAt: new Date().toISOString()
     };
     if (!existingId) devis.createdAt = new Date().toISOString();

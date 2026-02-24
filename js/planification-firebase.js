@@ -91,7 +91,7 @@ async function populateClientFilter() {
         clients.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
 }
 
-/** Auto-update: planifié → en_cours when datetime has passed */
+/** Auto-update: planifié → en_cours_chargement when datetime has passed */
 async function autoUpdateStatuses() {
     const now = new Date();
     let changed = false;
@@ -99,15 +99,11 @@ async function autoUpdateStatuses() {
         if (plan.statut !== 'planifie') continue;
         const planDatetime = buildDatetime(plan.date, plan.heure);
         if (planDatetime && planDatetime <= now) {
-            plan.statut = 'en_cours';
+            plan.statut = 'en_cours_chargement';
             plan.updatedAt = now.toISOString();
             try {
-                // ERP: auto create BC from Devis when transitioning planifié → en_cours
-                if (plan.devisId && !plan.bcId) {
-                    await createBCFromPlan(plan);
-                }
                 await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
-                console.log(`📅 Auto-status: ${plan.id} planifié → en_cours`);
+                console.log(`📅 Auto-status: ${plan.id} planifié → en_cours_chargement`);
                 changed = true;
 
                 // Push mobile notification
@@ -115,12 +111,12 @@ async function autoUpdateStatuses() {
                     try {
                         const notifRef = dbRef(rtdb, `notifications/${plan.chauffeurId}`);
                         await dbPush(notifRef, {
-                            type: 'en_cours',
+                            type: 'en_cours_chargement',
                             planId: plan.id,
                             destination: plan.destination || '',
                             date: plan.date || '',
                             truck: plan.camionId || '',
-                            message: `Votre voyage vers ${plan.destination || 'destination'} est maintenant en cours`,
+                            message: `Chargement en cours pour le voyage vers ${plan.destination || 'destination'}`,
                             timestamp: Date.now()
                         });
                     } catch (ne) { console.warn('Notif push error:', ne); }
@@ -131,6 +127,13 @@ async function autoUpdateStatuses() {
         }
     }
     return changed;
+}
+
+/** Check if a date string (YYYY-MM-DD) is a Sunday */
+function isSunday(dateStr) {
+    if (!dateStr) return false;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).getDay() === 0;
 }
 
 function buildDatetime(dateStr, heureStr) {
@@ -185,6 +188,10 @@ async function createDevisFromPlan(plan, finalStatut = 'Brouillon') {
     if (!plan.clientId || !plan.prixLivraison || plan.prixLivraison <= 0) return null;
     const ts = Date.now();
     const dvNumero = await getNextNumber('DV');
+    const tauxTVA = plan.tauxTVA || 0;
+    const montantHT = plan.prixLivraison;
+    const montantTVA = montantHT * tauxTVA / 100;
+    const montantTTC = montantHT + montantTVA;
     const devis = {
         id: `dv_plan_${ts}`,
         numero: dvNumero,
@@ -197,7 +204,11 @@ async function createDevisFromPlan(plan, finalStatut = 'Brouillon') {
             quantite: 1,
             prixUnitaire: plan.prixLivraison
         }],
-        montantTotal: plan.prixLivraison,
+        tauxTVA: tauxTVA,
+        montantHT: montantHT,
+        montantTVA: montantTVA,
+        montantTotal: montantTTC,
+        montantTTC: montantTTC,
         source: 'planification',
         planificationId: plan.id,
         createdAt: new Date().toISOString(),
@@ -379,10 +390,11 @@ async function renderPlannings(selectedDate) {
     if (statsEl) {
         const total = plannings.length;
         const planifie = plannings.filter(p => p.statut === 'planifie').length;
-        const enCours = plannings.filter(p => p.statut === 'en_cours').length;
+        const chargement = plannings.filter(p => p.statut === 'en_cours_chargement').length;
+        const enRoute = plannings.filter(p => p.statut === 'en_route' || p.statut === 'en_cours').length;
         const attente = plannings.filter(p => p.statut === 'attente_confirmation').length;
         const termine = plannings.filter(p => p.statut === 'termine').length;
-        statsEl.innerHTML = `<span>📊 ${total} total</span> <span style="color:#f59e0b">📅 ${planifie} planifié</span> <span style="color:#3b82f6">🚚 ${enCours} en cours</span> ${attente ? `<span style="color:#f97316">⏳ ${attente} en attente</span>` : ''} <span style="color:#10b981">✅ ${termine} terminé</span>`;
+        statsEl.innerHTML = `<span>📊 ${total} total</span> <span style="color:#f59e0b">📅 ${planifie} planifié</span> ${chargement ? `<span style="color:#f97316">📦 ${chargement} chargement</span>` : ''} <span style="color:#3b82f6">🚛 ${enRoute} en route</span> ${attente ? `<span style="color:#f97316">⏳ ${attente} en attente</span>` : ''} <span style="color:#10b981">✅ ${termine} terminé</span>`;
     }
 
     if (plannings.length === 0) {
@@ -407,7 +419,9 @@ async function renderPlannings(selectedDate) {
 
         const statusClass = {
             'planifie': 'status-warning',
+            'en_cours_chargement': 'status-orange',
             'en_cours': 'status-info',
+            'en_route': 'status-info',
             'attente_confirmation': 'status-orange',
             'termine': 'status-success',
             'annule': 'status-danger'
@@ -415,7 +429,9 @@ async function renderPlannings(selectedDate) {
 
         const statusLabel = {
             'planifie': 'Planifié',
-            'en_cours': 'En cours',
+            'en_cours_chargement': '📦 Chargement',
+            'en_cours': '🚛 En route',
+            'en_route': '🚛 En route',
             'attente_confirmation': '⏳ Attente confirmation',
             'termine': 'Terminé',
             'annule': 'Annulé'
@@ -444,6 +460,18 @@ async function renderPlannings(selectedDate) {
             <td class="${resultClass}">${resultat.toLocaleString('fr-FR')} TND</td>
             <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             <td>
+                ${plan.statut === 'en_cours_chargement' ? `
+                <button class="btn btn-sm" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;font-weight:600;padding:4px 10px;border-radius:6px" 
+                    onclick="PlanificationModule.confirmStatusChange('${plan.id}','en_route')" title="Confirmer en route (photos requises)">
+                    🚛 En route
+                </button>
+                ` : ''}
+                ${plan.statut === 'en_cours' || plan.statut === 'en_route' ? `
+                <button class="btn btn-sm" style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;font-weight:600;padding:4px 10px;border-radius:6px" 
+                    onclick="PlanificationModule.confirmStatusChange('${plan.id}','attente_confirmation')" title="Marquer arrivé (photos requises)">
+                    ⏳ Arrivé
+                </button>
+                ` : ''}
                 ${plan.statut === 'attente_confirmation' ? `
                 <button class="btn btn-sm" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;font-weight:600;padding:4px 10px;border-radius:6px" 
                     onclick="PlanificationModule.confirmTermine('${plan.id}')" title="Confirmer terminé">
@@ -537,7 +565,8 @@ async function openModal(planId = null) {
                     <label for="planStatut">📊 Statut</label>
                     <select id="planStatut">
                         <option value="planifie" ${plan?.statut === 'planifie' ? 'selected' : ''}>📅 Planifié</option>
-                        <option value="en_cours" ${plan?.statut === 'en_cours' ? 'selected' : ''}>🚚 En cours</option>
+                        <option value="en_cours_chargement" ${plan?.statut === 'en_cours_chargement' ? 'selected' : ''}>📦 En cours de chargement</option>
+                        <option value="en_route" ${(plan?.statut === 'en_route' || plan?.statut === 'en_cours') ? 'selected' : ''}>🚛 En route</option>
                         <option value="attente_confirmation" ${plan?.statut === 'attente_confirmation' ? 'selected' : ''}>⏳ Attente confirmation</option>
                         <option value="termine" ${plan?.statut === 'termine' ? 'selected' : ''}>✅ Terminé</option>
                         <option value="annule" ${plan?.statut === 'annule' ? 'selected' : ''}>❌ Annulé</option>
@@ -662,9 +691,19 @@ async function openModal(planId = null) {
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="planPrixLivraison">💵 Prix Livraison Estimé (TND)</label>
+                    <label for="planPrixLivraison">💵 Prix Livraison HT (TND)</label>
                     <input type="number" id="planPrixLivraison" value="${plan?.prixLivraison || 0}" min="0" onchange="PlanificationModule.updateCalculations()">
                 </div>
+                <div class="form-group">
+                    <label for="planTVA">🏷️ Taux TVA</label>
+                    <select id="planTVA" onchange="PlanificationModule.updateCalculations()">
+                        <option value="0" ${(!plan?.tauxTVA || plan?.tauxTVA === 0) ? 'selected' : ''}>0%</option>
+                        <option value="7" ${plan?.tauxTVA === 7 ? 'selected' : ''}>7%</option>
+                        <option value="19" ${plan?.tauxTVA === 19 ? 'selected' : ''}>19%</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label for="planRemarques">📝 Remarques</label>
                     <input type="text" id="planRemarques" value="${plan?.remarques || ''}" placeholder="Notes, instructions...">
@@ -684,7 +723,15 @@ async function openModal(planId = null) {
                     </div>
                 </div>
                 <div class="form-group readonly">
-                    <label>Résultat Estimé (Livraison - Coût)</label>
+                    <label>Montant TVA</label>
+                    <input type="text" id="planCalcTVA" value="0 TND" readonly>
+                </div>
+                <div class="form-group readonly">
+                    <label>Total TTC (Livraison)</label>
+                    <input type="text" id="planCalcTTC" value="0 TND" readonly style="font-weight: 600; color: #8b5cf6;">
+                </div>
+                <div class="form-group readonly">
+                    <label>Résultat Estimé (TTC - Coût)</label>
                     <input type="text" id="planCalcResultat" value="0 TND" readonly style="font-weight: bold; font-size: 1.1rem;">
                 </div>
             </div>
@@ -849,14 +896,23 @@ function updateCalculations() {
         chargesNote = ' (charges camion déjà comptées)';
     }
 
-    const resultat = prixLivraison - coutTotal;
+    // TVA calculations
+    const tauxTVA = parseInt(document.getElementById('planTVA')?.value) || 0;
+    const montantTVA = prixLivraison * tauxTVA / 100;
+    const prixTTC = prixLivraison + montantTVA;
+
+    const resultat = prixTTC - coutTotal;
 
     const calcGasoil = document.getElementById('planCalcGasoil');
     const calcCout = document.getElementById('planCalcCout');
+    const calcTVA = document.getElementById('planCalcTVA');
+    const calcTTC = document.getElementById('planCalcTTC');
     const calcResultat = document.getElementById('planCalcResultat');
 
     if (calcGasoil) calcGasoil.value = `${montantGasoil.toLocaleString('fr-FR')} TND`;
     if (calcCout) calcCout.value = `${coutTotal.toLocaleString('fr-FR')} TND${chargesNote}`;
+    if (calcTVA) calcTVA.value = `${montantTVA.toLocaleString('fr-FR')} TND (${tauxTVA}%)`;
+    if (calcTTC) calcTTC.value = `${prixTTC.toLocaleString('fr-FR')} TND`;
     if (calcResultat) {
         calcResultat.value = `${resultat.toLocaleString('fr-FR')} TND`;
         calcResultat.style.color = resultat >= 0 ? '#10b981' : '#ef4444';
@@ -886,7 +942,12 @@ async function savePlan() {
     const previousStatut = existingPlan?.statut;
     const isNewPlan = !planId;
     const isNewTermine = (newStatut === 'termine' && previousStatut !== 'termine');
-    const isNewEnCours = (newStatut === 'en_cours' && previousStatut === 'planifie');
+    const isNewEnRoute = ((newStatut === 'en_route' || newStatut === 'en_cours') && (previousStatut === 'planifie' || previousStatut === 'en_cours_chargement'));
+
+    const tauxTVA = parseInt(document.getElementById('planTVA')?.value) || 0;
+    const prixLivraisonHT = parseFloat(document.getElementById('planPrixLivraison').value) || 0;
+    const montantTVA = prixLivraisonHT * tauxTVA / 100;
+    const prixLivraisonTTC = prixLivraisonHT + montantTVA;
 
     const plan = {
         id: planId || `plan_${Date.now()}`,
@@ -908,7 +969,10 @@ async function savePlan() {
         prixGasoilLitre: prixGasoil,
         montantGasoil,
         maintenance: parseFloat(document.getElementById('planMaintenance').value) || 0,
-        prixLivraison: parseFloat(document.getElementById('planPrixLivraison').value) || 0,
+        prixLivraison: prixLivraisonHT,
+        tauxTVA: tauxTVA,
+        montantTVA: montantTVA,
+        prixLivraisonTTC: prixLivraisonTTC,
         remarques: document.getElementById('planRemarques').value,
         updatedAt: new Date().toISOString()
     };
@@ -933,8 +997,8 @@ async function savePlan() {
             await createDevisFromPlan(plan);
         }
 
-        // 2) Status planifié → en_cours → create BC from Devis
-        if (isNewEnCours && plan.devisId && !plan.bcId) {
+        // 2) Status → en_route → create BC from Devis
+        if (isNewEnRoute && plan.devisId && !plan.bcId) {
             await createBCFromPlan(plan);
         }
 
@@ -961,23 +1025,30 @@ async function savePlan() {
             }
 
             // Convert to saisie journalière then DELETE from planification
-            await convertToEntry(plan);
-            await deleteDoc(doc(db, COLLECTIONS.planifications, plan.id));
-            console.log(`🗑️ Planification ${plan.id} supprimée après conversion`);
+            // Skip auto-saisie on Sundays
+            if (isSunday(plan.date)) {
+                console.log(`📅 Dimanche détecté — saisie non créée automatiquement pour ${plan.id}`);
+                await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
+                alert('⚠️ Dimanche détecté — la saisie journalière ne sera pas créée automatiquement.\nVous pouvez la convertir manuellement si nécessaire.');
+            } else {
+                await convertToEntry(plan);
+                await deleteDoc(doc(db, COLLECTIONS.planifications, plan.id));
+                console.log(`🗑️ Planification ${plan.id} supprimée après conversion`);
+            }
         } else {
             await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
         }
 
         // ========== PUSH MOBILE NOTIFICATIONS ==========
-        console.log('📱 Notification check: chauffeurId=', plan.chauffeurId, 'isNewPlan=', isNewPlan, 'isNewEnCours=', isNewEnCours);
+        console.log('📱 Notification check: chauffeurId=', plan.chauffeurId, 'isNewPlan=', isNewPlan, 'isNewEnRoute=', isNewEnRoute);
         if (plan.chauffeurId) {
             try {
                 const notifRef = dbRef(rtdb, `notifications/${plan.chauffeurId}`);
-                const notifType = isNewPlan ? 'planifie' : (isNewEnCours ? 'en_cours' : 'update');
+                const notifType = isNewPlan ? 'planifie' : (isNewEnRoute ? 'en_route' : 'update');
                 const notifMsg = isNewPlan
                     ? `Nouveau voyage planifié vers ${plan.destination || 'destination'}`
-                    : isNewEnCours
-                        ? `Votre voyage vers ${plan.destination || 'destination'} est maintenant en cours`
+                    : isNewEnRoute
+                        ? `Votre voyage vers ${plan.destination || 'destination'} est maintenant en route`
                         : `Mise à jour du voyage vers ${plan.destination || 'destination'}`;
 
                 await dbPush(notifRef, {
@@ -1153,9 +1224,16 @@ async function confirmTermine(planId) {
             }
 
             // Convert to saisie journalière then DELETE from planification
-            await convertToEntry(plan);
-            await deleteDoc(doc(db, COLLECTIONS.planifications, plan.id));
-            console.log(`✅ Planification ${plan.id} confirmée terminée par admin`);
+            // Skip auto-saisie on Sundays
+            if (isSunday(plan.date)) {
+                console.log(`📅 Dimanche détecté — saisie non créée (confirmTerminé) pour ${plan.id}`);
+                await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
+                alert('⚠️ Dimanche détecté — la saisie journalière ne sera pas créée automatiquement.');
+            } else {
+                await convertToEntry(plan);
+                await deleteDoc(doc(db, COLLECTIONS.planifications, plan.id));
+                console.log(`✅ Planification ${plan.id} confirmée terminée par admin`);
+            }
 
             // Push notification to driver
             if (plan.chauffeurId) {
@@ -1181,6 +1259,66 @@ async function confirmTermine(planId) {
     }, 300);
 }
 
+/**
+ * Admin confirms a status change (with photo review)
+ * Used for: en_cours_chargement → en_route, en_route → attente_confirmation
+ */
+async function confirmStatusChange(planId, targetStatus) {
+    const plan = getPlanningById(planId);
+    if (!plan) { alert('Planification introuvable.'); return; }
+
+    const statusLabels = {
+        'en_route': '🚛 En route',
+        'attente_confirmation': '⏳ Attente confirmation'
+    };
+
+    // Show photos for review
+    if (plan.startPhotos || plan.endPhotos) {
+        TripPhotosModule.showTripPhotos(planId);
+    }
+
+    setTimeout(async () => {
+        const label = statusLabels[targetStatus] || targetStatus;
+        if (!confirm(`Confirmer le changement de statut vers "${label}" ?\n\nAssurez-vous que les photos sont validées.`)) {
+            return;
+        }
+
+        try {
+            plan.statut = targetStatus;
+            plan.updatedAt = new Date().toISOString();
+
+            // If transitioning to en_route, create BC from Devis
+            if (targetStatus === 'en_route' && plan.devisId && !plan.bcId) {
+                await createBCFromPlan(plan);
+            }
+
+            await setDoc(doc(db, COLLECTIONS.planifications, plan.id), plan);
+            console.log(`✅ Status ${plan.id} → ${targetStatus} confirmé par admin`);
+
+            // Push notification to driver
+            if (plan.chauffeurId) {
+                try {
+                    const notifRef = dbRef(rtdb, `notifications/${plan.chauffeurId}`);
+                    await dbPush(notifRef, {
+                        type: targetStatus,
+                        planId: plan.id,
+                        destination: plan.destination || '',
+                        date: plan.date || '',
+                        message: `Statut mis à jour: ${label} pour ${plan.destination || 'destination'}`,
+                        timestamp: Date.now()
+                    });
+                } catch (ne) { console.warn('Notif push error:', ne); }
+            }
+
+            await loadPlannings();
+            await renderPlannings();
+        } catch (err) {
+            console.error('Error changing status:', err);
+            alert('Erreur: ' + err.message);
+        }
+    }, 300);
+}
+
 // ==================== EXPORT ====================
 export const PlanificationModule = {
     init,
@@ -1199,7 +1337,8 @@ export const PlanificationModule = {
     onClientChangeDestination,
     useClientLocation,
     sendTrackingWhatsApp,
-    getTrackingUrl
+    getTrackingUrl,
+    confirmStatusChange
 };
 
 window.PlanificationModule = PlanificationModule;

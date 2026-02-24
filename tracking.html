@@ -407,13 +407,15 @@
             const statut = plan.statut || 'planifie';
             const statusConfig = {
                 'planifie': { label: 'Planifié', class: 'status-planifie', icon: '📋', step: 1 },
-                'en_cours': { label: 'En cours', class: 'status-en-cours', icon: '🚛', step: 2 },
-                'attente_confirmation': { label: 'En livraison', class: 'status-en-cours', icon: '📦', step: 2 },
-                'termine': { label: 'Livré', class: 'status-termine', icon: '✅', step: 3 },
+                'en_cours_chargement': { label: 'Chargement', class: 'status-en-cours', icon: '📦', step: 2 },
+                'en_cours': { label: 'En route', class: 'status-en-cours', icon: '🚛', step: 3 },
+                'en_route': { label: 'En route', class: 'status-en-cours', icon: '🚛', step: 3 },
+                'attente_confirmation': { label: 'Arrivé', class: 'status-en-cours', icon: '📍', step: 3 },
+                'termine': { label: 'Livré', class: 'status-termine', icon: '✅', step: 4 },
                 'annule': { label: 'Annulé', class: 'status-annule', icon: '❌', step: 0 }
             };
             const sc = statusConfig[statut] || statusConfig['planifie'];
-            const progressWidth = statut === 'annule' ? '0%' : `${((sc.step - 1) / 2) * 100}%`;
+            const progressWidth = statut === 'annule' ? '0%' : `${((sc.step - 1) / 3) * 100}%`;
 
             const formatDate = (d) => {
                 if (!d) return '-';
@@ -440,10 +442,14 @@
                             <span class="step-label">Planifié</span>
                         </div>
                         <div class="status-step ${sc.step >= 2 ? (sc.step > 2 ? 'done' : 'active') : ''}">
+                            <div class="step-icon">📦</div>
+                            <span class="step-label">Chargement</span>
+                        </div>
+                        <div class="status-step ${sc.step >= 3 ? (sc.step > 3 ? 'done' : 'active') : ''}">
                             <div class="step-icon">🚛</div>
                             <span class="step-label">En route</span>
                         </div>
-                        <div class="status-step ${sc.step >= 3 ? 'done' : ''}">
+                        <div class="status-step ${sc.step >= 4 ? 'done' : ''}">
                             <div class="step-icon">✅</div>
                             <span class="step-label">Livré</span>
                         </div>

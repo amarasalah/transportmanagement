@@ -223,8 +223,25 @@ async function openDemandeModal(demandeId = null) {
                     </tbody>
                     <tfoot>
                         <tr style="border-top:2px solid rgba(148,163,184,0.2)">
-                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">Total Général:</td>
+                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">Total HT:</td>
                             <td style="padding:8px;text-align:right;font-weight:700;font-size:15px" id="demandeTotalGeneral">0.000 TND</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding:8px;text-align:right">TVA:</td>
+                            <td style="padding:8px;text-align:right">
+                                <select id="demandeTVA" onchange="AchatModule.recalcTotal()" style="width:70px;padding:2px 4px;border-radius:4px;border:1px solid rgba(148,163,184,0.3);background:rgba(30,41,59,0.8);color:#e2e8f0">
+                                    <option value="0" ${(!demande?.tauxTVA || demande?.tauxTVA === 0) ? 'selected' : ''}>0%</option>
+                                    <option value="7" ${demande?.tauxTVA === 7 ? 'selected' : ''}>7%</option>
+                                    <option value="19" ${demande?.tauxTVA === 19 ? 'selected' : ''}>19%</option>
+                                </select>
+                            </td>
+                            <td style="padding:8px;text-align:right;font-weight:600;color:#f59e0b" id="demandeTotalTVA">0.000 TND</td>
+                            <td></td>
+                        </tr>
+                        <tr style="border-top:1px solid rgba(148,163,184,0.2)">
+                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700;color:#8b5cf6">Total TTC:</td>
+                            <td style="padding:8px;text-align:right;font-weight:700;color:#8b5cf6;font-size:15px" id="demandeTotalTTC">0.000 TND</td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -312,10 +329,18 @@ function recalcLigne(input) {
 
 function recalcTotal() {
     const totals = document.querySelectorAll('#demandeLignesBody .ligne-total');
-    let grand = 0;
-    totals.forEach(t => grand += parseFloat(t.value) || 0);
-    const el = document.getElementById('demandeTotalGeneral');
-    if (el) el.textContent = grand.toFixed(3) + ' TND';
+    let totalHT = 0;
+    totals.forEach(t => totalHT += parseFloat(t.value) || 0);
+    const tauxTVA = parseInt(document.getElementById('demandeTVA')?.value) || 0;
+    const montantTVA = totalHT * tauxTVA / 100;
+    const totalTTC = totalHT + montantTVA;
+
+    const elHT = document.getElementById('demandeTotalGeneral');
+    const elTVA = document.getElementById('demandeTotalTVA');
+    const elTTC = document.getElementById('demandeTotalTTC');
+    if (elHT) elHT.textContent = totalHT.toFixed(3) + ' TND';
+    if (elTVA) elTVA.textContent = montantTVA.toFixed(3) + ' TND';
+    if (elTTC) elTTC.textContent = totalTTC.toFixed(3) + ' TND';
 }
 
 function getLignesFromForm() {
@@ -339,6 +364,11 @@ async function saveDemande() {
     const lignes = getLignesFromForm();
     if (lignes.length === 0) { alert('Ajoutez au moins un article'); return; }
 
+    const montantHT = lignes.reduce((s, l) => s + l.prixTotal, 0);
+    const tauxTVA = parseInt(document.getElementById('demandeTVA')?.value) || 0;
+    const montantTVA = montantHT * tauxTVA / 100;
+    const montantTTC = montantHT + montantTVA;
+
     const demande = {
         id: document.getElementById('demandeId').value || null,
         numero: document.getElementById('demandeId').value ? SuppliersModule.getDemandeById(document.getElementById('demandeId').value)?.numero : await getNextNumber('DA'),
@@ -347,7 +377,11 @@ async function saveDemande() {
         camionId: document.getElementById('demandeCamion').value || null,
         statut: document.getElementById('demandeStatut').value,
         lignes: lignes,
-        montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0)
+        tauxTVA: tauxTVA,
+        montantHT: montantHT,
+        montantTVA: montantTVA,
+        montantTotal: montantTTC,
+        montantTTC: montantTTC
     };
 
     if (!demande.fournisseurId) { alert('Sélectionnez un fournisseur'); return; }
