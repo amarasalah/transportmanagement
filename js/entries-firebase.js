@@ -68,8 +68,8 @@ async function renderEntries(selectedDate) {
         return `<tr ${rowStyle}>
             <td>${formatDate(entry.date)}</td>
             <td><strong>${client?.nom || (isIdle ? '-' : '-')}</strong></td>
-            <td>${truck?.matricule || '-'}</td>
-            <td>${driver?.nom || (isIdle ? '<span style="color:#f59e0b;font-size:0.8rem">Aucun</span>' : '-')}</td>
+            <td>${truck?.matricule || entry.matricule || '-'}</td>
+            <td>${driver?.nom || entry.chauffeur || (isIdle ? '<span style="color:#f59e0b;font-size:0.8rem">Aucun</span>' : '-')}</td>
             <td title="${trajetFull}" ${isIdle ? 'style="color:#f59e0b;font-weight:600"' : ''}>${trajetDisplay}</td>
             <td>${entry.kilometrage || 0} km</td>
             <td>${entry.quantiteGasoil || 0} L</td>

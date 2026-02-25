@@ -1087,10 +1087,24 @@ async function savePlan() {
 
 /** Convert a terminé planification into a saisie journalière (entry) */
 async function convertToEntry(plan) {
+    // ===== REMOVE IDLE_DAY ENTRY IF EXISTS FOR THIS TRUCK+DATE =====
+    const allDateEntries = DataModule.getEntriesByDate(plan.date);
+    const idleEntry = allDateEntries.find(e =>
+        e.camionId === plan.camionId && e.source === 'idle_day'
+    );
+    if (idleEntry) {
+        try {
+            await deleteDoc(doc(db, COLLECTIONS.entries, idleEntry.id));
+            console.log(`🧹 Removed idle_day entry ${idleEntry.id} (replaced by planification trip)`);
+        } catch (err) {
+            console.warn('Could not remove idle entry:', err);
+        }
+    }
+
     // ===== DUPLICATE TRIP DETECTION =====
     const existingEntries = DataModule.getEntriesByDate(plan.date);
     const duplicate = existingEntries.find(e =>
-        e.camionId === plan.camionId && e.chauffeurId === plan.chauffeurId
+        e.camionId === plan.camionId && e.chauffeurId === plan.chauffeurId && e.source !== 'idle_day'
     );
 
     if (duplicate) {
@@ -1123,24 +1137,33 @@ async function convertToEntry(plan) {
     const applyCharges = isFirst && !truckAlreadyHasEntry;
 
     // ===== BUILD ENTRY WITH PHOTOS =====
+    const truck = plan.camionId ? DataModule.getTruckById(plan.camionId) : null;
+    const driver = plan.chauffeurId ? DataModule.getDriverById(plan.chauffeurId) : null;
+
     const entry = {
-        date: plan.date,
-        camionId: plan.camionId,
-        chauffeurId: plan.chauffeurId,
+        date: plan.date || '',
+        camionId: plan.camionId || '',
+        chauffeurId: plan.chauffeurId || '',
+        matricule: truck?.matricule || plan.camionId || '',
+        chauffeur: driver?.nom || plan.chauffeurId || '',
         clientId: plan.clientId || null,
-        origineGouvernorat: plan.origineGouvernorat,
-        origineDelegation: plan.origineDelegation,
-        origine: plan.origine,
-        gouvernorat: plan.gouvernorat,
-        delegation: plan.delegation,
-        destination: plan.destination,
-        distanceAller: plan.distanceAller,
-        distanceRetour: plan.distanceAller,
+        origineGouvernorat: plan.origineGouvernorat || '',
+        origineDelegation: plan.origineDelegation || '',
+        origine: plan.origine || '',
+        gouvernorat: plan.gouvernorat || '',
+        delegation: plan.delegation || '',
+        destination: plan.destination || '',
+        distanceAller: plan.distanceAller || 0,
+        distanceRetour: plan.distanceAller || 0,
         kilometrage: plan.kilometrage || 0,
         quantiteGasoil: plan.quantiteGasoil || 0,
         prixGasoilLitre: plan.prixGasoilLitre || 0,
+        montantGasoil: (plan.quantiteGasoil || 0) * (plan.prixGasoilLitre || 0),
         maintenance: applyCharges ? (plan.maintenance || 0) : 0,
         prixLivraison: plan.prixLivraison || 0,
+        tauxTVA: plan.tauxTVA || 0,
+        montantTVA: plan.montantTVA || 0,
+        prixLivraisonTTC: plan.prixLivraisonTTC || plan.prixLivraison || 0,
         remarques: (plan.remarques || '') + ` [Plan ${plan.id}]` + (!applyCharges ? ' [Charges déjà comptées]' : ''),
         source: 'planification',
         planificationId: plan.id,

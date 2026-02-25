@@ -398,32 +398,39 @@ async function saveEntry(entry) {
             entry.createdAt = entry.updatedAt;
         }
 
-        await setDoc(doc(db, COLLECTIONS.entries, entry.id), entry);
+        // Sanitize: Firestore does not accept undefined values
+        const cleanEntry = {};
+        for (const [key, value] of Object.entries(entry)) {
+            cleanEntry[key] = value === undefined ? null : value;
+        }
+
+        await setDoc(doc(db, COLLECTIONS.entries, cleanEntry.id), cleanEntry);
+        console.log(`💾 Entry saved to Firestore: ${cleanEntry.id} (date: ${cleanEntry.date})`);
 
         // Log with detailed entry info
-        await logActivity(isNew ? 'CREATE' : 'UPDATE', 'entry', entry.id, {
-            date: entry.date,
-            camionId: entry.camionId,
-            chauffeurId: entry.chauffeurId,
-            origine: entry.origine,
-            destination: entry.destination,
-            kilometrage: entry.kilometrage,
-            distanceAller: entry.distanceAller,
-            distanceRetour: entry.distanceRetour,
-            quantiteGasoil: entry.quantiteGasoil,
-            prixGasoilLitre: entry.prixGasoilLitre,
-            maintenance: entry.maintenance,
-            prixLivraison: entry.prixLivraison,
-            remarques: entry.remarques
+        await logActivity(isNew ? 'CREATE' : 'UPDATE', 'entry', cleanEntry.id, {
+            date: cleanEntry.date,
+            camionId: cleanEntry.camionId,
+            chauffeurId: cleanEntry.chauffeurId,
+            origine: cleanEntry.origine,
+            destination: cleanEntry.destination,
+            kilometrage: cleanEntry.kilometrage,
+            distanceAller: cleanEntry.distanceAller,
+            distanceRetour: cleanEntry.distanceRetour,
+            quantiteGasoil: cleanEntry.quantiteGasoil,
+            prixGasoilLitre: cleanEntry.prixGasoilLitre,
+            maintenance: cleanEntry.maintenance,
+            prixLivraison: cleanEntry.prixLivraison,
+            remarques: cleanEntry.remarques
         });
 
         if (cache.entries) {
-            const idx = cache.entries.findIndex(e => e.id === entry.id);
-            if (idx >= 0) cache.entries[idx] = entry;
-            else cache.entries.push(entry);
+            const idx = cache.entries.findIndex(e => e.id === cleanEntry.id);
+            if (idx >= 0) cache.entries[idx] = cleanEntry;
+            else cache.entries.push(cleanEntry);
         }
 
-        return entry;
+        return cleanEntry;
     } catch (error) {
         console.error('Error saving entry:', error);
         throw error;
@@ -529,24 +536,56 @@ async function repairEntryIds() {
     }
 
     // Phase 2: Deduplicate (remove old-format entries if new-format exists for same date+truck)
+    // IMPORTANT: Never delete entries from planification or idle_day sources
+    // Multiple trips per truck per day are legitimate (e.g., planification entries)
     const seen = new Map(); // key: date_camionId → best entry
     const toDelete = [];
 
     for (const entry of cache.entries) {
+        // Skip planification-sourced and idle_day entries from dedup — they are always legitimate
+        if (entry.source === 'planification' || entry.source === 'idle_day') continue;
+
         const key = `${entry.date}_${entry.camionId}`;
         if (seen.has(key)) {
-            // Keep the newer/better entry (prefer entry_date_tX format)
+            // Keep the newer/better entry (prefer entry_date_tX format, then by createdAt)
             const existing = seen.get(key);
             const existingIsNew = existing.id.match(/^entry_\d{4}-\d{2}-\d{2}_t\d+$/);
             const currentIsNew = entry.id.match(/^entry_\d{4}-\d{2}-\d{2}_t\d+$/);
             if (currentIsNew && !existingIsNew) {
                 toDelete.push(existing.id);
                 seen.set(key, entry);
-            } else {
+            } else if (!currentIsNew && existingIsNew) {
                 toDelete.push(entry.id);
+            } else {
+                // Both same format — keep the one with later createdAt
+                const existingTime = new Date(existing.createdAt || 0).getTime();
+                const currentTime = new Date(entry.createdAt || 0).getTime();
+                if (currentTime > existingTime) {
+                    toDelete.push(existing.id);
+                    seen.set(key, entry);
+                } else {
+                    toDelete.push(entry.id);
+                }
             }
         } else {
             seen.set(key, entry);
+        }
+    }
+
+    // Also check: if an idle_day entry exists AND a real trip entry exists for same date+truck,
+    // remove the idle_day entry (it was created before the trip happened)
+    for (const entry of cache.entries) {
+        if (entry.source === 'idle_day') {
+            const key = `${entry.date}_${entry.camionId}`;
+            const hasTripEntry = cache.entries.some(e =>
+                e.id !== entry.id &&
+                e.date === entry.date &&
+                e.camionId === entry.camionId &&
+                e.source !== 'idle_day'
+            );
+            if (hasTripEntry) {
+                toDelete.push(entry.id);
+            }
         }
     }
 
