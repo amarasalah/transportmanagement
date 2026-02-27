@@ -482,7 +482,7 @@ async function openCommandeModal(commandeId = null) {
                             <tr data-article-id="${l.articleId || ''}">
                                 <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
                                 <td style="padding:4px"><input type="number" class="cmd-pu" value="${l.prixUnitaire}" step="0.001" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
-                                <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantite}</td>
+                                <td style="padding:4px"><input type="number" class="cmd-qte" value="${l.quantite}" min="0" step="1" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
                                 <td style="padding:6px;text-align:right;font-weight:600;color:#10b981" class="cmd-total">${(l.prixTotal || 0).toFixed(3)}</td>
                             </tr>
                         `).join('')}
@@ -547,7 +547,7 @@ async function onDemandeChange() {
         <tr data-article-id="${l.articleId || ''}">
             <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
             <td style="padding:4px"><input type="number" class="cmd-pu" value="${l.prixUnitaire}" step="0.001" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
-            <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantite}</td>
+            <td style="padding:4px"><input type="number" class="cmd-qte" value="${l.quantite}" min="0" step="1" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
             <td style="padding:6px;text-align:right;font-weight:600;color:#10b981" class="cmd-total">${(l.prixTotal || 0).toFixed(3)}</td>
         </tr>
     `).join('');
@@ -557,7 +557,7 @@ async function onDemandeChange() {
 function recalcCmdLigne(input) {
     const row = input.closest('tr');
     const pu = parseFloat(row.querySelector('.cmd-pu').value) || 0;
-    const qte = parseFloat(row.querySelector('td:nth-child(3)').textContent) || 0;
+    const qte = parseFloat(row.querySelector('.cmd-qte').value) || 0;
     row.querySelector('.cmd-total').textContent = (pu * qte).toFixed(3);
     recalcCmdTotal();
 }
@@ -595,7 +595,7 @@ async function saveCommande() {
         const nom = row.querySelector('td:first-child').textContent.trim();
         const articleId = row.dataset.articleId || null;
         const pu = parseFloat(row.querySelector('.cmd-pu')?.value) || 0;
-        const qte = parseFloat(row.querySelector('td:nth-child(3)').textContent) || 0;
+        const qte = parseFloat(row.querySelector('.cmd-qte')?.value) || 0;
         return { nom, articleId, prixUnitaire: pu, quantite: qte, prixTotal: pu * qte };
     });
 

@@ -32,7 +32,7 @@ async function renderEntries(selectedDate) {
     if (!tbody) return;
 
     if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:40px;">Aucune saisie pour cette date.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:#64748b;padding:40px;">Aucune saisie pour cette date.</td></tr>';
         return;
     }
 
@@ -75,6 +75,7 @@ async function renderEntries(selectedDate) {
             <td>${entry.quantiteGasoil || 0} L</td>
             <td>${costs.coutTotal.toLocaleString('fr-FR')} TND</td>
             <td>${(entry.prixLivraison || 0).toLocaleString('fr-FR')} TND</td>
+            <td>${entry.tauxTVA ? entry.tauxTVA + '%' : '0%'}</td>
             <td class="${resultClass}">${costs.resultat.toLocaleString('fr-FR')} TND</td>
             <td>
                 ${hasPhotos ? `
