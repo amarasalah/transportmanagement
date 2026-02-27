@@ -744,6 +744,12 @@ async function openModal(planId = null) {
     // Initialize calculations
     updateDistanceEstimate();
     updateCalculations();
+
+    // Re-sync after a short delay to ensure delegation selects have rendered with correct values
+    setTimeout(() => {
+        updateDistanceEstimate();
+        updateCalculations();
+    }, 100);
 }
 
 // ==================== DELEGATION CHANGES ====================
@@ -854,7 +860,7 @@ function updateDistanceEstimate() {
         if (allerDisplay) allerDisplay.textContent = `${distanceAller} km`;
         if (retourDisplay) retourDisplay.textContent = `${distanceRetour} km`;
         if (totalDisplay) totalDisplay.textContent = `${distanceTotal} km`;
-        if (kmInput && (!kmInput.value || kmInput.value === '0')) {
+        if (kmInput) {
             kmInput.value = distanceTotal;
         }
     }

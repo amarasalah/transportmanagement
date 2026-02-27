@@ -223,25 +223,8 @@ async function openDemandeModal(demandeId = null) {
                     </tbody>
                     <tfoot>
                         <tr style="border-top:2px solid rgba(148,163,184,0.2)">
-                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">Total HT:</td>
+                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">Total Général:</td>
                             <td style="padding:8px;text-align:right;font-weight:700;font-size:15px" id="demandeTotalGeneral">0.000 TND</td>
-                            <td></td>
-                        </tr>
-                        <tr>
-                            <td colspan="2" style="padding:8px;text-align:right">TVA:</td>
-                            <td style="padding:8px;text-align:right">
-                                <select id="demandeTVA" onchange="AchatModule.recalcTotal()" style="width:70px;padding:2px 4px;border-radius:4px;border:1px solid rgba(148,163,184,0.3);background:rgba(30,41,59,0.8);color:#e2e8f0">
-                                    <option value="0" ${(!demande?.tauxTVA || demande?.tauxTVA === 0) ? 'selected' : ''}>0%</option>
-                                    <option value="7" ${demande?.tauxTVA === 7 ? 'selected' : ''}>7%</option>
-                                    <option value="19" ${demande?.tauxTVA === 19 ? 'selected' : ''}>19%</option>
-                                </select>
-                            </td>
-                            <td style="padding:8px;text-align:right;font-weight:600;color:#f59e0b" id="demandeTotalTVA">0.000 TND</td>
-                            <td></td>
-                        </tr>
-                        <tr style="border-top:1px solid rgba(148,163,184,0.2)">
-                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700;color:#8b5cf6">Total TTC:</td>
-                            <td style="padding:8px;text-align:right;font-weight:700;color:#8b5cf6;font-size:15px" id="demandeTotalTTC">0.000 TND</td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -329,18 +312,10 @@ function recalcLigne(input) {
 
 function recalcTotal() {
     const totals = document.querySelectorAll('#demandeLignesBody .ligne-total');
-    let totalHT = 0;
-    totals.forEach(t => totalHT += parseFloat(t.value) || 0);
-    const tauxTVA = parseInt(document.getElementById('demandeTVA')?.value) || 0;
-    const montantTVA = totalHT * tauxTVA / 100;
-    const totalTTC = totalHT + montantTVA;
-
-    const elHT = document.getElementById('demandeTotalGeneral');
-    const elTVA = document.getElementById('demandeTotalTVA');
-    const elTTC = document.getElementById('demandeTotalTTC');
-    if (elHT) elHT.textContent = totalHT.toFixed(3) + ' TND';
-    if (elTVA) elTVA.textContent = montantTVA.toFixed(3) + ' TND';
-    if (elTTC) elTTC.textContent = totalTTC.toFixed(3) + ' TND';
+    let grand = 0;
+    totals.forEach(t => grand += parseFloat(t.value) || 0);
+    const el = document.getElementById('demandeTotalGeneral');
+    if (el) el.textContent = grand.toFixed(3) + ' TND';
 }
 
 function getLignesFromForm() {
@@ -364,11 +339,6 @@ async function saveDemande() {
     const lignes = getLignesFromForm();
     if (lignes.length === 0) { alert('Ajoutez au moins un article'); return; }
 
-    const montantHT = lignes.reduce((s, l) => s + l.prixTotal, 0);
-    const tauxTVA = parseInt(document.getElementById('demandeTVA')?.value) || 0;
-    const montantTVA = montantHT * tauxTVA / 100;
-    const montantTTC = montantHT + montantTVA;
-
     const demande = {
         id: document.getElementById('demandeId').value || null,
         numero: document.getElementById('demandeId').value ? SuppliersModule.getDemandeById(document.getElementById('demandeId').value)?.numero : await getNextNumber('DA'),
@@ -377,11 +347,7 @@ async function saveDemande() {
         camionId: document.getElementById('demandeCamion').value || null,
         statut: document.getElementById('demandeStatut').value,
         lignes: lignes,
-        tauxTVA: tauxTVA,
-        montantHT: montantHT,
-        montantTVA: montantTVA,
-        montantTotal: montantTTC,
-        montantTTC: montantTTC
+        montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0)
     };
 
     if (!demande.fournisseurId) { alert('Sélectionnez un fournisseur'); return; }
@@ -523,8 +489,30 @@ async function openCommandeModal(commandeId = null) {
                     </tbody>
                     <tfoot>
                         <tr style="border-top:2px solid rgba(148,163,184,0.2)">
-                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">Total:</td>
-                            <td style="padding:8px;text-align:right;font-weight:700;font-size:15px;color:#10b981" id="commandeTotalGeneral">${lignes.reduce((s, l) => s + (l.prixTotal || 0), 0).toFixed(3)} TND</td>
+                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">Total HT:</td>
+                            <td style="padding:8px;text-align:right;font-weight:700;font-size:15px" id="commandeTotalGeneral">${lignes.reduce((s, l) => s + (l.prixTotal || 0), 0).toFixed(3)} TND</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding:8px;text-align:right">Remise:</td>
+                            <td style="padding:8px;text-align:right">
+                                <input type="number" id="commandeRemise" value="${commande?.remise || 0}" min="0" max="100" step="0.5" onchange="AchatModule.recalcCmdTotal()" style="width:70px;padding:2px 4px;border-radius:4px;border:1px solid rgba(148,163,184,0.3);background:rgba(30,41,59,0.8);color:#e2e8f0;text-align:right"> %
+                            </td>
+                            <td style="padding:8px;text-align:right;font-weight:600;color:#f97316" id="commandeMontantRemise">0.000 TND</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding:8px;text-align:right">TVA:</td>
+                            <td style="padding:8px;text-align:right">
+                                <select id="commandeTVA" onchange="AchatModule.recalcCmdTotal()" style="width:70px;padding:2px 4px;border-radius:4px;border:1px solid rgba(148,163,184,0.3);background:rgba(30,41,59,0.8);color:#e2e8f0">
+                                    <option value="0" ${(!commande?.tauxTVA || commande?.tauxTVA === 0) ? 'selected' : ''}>0%</option>
+                                    <option value="7" ${commande?.tauxTVA === 7 ? 'selected' : ''}>7%</option>
+                                    <option value="19" ${commande?.tauxTVA === 19 ? 'selected' : ''}>19%</option>
+                                </select>
+                            </td>
+                            <td style="padding:8px;text-align:right;font-weight:600;color:#f59e0b" id="commandeTotalTVA">0.000 TND</td>
+                        </tr>
+                        <tr style="border-top:1px solid rgba(148,163,184,0.2)">
+                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700;color:#8b5cf6">Total TTC:</td>
+                            <td style="padding:8px;text-align:right;font-weight:700;color:#8b5cf6;font-size:15px" id="commandeTotalTTC">0.000 TND</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -576,10 +564,25 @@ function recalcCmdLigne(input) {
 
 function recalcCmdTotal() {
     const totals = document.querySelectorAll('#commandeLignesBody .cmd-total');
-    let grand = 0;
-    totals.forEach(t => grand += parseFloat(t.textContent) || 0);
-    const el = document.getElementById('commandeTotalGeneral');
-    if (el) el.textContent = grand.toFixed(3) + ' TND';
+    let totalHT = 0;
+    totals.forEach(t => totalHT += parseFloat(t.textContent) || 0);
+
+    const remisePct = parseFloat(document.getElementById('commandeRemise')?.value) || 0;
+    const montantRemise = totalHT * remisePct / 100;
+    const montantApresRemise = totalHT - montantRemise;
+
+    const tauxTVA = parseInt(document.getElementById('commandeTVA')?.value) || 0;
+    const montantTVA = montantApresRemise * tauxTVA / 100;
+    const totalTTC = montantApresRemise + montantTVA;
+
+    const elHT = document.getElementById('commandeTotalGeneral');
+    const elRemise = document.getElementById('commandeMontantRemise');
+    const elTVA = document.getElementById('commandeTotalTVA');
+    const elTTC = document.getElementById('commandeTotalTTC');
+    if (elHT) elHT.textContent = totalHT.toFixed(3) + ' TND';
+    if (elRemise) elRemise.textContent = '-' + montantRemise.toFixed(3) + ' TND';
+    if (elTVA) elTVA.textContent = montantTVA.toFixed(3) + ' TND';
+    if (elTTC) elTTC.textContent = totalTTC.toFixed(3) + ' TND';
 }
 
 async function saveCommande() {
@@ -598,6 +601,14 @@ async function saveCommande() {
 
     if (lignes.length === 0) { alert('Aucun article'); return; }
 
+    const montantHT = lignes.reduce((s, l) => s + l.prixTotal, 0);
+    const remise = parseFloat(document.getElementById('commandeRemise')?.value) || 0;
+    const montantRemise = montantHT * remise / 100;
+    const montantApresRemise = montantHT - montantRemise;
+    const tauxTVA = parseInt(document.getElementById('commandeTVA')?.value) || 0;
+    const montantTVA = montantApresRemise * tauxTVA / 100;
+    const montantTTC = montantApresRemise + montantTVA;
+
     const commande = {
         id: document.getElementById('commandeId').value || null,
         numero: document.getElementById('commandeId').value ? SuppliersModule.getCommandeById(document.getElementById('commandeId').value)?.numero : await getNextNumber('BCA'),
@@ -607,7 +618,13 @@ async function saveCommande() {
         fournisseurId: document.getElementById('commandeFournisseurId').value,
         camionId: document.getElementById('commandeCamionId').value || null,
         lignes: lignes,
-        montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
+        montantHT: montantHT,
+        remise: remise,
+        montantRemise: montantRemise,
+        tauxTVA: tauxTVA,
+        montantTVA: montantTVA,
+        montantTotal: montantTTC,
+        montantTTC: montantTTC,
         statut: 'En cours'
     };
 
@@ -1857,7 +1874,7 @@ const AchatModule = {
     addLigne, removeLigne, recalcLigne, onArticleChange,
     // Commandes
     editCommande, deleteCommande, openCommandeModal,
-    onDemandeChange, recalcCmdLigne,
+    onDemandeChange, recalcCmdLigne, recalcCmdTotal,
     // Livraisons
     editLivraison, deleteLivraison, openLivraisonModal,
     onCommandeChangeBL,
