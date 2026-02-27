@@ -208,7 +208,7 @@ async function openDemandeModal(demandeId = null) {
             </div>
             <div style="margin-top:16px">
                 <label style="font-weight:600;margin-bottom:8px;display:block">📦 Articles</label>
-                <table style="width:100%;border-collapse:collapse;font-size:13px" id="demandeLignesTable">
+                <table style="width:100%;border-collapse:collapse;font-size:14px" id="demandeLignesTable">
                     <thead>
                         <tr style="background:rgba(148,163,184,0.1)">
                             <th style="padding:8px;text-align:left">Nom</th>
@@ -504,7 +504,7 @@ async function openCommandeModal(commandeId = null) {
             </div>
             <div style="margin-top:16px">
                 <label style="font-weight:600;margin-bottom:8px;display:block">📦 Articles (prix modifiables)</label>
-                <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <table style="width:100%;border-collapse:collapse;font-size:14px">
                     <thead>
                         <tr style="background:rgba(148,163,184,0.1)">
                             <th style="padding:8px;text-align:left">Nom</th>
@@ -517,8 +517,8 @@ async function openCommandeModal(commandeId = null) {
                         ${lignes.map((l, i) => `
                             <tr data-article-id="${l.articleId || ''}">
                                 <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
-                                <td style="padding:4px"><input type="number" class="cmd-pu" value="${l.prixUnitaire}" step="0.001" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
-                                <td style="padding:4px"><input type="number" class="cmd-qte" value="${l.quantite}" min="0" step="1" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+                                <td style="padding:4px"><input type="number" class="cmd-pu" value="${l.prixUnitaire}" step="0.001" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
+                                <td style="padding:4px"><input type="number" class="cmd-qte" value="${l.quantite}" min="0" step="1" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
                                 <td style="padding:6px;text-align:right;font-weight:600;color:#10b981" class="cmd-total">${(l.prixTotal || 0).toFixed(3)}</td>
                             </tr>
                         `).join('')}
@@ -552,7 +552,7 @@ async function openCommandeModal(commandeId = null) {
                         </tr>
                     </tfoot>
                 </table>
-                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:13px">Sélectionnez une Demande d\'Achat pour charger les articles</div>' : ''}
+                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:14px">Sélectionnez une Demande d\'Achat pour charger les articles</div>' : ''}
             </div>
         </form>
     `;
@@ -582,8 +582,8 @@ async function onDemandeChange() {
     tbody.innerHTML = lignes.map(l => `
         <tr data-article-id="${l.articleId || ''}">
             <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
-            <td style="padding:4px"><input type="number" class="cmd-pu" value="${l.prixUnitaire}" step="0.001" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
-            <td style="padding:4px"><input type="number" class="cmd-qte" value="${l.quantite}" min="0" step="1" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+            <td style="padding:4px"><input type="number" class="cmd-pu" value="${l.prixUnitaire}" step="0.001" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
+            <td style="padding:4px"><input type="number" class="cmd-qte" value="${l.quantite}" min="0" step="1" onchange="AchatModule.recalcCmdLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
             <td style="padding:6px;text-align:right;font-weight:600;color:#10b981" class="cmd-total">${(l.prixTotal || 0).toFixed(3)}</td>
         </tr>
     `).join('');
@@ -760,7 +760,7 @@ async function openLivraisonModal(livraisonId = null) {
             </div>
             <div style="margin-top:16px">
                 <label style="font-weight:600;margin-bottom:8px;display:block">📦 Articles reçus</label>
-                <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <table style="width:100%;border-collapse:collapse;font-size:14px">
                     <thead>
                         <tr style="background:rgba(148,163,184,0.1)">
                             <th style="padding:8px;text-align:left">Nom</th>
@@ -775,12 +775,12 @@ async function openLivraisonModal(livraisonId = null) {
                                 <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
                                 <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantiteCommandee || 0}</td>
                                 <td style="padding:6px;text-align:right;color:#64748b">${l.dejaRecu || 0}</td>
-                                <td style="padding:4px"><input type="number" class="bl-qte" value="${l.quantiteRecue || 0}" min="0" max="${(l.quantiteCommandee || 0) - (l.dejaRecu || 0)}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+                                <td style="padding:4px"><input type="number" class="bl-qte" value="${l.quantiteRecue || 0}" min="0" max="${(l.quantiteCommandee || 0) - (l.dejaRecu || 0)}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
-                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:13px">Sélectionnez un Bon Commande pour charger les articles</div>' : ''}
+                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:14px">Sélectionnez un Bon Commande pour charger les articles</div>' : ''}
             </div>
         </form>
     `;
@@ -813,7 +813,7 @@ async function onCommandeChangeBL() {
                 <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
                 <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantite}</td>
                 <td style="padding:6px;text-align:right;color:#64748b">${dejaRecu}</td>
-                <td style="padding:4px"><input type="number" class="bl-qte" value="${restant}" min="0" max="${restant}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+                <td style="padding:4px"><input type="number" class="bl-qte" value="${restant}" min="0" max="${restant}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
             </tr>
         `;
     }).join('');
@@ -970,7 +970,7 @@ async function openFactureModal(factureId = null) {
             blTotal += (ll.quantiteRecue || 0) * (cmdLine?.prixUnitaire || 0);
         });
         const checked = existingBLIds.includes(l.id) ? 'checked' : '';
-        return `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(15,23,42,0.2);border-radius:6px;cursor:pointer;font-size:13px">
+        return `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(15,23,42,0.2);border-radius:6px;cursor:pointer;font-size:14px">
             <input type="checkbox" class="facture-bl-check" value="${l.id}" data-montant="${blTotal}" data-fournisseur="${l.fournisseurId}" ${checked} onchange="AchatModule.onBLChangeFacture()" ${facture ? 'disabled' : ''}>
             <span style="color:#f1f5f9">${l.numero || l.id}</span>
             <span style="color:#94a3b8;font-size:11px">- ${f?.nom || ''}</span>
@@ -987,7 +987,7 @@ async function openFactureModal(factureId = null) {
             <div class="form-group">
                 <label style="font-weight:600;margin-bottom:8px;display:block">📦 Bons de Livraison (s\u00e9lection multiple)</label>
                 <div id="factureBLList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;padding:8px;background:rgba(15,23,42,0.3);border-radius:8px;border:1px solid rgba(148,163,184,0.15)">
-                    ${blCheckboxes || '<div style="color:#64748b;padding:12px;text-align:center;font-size:13px">Aucun BL disponible</div>'}
+                    ${blCheckboxes || '<div style="color:#64748b;padding:12px;text-align:center;font-size:14px">Aucun BL disponible</div>'}
                 </div>
             </div>
             <div class="form-row">
@@ -1012,7 +1012,7 @@ async function openFactureModal(factureId = null) {
                         ➕ Tranche
                     </button>
                 </label>
-                <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <table style="width:100%;border-collapse:collapse;font-size:14px">
                     <thead>
                         <tr style="background:rgba(148,163,184,0.1)">
                             <th style="padding:8px;text-align:left">Date</th>
@@ -1049,7 +1049,7 @@ function renderEcheanceRow(index, ech = {}) {
     return `
         <tr data-ech="${index}">
             <td style="padding:4px"><input type="date" class="ech-date" value="${ech.date || ''}" style="padding:6px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:12px;width:100%"></td>
-            <td style="padding:4px"><input type="number" class="ech-montant" value="${ech.montant || 0}" step="0.001" onchange="AchatModule.recalcEcheances()" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+            <td style="padding:4px"><input type="number" class="ech-montant" value="${ech.montant || 0}" step="0.001" onchange="AchatModule.recalcEcheances()" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
             <td style="padding:4px"><select class="ech-type" style="padding:6px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:12px;width:100%">${typeOptions}</select></td>
             <td style="padding:4px"><select class="ech-statut" style="padding:6px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:12px;width:100%">
                 <option value="En attente" ${ech.statut === 'En attente' ? 'selected' : ''}>En attente</option>
@@ -1515,7 +1515,7 @@ async function openSortieModal(sortieId = null) {
             </div>
             <div style="margin-top:16px">
                 <label style="font-weight:600;margin-bottom:8px;display:block">📦 Articles à sortir</label>
-                <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <table style="width:100%;border-collapse:collapse;font-size:14px">
                     <thead>
                         <tr style="background:rgba(148,163,184,0.1)">
                             <th style="padding:8px;text-align:left">Nom</th>
@@ -1528,12 +1528,12 @@ async function openSortieModal(sortieId = null) {
                             <tr>
                                 <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
                                 <td style="padding:6px;text-align:right;color:#94a3b8">${l.disponible || 0}</td>
-                                <td style="padding:4px"><input type="number" class="bs-qte" value="${l.quantiteSortie || 0}" min="0" max="${l.disponible || 0}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+                                <td style="padding:4px"><input type="number" class="bs-qte" value="${l.quantiteSortie || 0}" min="0" max="${l.disponible || 0}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
-                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:13px">Sélectionnez un Bon Livraison pour charger les articles</div>' : ''}
+                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:14px">Sélectionnez un Bon Livraison pour charger les articles</div>' : ''}
             </div>
         </form>
     `;
@@ -1565,7 +1565,7 @@ async function onBLChangeSortie() {
             <tr>
                 <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
                 <td style="padding:6px;text-align:right;color:#94a3b8">${disponible}</td>
-                <td style="padding:4px"><input type="number" class="bs-qte" value="${disponible}" min="0" max="${disponible}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+                <td style="padding:4px"><input type="number" class="bs-qte" value="${disponible}" min="0" max="${disponible}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
             </tr>
         `;
     }).join('');
@@ -1763,7 +1763,7 @@ async function openRetourModal(retourId = null) {
             </div>
             <div style="margin-top:16px">
                 <label style="font-weight:600;margin-bottom:8px;display:block">&#x21A9;&#xFE0F; Articles \u00e0 retourner</label>
-                <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <table style="width:100%;border-collapse:collapse;font-size:14px">
                     <thead>
                         <tr style="background:rgba(148,163,184,0.1)">
                             <th style="padding:8px;text-align:left">Article</th>
@@ -1776,12 +1776,12 @@ async function openRetourModal(retourId = null) {
                             <tr>
                                 <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
                                 <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantiteRecue || 0}</td>
-                                <td style="padding:4px"><input type="number" class="br-qte" value="${l.quantiteRetour || 0}" min="0" max="${l.quantiteRecue || 0}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+                                <td style="padding:4px"><input type="number" class="br-qte" value="${l.quantiteRetour || 0}" min="0" max="${l.quantiteRecue || 0}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
-                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:13px">S\u00e9lectionnez un BL pour charger les articles</div>' : ''}
+                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:14px">S\u00e9lectionnez un BL pour charger les articles</div>' : ''}
             </div>
         </form>
     `;
@@ -1806,7 +1806,7 @@ async function onBLChangeRetour() {
         <tr>
             <td style="padding:6px;color:#f1f5f9">${l.nom}</td>
             <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantiteRecue || 0}</td>
-            <td style="padding:4px"><input type="number" class="br-qte" value="0" min="0" max="${l.quantiteRecue || 0}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
+            <td style="padding:4px"><input type="number" class="br-qte" value="0" min="0" max="${l.quantiteRecue || 0}" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
         </tr>
     `).join('');
 }
