@@ -243,50 +243,86 @@ async function openDemandeModal(demandeId = null) {
 
 function renderLigneRow(index, ligne = {}, articlesAchat = null) {
     const articles = articlesAchat || ArticlesModule.getArticlesByType('achat');
-    const articleOpts = articles.map(a =>
-        `<option value="${a.id}" data-prix="${a.prixAchat || 0}" ${ligne.articleId === a.id || ligne.nom === a.designation ? 'selected' : ''}>${a.designation} (${a.reference})</option>`
-    ).join('');
+    const matchedArticle = ligne.articleId ? articles.find(a => a.id === ligne.articleId) :
+        ligne.nom ? articles.find(a => a.designation === ligne.nom) : null;
+    const displayName = matchedArticle ? `${matchedArticle.designation} (${matchedArticle.reference})` : (ligne.nom || '');
 
     return `
         <tr data-ligne="${index}">
-            <td style="padding:4px"><select class="ligne-article" onchange="AchatModule.onArticleChange(this)" style="width:100%;padding:6px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px">
-                <option value="">-- Sélectionner --</option>
-                ${articleOpts}
-                <option value="__custom" ${ligne.nom && !articles.find(a => a.id === ligne.articleId || a.designation === ligne.nom) ? 'selected' : ''}>✏️ Saisie libre</option>
-            </select>
-            <input type="text" class="ligne-nom-custom" value="${ligne.nom || ''}" placeholder="Nom article" style="display:${ligne.nom && !articles.find(a => a.id === ligne.articleId || a.designation === ligne.nom) ? 'block' : 'none'};width:100%;padding:6px;margin-top:4px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px">
-            <input type="hidden" class="ligne-nom" value="${ligne.nom || ''}">
+            <td style="padding:4px;position:relative">
+                <input type="text" class="ligne-search" value="${displayName}" placeholder="🔍 Rechercher un article..." 
+                    oninput="AchatModule.onArticleSearch(this)"
+                    onfocus="AchatModule.onArticleSearch(this)"
+                    autocomplete="off"
+                    style="width:100%;padding:8px;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px">
+                <div class="ligne-dropdown" style="display:none;position:absolute;left:4px;right:4px;top:100%;z-index:1000;max-height:200px;overflow-y:auto;background:rgba(15,23,42,0.95);border:1px solid rgba(99,102,241,0.4);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,0.4)"></div>
+                <input type="hidden" class="ligne-article" value="${ligne.articleId || ''}">
+                <input type="hidden" class="ligne-nom" value="${ligne.nom || ''}">
             </td>
-            <td style="padding:4px"><input type="number" class="ligne-pu" value="${ligne.prixUnitaire || 0}" step="0.001" min="0" onchange="AchatModule.recalcLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
-            <td style="padding:4px"><input type="number" class="ligne-qte" value="${ligne.quantite || 1}" min="1" onchange="AchatModule.recalcLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
-            <td style="padding:4px"><input type="number" class="ligne-total" value="${ligne.prixTotal || 0}" step="0.001" readonly style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.15);border:1px solid rgba(148,163,184,0.1);border-radius:4px;color:#10b981;font-weight:600;font-size:13px"></td>
+            <td style="padding:4px"><input type="number" class="ligne-pu" value="${ligne.prixUnitaire || 0}" step="0.001" min="0" onchange="AchatModule.recalcLigne(this)" style="width:100%;padding:8px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
+            <td style="padding:4px"><input type="number" class="ligne-qte" value="${ligne.quantite || 1}" min="1" onchange="AchatModule.recalcLigne(this)" style="width:100%;padding:8px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
+            <td style="padding:4px"><input type="number" class="ligne-total" value="${ligne.prixTotal || 0}" step="0.001" readonly style="width:100%;padding:8px;text-align:right;background:rgba(15,23,42,0.15);border:1px solid rgba(148,163,184,0.1);border-radius:4px;color:#10b981;font-weight:600;font-size:14px"></td>
             <td style="padding:4px;text-align:center"><button type="button" onclick="AchatModule.removeLigne(this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#ef4444">🗑️</button></td>
         </tr>
     `;
 }
 
-function onArticleChange(select) {
-    const row = select.closest('tr');
-    const customInput = row.querySelector('.ligne-nom-custom');
+function onArticleSearch(input) {
+    const row = input.closest('tr');
+    const dropdown = row.querySelector('.ligne-dropdown');
+    const query = input.value.toLowerCase().trim();
+    const articles = ArticlesModule.getArticlesByType('achat');
+
+    const filtered = query.length === 0 ? articles : articles.filter(a =>
+        (a.designation || '').toLowerCase().includes(query) ||
+        (a.reference || '').toLowerCase().includes(query)
+    );
+
+    if (filtered.length === 0 && query.length > 0) {
+        // Custom entry — set nom directly
+        row.querySelector('.ligne-article').value = '';
+        row.querySelector('.ligne-nom').value = input.value;
+        dropdown.style.display = 'none';
+        return;
+    }
+
+    dropdown.innerHTML = filtered.slice(0, 15).map(a => `
+        <div class="article-option" data-id="${a.id}" data-prix="${a.prixAchat || 0}" data-nom="${a.designation}"
+            onmousedown="AchatModule.selectArticle(this)"
+            style="padding:8px 10px;cursor:pointer;color:#e2e8f0;font-size:14px;border-bottom:1px solid rgba(148,163,184,0.1);transition:background 0.15s"
+            onmouseover="this.style.background='rgba(99,102,241,0.2)'" onmouseout="this.style.background='none'">
+            <strong>${a.designation}</strong> <span style="color:#94a3b8;font-size:11px">(${a.reference})</span>
+            <span style="float:right;color:#10b981;font-size:12px">${(a.prixAchat || 0).toFixed(3)} TND</span>
+        </div>
+    `).join('');
+    dropdown.style.display = filtered.length > 0 ? 'block' : 'none';
+
+    // Close dropdown on blur
+    input.onblur = () => { setTimeout(() => { dropdown.style.display = 'none'; }, 200); };
+}
+
+function selectArticle(optionEl) {
+    const row = optionEl.closest('tr');
+    const searchInput = row.querySelector('.ligne-search');
+    const articleHidden = row.querySelector('.ligne-article');
     const nomHidden = row.querySelector('.ligne-nom');
     const puInput = row.querySelector('.ligne-pu');
+    const dropdown = row.querySelector('.ligne-dropdown');
 
-    if (select.value === '__custom') {
-        customInput.style.display = 'block';
-        customInput.focus();
-        customInput.oninput = () => { nomHidden.value = customInput.value; };
-    } else if (select.value) {
-        customInput.style.display = 'none';
-        const option = select.selectedOptions[0];
-        const prix = parseFloat(option.dataset.prix) || 0;
-        nomHidden.value = option.textContent.split(' (')[0];
-        puInput.value = prix.toFixed(3);
-        recalcLigne(puInput);
-    } else {
-        customInput.style.display = 'none';
-        nomHidden.value = '';
-    }
+    const articleId = optionEl.dataset.id;
+    const prix = parseFloat(optionEl.dataset.prix) || 0;
+    const nom = optionEl.dataset.nom;
+
+    searchInput.value = nom;
+    articleHidden.value = articleId;
+    nomHidden.value = nom;
+    puInput.value = prix.toFixed(3);
+    dropdown.style.display = 'none';
+    recalcLigne(puInput);
 }
+
+// Keep old function name for backward compat but not needed anymore
+function onArticleChange(select) { }
 
 function addLigne() {
     const tbody = document.getElementById('demandeLignesBody');
@@ -1871,7 +1907,7 @@ const AchatModule = {
     init, showPage, refreshCurrentPage,
     // Demandes
     editDemande, deleteDemande, openDemandeModal, createBCFromDA,
-    addLigne, removeLigne, recalcLigne, onArticleChange,
+    addLigne, removeLigne, recalcLigne, onArticleChange, onArticleSearch, selectArticle,
     // Commandes
     editCommande, deleteCommande, openCommandeModal,
     onDemandeChange, recalcCmdLigne, recalcCmdTotal,
