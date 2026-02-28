@@ -274,6 +274,17 @@ async function openModal(entryId = null) {
                     <input type="number" id="entryPrixLivraison" value="${entry?.prixLivraison || 0}" min="0" required onchange="EntriesModule.updateCalculations()">
                 </div>
                 <div class="form-group">
+                    <label for="entryTauxTVA">📊 Taux TVA</label>
+                    <select id="entryTauxTVA">
+                        <option value="0" ${(!entry?.tauxTVA || entry?.tauxTVA === 0) ? 'selected' : ''}>0%</option>
+                        <option value="7" ${entry?.tauxTVA === 7 ? 'selected' : ''}>7%</option>
+                        <option value="19" ${entry?.tauxTVA === 19 ? 'selected' : ''}>19%</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
                     <label for="entryRemarques">📝 Remarques</label>
                     <input type="text" id="entryRemarques" value="${entry?.remarques || ''}" placeholder="Ex: VIDANGE">
                 </div>
@@ -496,6 +507,7 @@ async function saveEntry() {
         prixGasoilLitre: parseFloat(document.getElementById('entryPrixGasoil').value) || 2,
         maintenance: parseFloat(document.getElementById('entryMaintenance').value) || 0,
         prixLivraison: parseFloat(document.getElementById('entryPrixLivraison').value) || 0,
+        tauxTVA: parseInt(document.getElementById('entryTauxTVA').value) || 0,
         remarques: document.getElementById('entryRemarques').value
     };
 
