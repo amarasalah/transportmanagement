@@ -142,20 +142,42 @@ async function openModal(orderId = null) {
                         ${lignes.map((l, i) => `
                             <tr data-article-id="${l.articleId || ''}">
                                 <td style="padding:6px;color:#f1f5f9">${l.designation || l.nom || ''}</td>
-                                <td style="padding:4px"><input type="number" class="bcv-pu" value="${l.prixUnitaire || 0}" step="0.001" onchange="SalesOrdersModule.recalcBCLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
-                                <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantite || 0}</td>
+                                <td style="padding:4px"><input type="number" class="bcv-pu" value="${l.prixUnitaire || 0}" step="0.001" onchange="SalesOrdersModule.recalcBCLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
+                                <td style="padding:4px"><input type="number" class="bcv-qte" value="${l.quantite || 0}" min="0" step="1" onchange="SalesOrdersModule.recalcBCLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
                                 <td style="padding:6px;text-align:right;font-weight:600;color:#10b981" class="bcv-total">${((l.prixUnitaire || 0) * (l.quantite || 0)).toFixed(3)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
                     <tfoot>
                         <tr style="border-top:2px solid rgba(148,163,184,0.2)">
-                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">Total:</td>
-                            <td style="padding:8px;text-align:right;font-weight:700;font-size:15px;color:#10b981" id="bcClientTotalGeneral">${lignes.reduce((s, l) => s + ((l.prixUnitaire || 0) * (l.quantite || 0)), 0).toFixed(3)} TND</td>
+                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">Total HT:</td>
+                            <td style="padding:8px;text-align:right;font-weight:700;font-size:15px" id="bcClientTotalGeneral">${lignes.reduce((s, l) => s + ((l.prixUnitaire || 0) * (l.quantite || 0)), 0).toFixed(3)} TND</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding:8px;text-align:right">Remise:</td>
+                            <td style="padding:8px;text-align:right">
+                                <input type="number" id="bcClientRemise" value="${order?.remise || 0}" min="0" max="100" step="0.5" onchange="SalesOrdersModule.recalcBCTotal()" style="width:70px;padding:2px 4px;border-radius:4px;border:1px solid rgba(148,163,184,0.3);background:rgba(30,41,59,0.8);color:#e2e8f0;text-align:right"> %
+                            </td>
+                            <td style="padding:8px;text-align:right;font-weight:600;color:#f97316" id="bcClientMontantRemise">0.000 TND</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding:8px;text-align:right">TVA:</td>
+                            <td style="padding:8px;text-align:right">
+                                <select id="bcClientTVA" onchange="SalesOrdersModule.recalcBCTotal()" style="width:70px;padding:2px 4px;border-radius:4px;border:1px solid rgba(148,163,184,0.3);background:rgba(30,41,59,0.8);color:#e2e8f0">
+                                    <option value="0" ${(!order?.tauxTVA || order?.tauxTVA === 0) ? 'selected' : ''}>0%</option>
+                                    <option value="7" ${order?.tauxTVA === 7 ? 'selected' : ''}>7%</option>
+                                    <option value="19" ${order?.tauxTVA === 19 ? 'selected' : ''}>19%</option>
+                                </select>
+                            </td>
+                            <td style="padding:8px;text-align:right;font-weight:600;color:#f59e0b" id="bcClientTotalTVA">0.000 TND</td>
+                        </tr>
+                        <tr style="border-top:1px solid rgba(148,163,184,0.2)">
+                            <td colspan="3" style="padding:8px;text-align:right;font-weight:700;color:#8b5cf6">Total TTC:</td>
+                            <td style="padding:8px;text-align:right;font-weight:700;color:#8b5cf6;font-size:15px" id="bcClientTotalTTC">0.000 TND</td>
                         </tr>
                     </tfoot>
                 </table>
-                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:13px">Sélectionnez un Devis pour charger les articles</div>' : ''}
+                ${lignes.length === 0 ? '<div style="color:#64748b;padding:20px;text-align:center;font-size:14px">Sélectionnez un Devis pour charger les articles</div>' : ''}
             </div>
         </form>
     `;
@@ -174,16 +196,20 @@ function onDevisChange() {
     document.getElementById('bcClientNom').value = client?.nom || '';
     document.getElementById('bcClientClientId').value = devis.clientId || '';
 
+    // Copy TVA from devis if available
+    const tvaSelect = document.getElementById('bcClientTVA');
+    if (tvaSelect && devis.tauxTVA) tvaSelect.value = devis.tauxTVA;
+
     // Fill lignes from Devis
     const lignes = devis.lignes || [];
     const tbody = document.getElementById('bcClientLignesBody');
     tbody.innerHTML = lignes.map(l => `
-        <tr data-article-id="${l.articleId || ''}">
+    < tr data - article - id="${l.articleId || ''}" >
             <td style="padding:6px;color:#f1f5f9">${l.designation || ''}</td>
-            <td style="padding:4px"><input type="number" class="bcv-pu" value="${l.prixUnitaire || 0}" step="0.001" onchange="SalesOrdersModule.recalcBCLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:13px"></td>
-            <td style="padding:6px;text-align:right;color:#94a3b8">${l.quantite || 0}</td>
+            <td style="padding:4px"><input type="number" class="bcv-pu" value="${l.prixUnitaire || 0}" step="0.001" onchange="SalesOrdersModule.recalcBCLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
+            <td style="padding:4px"><input type="number" class="bcv-qte" value="${l.quantite || 0}" min="0" step="1" onchange="SalesOrdersModule.recalcBCLigne(this)" style="width:100%;padding:6px;text-align:right;background:rgba(15,23,42,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:4px;color:#f1f5f9;font-size:14px"></td>
             <td style="padding:6px;text-align:right;font-weight:600;color:#10b981" class="bcv-total">${((l.prixUnitaire || 0) * (l.quantite || 0)).toFixed(3)}</td>
-        </tr>
+        </tr >
     `).join('');
     recalcBCTotal();
 }
@@ -191,17 +217,32 @@ function onDevisChange() {
 function recalcBCLigne(input) {
     const row = input.closest('tr');
     const pu = parseFloat(row.querySelector('.bcv-pu').value) || 0;
-    const qte = parseFloat(row.querySelector('td:nth-child(3)').textContent) || 0;
+    const qte = parseFloat(row.querySelector('.bcv-qte').value) || 0;
     row.querySelector('.bcv-total').textContent = (pu * qte).toFixed(3);
     recalcBCTotal();
 }
 
 function recalcBCTotal() {
     const totals = document.querySelectorAll('#bcClientLignesBody .bcv-total');
-    let grand = 0;
-    totals.forEach(t => grand += parseFloat(t.textContent) || 0);
-    const el = document.getElementById('bcClientTotalGeneral');
-    if (el) el.textContent = grand.toFixed(3) + ' TND';
+    let totalHT = 0;
+    totals.forEach(t => totalHT += parseFloat(t.textContent) || 0);
+
+    const remisePct = parseFloat(document.getElementById('bcClientRemise')?.value) || 0;
+    const montantRemise = totalHT * remisePct / 100;
+    const montantApresRemise = totalHT - montantRemise;
+
+    const tauxTVA = parseInt(document.getElementById('bcClientTVA')?.value) || 0;
+    const montantTVA = montantApresRemise * tauxTVA / 100;
+    const totalTTC = montantApresRemise + montantTVA;
+
+    const elHT = document.getElementById('bcClientTotalGeneral');
+    const elRemise = document.getElementById('bcClientMontantRemise');
+    const elTVA = document.getElementById('bcClientTotalTVA');
+    const elTTC = document.getElementById('bcClientTotalTTC');
+    if (elHT) elHT.textContent = totalHT.toFixed(3) + ' TND';
+    if (elRemise) elRemise.textContent = '-' + montantRemise.toFixed(3) + ' TND';
+    if (elTVA) elTVA.textContent = montantTVA.toFixed(3) + ' TND';
+    if (elTTC) elTTC.textContent = totalTTC.toFixed(3) + ' TND';
 }
 
 async function saveOrder() {
@@ -214,11 +255,19 @@ async function saveOrder() {
         const designation = row.querySelector('td:first-child').textContent.trim();
         const articleId = row.dataset.articleId || null;
         const pu = parseFloat(row.querySelector('.bcv-pu')?.value) || 0;
-        const qte = parseFloat(row.querySelector('td:nth-child(3)').textContent) || 0;
+        const qte = parseFloat(row.querySelector('.bcv-qte')?.value) || 0;
         return { designation, nom: designation, articleId, prixUnitaire: pu, quantite: qte, prixTotal: pu * qte };
     });
 
     if (lignes.length === 0) { alert('Aucun article'); return; }
+
+    const montantHT = lignes.reduce((s, l) => s + l.prixTotal, 0);
+    const remise = parseFloat(document.getElementById('bcClientRemise')?.value) || 0;
+    const montantRemise = montantHT * remise / 100;
+    const montantApresRemise = montantHT - montantRemise;
+    const tauxTVA = parseInt(document.getElementById('bcClientTVA')?.value) || 0;
+    const montantTVA = montantApresRemise * tauxTVA / 100;
+    const montantTTC = montantApresRemise + montantTVA;
 
     const order = {
         id: document.getElementById('bcClientId').value || null,
@@ -230,7 +279,13 @@ async function saveOrder() {
         devisNumero: devis?.numero || '',
         clientId: document.getElementById('bcClientClientId').value,
         lignes: lignes,
-        montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
+        montantHT: montantHT,
+        remise: remise,
+        montantRemise: montantRemise,
+        tauxTVA: tauxTVA,
+        montantTVA: montantTVA,
+        montantTotal: montantTTC,
+        montantTTC: montantTTC,
         statut: 'En cours',
         type: 'vente'
     };
@@ -238,7 +293,7 @@ async function saveOrder() {
     if (!order.clientId) { alert('Sélectionnez un client'); return; }
 
     try {
-        const id = order.id || `bcv_${Date.now()}`;
+        const id = order.id || `bcv_${Date.now()} `;
         order.id = id;
         order.updatedAt = new Date().toISOString();
         if (!document.getElementById('bcClientId').value) order.createdAt = new Date().toISOString();
@@ -266,7 +321,7 @@ async function transformToBL(orderId) {
     const order = getOrderById(orderId);
     if (!order) return;
     if (order.statut === 'Livré') { alert('Ce BC est déjà transformé en BL'); return; }
-    if (!confirm(`Transformer le BC ${order.numero} en Bon de Livraison Client ?`)) return;
+    if (!confirm(`Transformer le BC ${order.numero} en Bon de Livraison Client ? `)) return;
 
     const lignes = (order.lignes || []).map(l => ({
         nom: l.designation || l.nom || '',
@@ -278,6 +333,13 @@ async function transformToBL(orderId) {
     }));
 
     const blNumero = await getNextNumber('BLV');
+    const montantHT = lignes.reduce((s, l) => s + l.prixTotal, 0);
+    const tauxTVA = order.tauxTVA || 0;
+    const remise = order.remise || 0;
+    const montantRemise = montantHT * remise / 100;
+    const montantApresRemise = montantHT - montantRemise;
+    const montantTVA = montantApresRemise * tauxTVA / 100;
+    const montantTTC = montantApresRemise + montantTVA;
     const blData = {
         id: `blv_${Date.now()}`,
         numero: blNumero,
@@ -286,7 +348,13 @@ async function transformToBL(orderId) {
         commandeNumero: order.numero,
         clientId: order.clientId,
         lignes: lignes,
-        montantTotal: lignes.reduce((s, l) => s + l.prixTotal, 0),
+        montantHT: montantHT,
+        remise: remise,
+        montantRemise: montantRemise,
+        tauxTVA: tauxTVA,
+        montantTVA: montantTVA,
+        montantTotal: montantTTC,
+        montantTTC: montantTTC,
         statut: 'Livré',
         updatedAt: new Date().toISOString()
     };
@@ -330,7 +398,7 @@ async function transformToBL(orderId) {
         order.statut = 'Livré';
         await setDoc(doc(db, COLLECTIONS.bonCommandesVente, order.id), { ...order, updatedAt: new Date().toISOString() });
 
-        alert(`✅ BL Vente ${blData.numero} créé avec succès !\nStock mis à jour.`);
+        alert(`✅ BL Vente ${blData.numero} créé avec succès!\nStock mis à jour.`);
         await refresh();
     } catch (err) {
         console.error('Erreur transformation BC → BL Vente:', err);
@@ -351,6 +419,6 @@ async function remove(id) {
 
 export const SalesOrdersModule = {
     init, refresh, getOrders, getOrderById, edit, remove,
-    onDevisChange, recalcBCLigne, transformToBL
+    onDevisChange, recalcBCLigne, recalcBCTotal, transformToBL
 };
 window.SalesOrdersModule = SalesOrdersModule;

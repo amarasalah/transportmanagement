@@ -626,7 +626,9 @@ function calculateEntryCosts(entry, truck, isFirstTripOfDay = true) {
     }
 
     const coutTotal = montantGasoil + chargesFixes + montantAssurance + montantTaxe + maintenance + chargePersonnel + fraisLeasing;
-    const resultat = (entry.prixLivraison || 0) - coutTotal;
+    const tauxTVA = entry.tauxTVA || 0;
+    const prixLivraisonTTC = (entry.prixLivraison || 0) + ((entry.prixLivraison || 0) * tauxTVA / 100);
+    const resultat = prixLivraisonTTC - coutTotal;
 
     return { montantGasoil, coutTotal, resultat };
 }

@@ -441,8 +441,9 @@ async function renderPlannings(selectedDate) {
         const isFirst = isFirstTripForTruckOnDay(plan.camionId, plan.date, plan.id);
         const truckCharges = (truck && isFirst) ? ((truck.chargesFixes || 0) + (truck.montantAssurance || 0) + (truck.montantTaxe || 0) + (truck.chargePersonnel || 0) + (truck.fraisLeasing || 0)) : 0;
         const maintenanceCost = isFirst ? (plan.maintenance || 0) : 0;
+        const prixLivraisonTTC = plan.prixLivraisonTTC || plan.prixLivraison || 0;
         const coutTotal = (plan.montantGasoil || 0) + maintenanceCost + truckCharges;
-        const resultat = (plan.prixLivraison || 0) - coutTotal;
+        const resultat = prixLivraisonTTC - coutTotal;
         const resultClass = resultat >= 0 ? 'result-positive' : 'result-negative';
 
         const heureDisplay = plan.heure ? ` <span style="color:#8b5cf6;font-weight:600">${plan.heure}</span>` : '';
@@ -456,7 +457,7 @@ async function renderPlannings(selectedDate) {
             <td>${plan.kilometrage || 0} km</td>
             <td>${plan.quantiteGasoil || 0} L</td>
             <td>${coutTotal.toLocaleString('fr-FR')} TND</td>
-            <td>${(plan.prixLivraison || 0).toLocaleString('fr-FR')} TND</td>
+            <td>${prixLivraisonTTC.toLocaleString('fr-FR')} TND${plan.tauxTVA ? ' <small style="color:#f59e0b">(' + plan.tauxTVA + '% TVA)</small>' : ''}</td>
             <td class="${resultClass}">${resultat.toLocaleString('fr-FR')} TND</td>
             <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             <td>

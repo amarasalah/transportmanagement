@@ -275,7 +275,7 @@ async function openModal(entryId = null) {
                 </div>
                 <div class="form-group">
                     <label for="entryTauxTVA">📊 Taux TVA</label>
-                    <select id="entryTauxTVA">
+                    <select id="entryTauxTVA" onchange="EntriesModule.updateCalculations()">
                         <option value="0" ${(!entry?.tauxTVA || entry?.tauxTVA === 0) ? 'selected' : ''}>0%</option>
                         <option value="7" ${entry?.tauxTVA === 7 ? 'selected' : ''}>7%</option>
                         <option value="19" ${entry?.tauxTVA === 19 ? 'selected' : ''}>19%</option>
@@ -456,6 +456,7 @@ function updateCalculations() {
     const prixGasoil = parseFloat(document.getElementById('entryPrixGasoil')?.value) || 0;
     const maintenance = parseFloat(document.getElementById('entryMaintenance')?.value) || 0;
     const prixLivraison = parseFloat(document.getElementById('entryPrixLivraison')?.value) || 0;
+    const tauxTVA = parseInt(document.getElementById('entryTauxTVA')?.value) || 0;
 
     const montantGasoil = gasoil * prixGasoil;
     let coutTotal = montantGasoil + maintenance;
@@ -464,7 +465,9 @@ function updateCalculations() {
         coutTotal += truck.chargesFixes + truck.montantAssurance + truck.montantTaxe + truck.chargePersonnel + (truck.fraisLeasing || 0);
     }
 
-    const resultat = prixLivraison - coutTotal;
+    const montantTVA = prixLivraison * tauxTVA / 100;
+    const prixLivraisonTTC = prixLivraison + montantTVA;
+    const resultat = prixLivraisonTTC - coutTotal;
 
     const calcGasoil = document.getElementById('calcGasoil');
     const calcCout = document.getElementById('calcCout');
@@ -473,7 +476,7 @@ function updateCalculations() {
     if (calcGasoil) calcGasoil.value = `${montantGasoil.toLocaleString('fr-FR')} TND`;
     if (calcCout) calcCout.value = `${coutTotal.toLocaleString('fr-FR')} TND`;
     if (calcResultat) {
-        calcResultat.value = `${resultat.toLocaleString('fr-FR')} TND`;
+        calcResultat.value = `${resultat.toLocaleString('fr-FR')} TND` + (tauxTVA > 0 ? ` (TTC: ${prixLivraisonTTC.toLocaleString('fr-FR')})` : '');
         calcResultat.style.color = resultat >= 0 ? '#10b981' : '#ef4444';
     }
 }
@@ -488,8 +491,14 @@ async function saveEntry() {
     // Calculate distance from gouvernorat/delegation
     const distanceAller = getDistanceEstimate(origineGouvernorat, origineDelegation, gouvernorat, delegation);
     const destLabel = delegation ? `${delegation}, ${gouvernorat}` : gouvernorat;
+
+    // When editing, preserve existing fields (source, createdAt, photos, etc.)
+    const entryId = document.getElementById('entryId').value || null;
+    const existingEntry = entryId ? DataModule.getCachedEntries().find(e => e.id === entryId) : null;
+
     const entry = {
-        id: document.getElementById('entryId').value || null,
+        ...(existingEntry || {}),
+        id: entryId,
         date: document.getElementById('entryDate').value,
         camionId: document.getElementById('entryCamion').value,
         chauffeurId: document.getElementById('entryChauffeur').value,
