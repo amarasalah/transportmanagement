@@ -652,17 +652,23 @@ async function generateIdleDayEntries(fromDate, toDate) {
         if (e.camionId && e.date) existingSet.add(`${e.camionId}_${e.date}`);
     });
 
-    // Enumerate each date in range
-    const start = new Date(fromDate + 'T00:00:00');
-    const end = new Date(toDate + 'T00:00:00');
+    // Enumerate each date in range (all in LOCAL time to avoid UTC timezone shift!)
+    const start = new Date(fromDate + 'T12:00:00'); // Use noon to completely avoid any timezone-day-boundary issues
+    const end = new Date(toDate + 'T12:00:00');
     let created = 0;
 
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
+        // IMPORTANT: Use local date parts, NOT toISOString() which converts to UTC!
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
 
         // Skip Sundays — idle entries should NOT be auto-generated on Sundays
-        // Entries on Sundays are only created when there is a planification
+        // Belt-and-suspenders: check BOTH the Date object AND the parsed string
         if (d.getDay() === 0) continue;
+        const [py, pm, pd] = dateStr.split('-').map(Number);
+        if (new Date(py, pm - 1, pd).getDay() === 0) continue;
 
         for (const truck of trucks) {
             const key = `${truck.id}_${dateStr}`;
@@ -714,6 +720,8 @@ async function generateIdleDayEntries(fromDate, toDate) {
  * Sundays should only have entries from planification.
  */
 async function cleanupSundayIdleEntries() {
+    // Force fresh fetch from Firestore, not cache
+    if (cache.entries) cache.entries = null;
     const entries = await getEntries();
     const sundayIdles = entries.filter(e => {
         if (e.source !== 'idle_day' || !e.date) return false;

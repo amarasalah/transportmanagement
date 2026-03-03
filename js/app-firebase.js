@@ -98,22 +98,24 @@ async function init() {
         };
 
         // ========== SUNDAY CLEANUP: Remove any idle_day entries on Sundays ==========
-        DataModule.cleanupSundayIdleEntries().then(count => {
-            if (count > 0) {
-                console.log(`🗑️ ${count} Sunday idle entries cleaned. Refreshing...`);
-                refreshCurrentPage();
+        // MUST complete before generating new idle entries to avoid race condition
+        try {
+            const cleanedCount = await DataModule.cleanupSundayIdleEntries();
+            if (cleanedCount > 0) {
+                console.log(`🗑️ ${cleanedCount} Sunday idle entries cleaned. Refreshing...`);
+                await refreshCurrentPage();
             }
-        }).catch(err => console.error('Sunday cleanup error:', err));
+        } catch (err) { console.error('Sunday cleanup error:', err); }
 
         // ========== IDLE DAY CHARGES: Auto-generate for missing days ==========
-        // Generate from Feb 1st through tomorrow (inclusive)
+        // Only runs AFTER Sunday cleanup is complete
         const today = new Date();
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
         const fromDate = '2026-02-01';
-        const toDate = tomorrow.toISOString().split('T')[0];
+        const toDateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
         // Run in background to avoid blocking the UI
-        DataModule.generateIdleDayEntries(fromDate, toDate).then(count => {
+        DataModule.generateIdleDayEntries(fromDate, toDateStr).then(count => {
             if (count > 0) {
                 console.log(`🚫 ${count} idle entries generated. Refreshing current page...`);
                 refreshCurrentPage();
