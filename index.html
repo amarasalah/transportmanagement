@@ -576,8 +576,14 @@
                     <input type="date" id="reportDateStart" style="min-width:140px" title="Date début">
                     <input type="date" id="reportDateEnd" style="min-width:140px" title="Date fin">
                     <button class="btn btn-primary" id="reportFilterBtn" style="padding:8px 16px">🔍 Filtrer</button>
+                    <button class="btn" id="reportExportPDFBtn"
+                        style="padding:8px 16px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">📄
+                        Exporter PDF</button>
                 </div>
             </div>
+
+            <!-- Transport KPI Cards -->
+            <div id="transportKPIContainer"></div>
 
             <!-- ERP Summary KPIs -->
             <div id="erpSummaryContainer"></div>
@@ -592,12 +598,18 @@
                         <thead>
                             <tr>
                                 <th>Camion</th>
-                                <th>Total Km</th>
-                                <th>Total Gasoil</th>
-                                <th>Coût Gasoil</th>
+                                <th>Chauffeur(s)</th>
+                                <th>Km</th>
+                                <th>⛽ Gasoil</th>
+                                <th>🏦 Leasing</th>
+                                <th>🛡️ Assur.</th>
+                                <th>📋 Taxes</th>
+                                <th>👷 Pers.</th>
+                                <th>🔧 Maint.</th>
                                 <th>Total Coûts</th>
-                                <th>Total Livraisons</th>
+                                <th>Revenu TTC</th>
                                 <th>Résultat</th>
+                                <th>Destinations</th>
                             </tr>
                         </thead>
                         <tbody id="monthlyBody"></tbody>
@@ -605,6 +617,9 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Driver Costs Distribution -->
+            <div id="driverCostsContainer"></div>
         </section>
 
 

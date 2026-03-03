@@ -660,6 +660,10 @@ async function generateIdleDayEntries(fromDate, toDate) {
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split('T')[0];
 
+        // Skip Sundays — idle entries should NOT be auto-generated on Sundays
+        // Entries on Sundays are only created when there is a planification
+        if (d.getDay() === 0) continue;
+
         for (const truck of trucks) {
             const key = `${truck.id}_${dateStr}`;
             if (existingSet.has(key)) continue; // truck already has an entry (trip or idle)
@@ -702,6 +706,38 @@ async function generateIdleDayEntries(fromDate, toDate) {
         console.log(`🚫 ${created} entrées idle_day créées (${fromDate} → ${toDate})`);
     }
     return created;
+}
+
+// ==================== SUNDAY IDLE CLEANUP ====================
+/**
+ * Delete all existing idle_day entries that fall on Sundays.
+ * Sundays should only have entries from planification.
+ */
+async function cleanupSundayIdleEntries() {
+    const entries = await getEntries();
+    const sundayIdles = entries.filter(e => {
+        if (e.source !== 'idle_day' || !e.date) return false;
+        const [y, m, d] = e.date.split('-').map(Number);
+        return new Date(y, m - 1, d).getDay() === 0;
+    });
+    if (sundayIdles.length === 0) return 0;
+
+    let deleted = 0;
+    for (const entry of sundayIdles) {
+        try {
+            await deleteDoc(doc(db, COLLECTIONS.entries, entry.id));
+            if (cache.entries) {
+                cache.entries = cache.entries.filter(e => e.id !== entry.id);
+            }
+            deleted++;
+        } catch (err) {
+            console.error(`Error deleting Sunday idle entry ${entry.id}:`, err);
+        }
+    }
+    if (deleted > 0) {
+        console.log(`🗑️ ${deleted} Sunday idle entries deleted`);
+    }
+    return deleted;
 }
 
 // ==================== EXPORT/IMPORT ====================
@@ -812,6 +848,7 @@ export const DataModule = {
     calculateEntryCosts,
     // Idle Day
     generateIdleDayEntries,
+    cleanupSundayIdleEntries,
     // Export/Import
     exportData,
     importData,

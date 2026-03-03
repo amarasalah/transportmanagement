@@ -97,6 +97,14 @@ async function init() {
             setTimeout(() => MessengerModule.openConversation(convId), 300);
         };
 
+        // ========== SUNDAY CLEANUP: Remove any idle_day entries on Sundays ==========
+        DataModule.cleanupSundayIdleEntries().then(count => {
+            if (count > 0) {
+                console.log(`🗑️ ${count} Sunday idle entries cleaned. Refreshing...`);
+                refreshCurrentPage();
+            }
+        }).catch(err => console.error('Sunday cleanup error:', err));
+
         // ========== IDLE DAY CHARGES: Auto-generate for missing days ==========
         // Generate from Feb 1st through tomorrow (inclusive)
         const today = new Date();
